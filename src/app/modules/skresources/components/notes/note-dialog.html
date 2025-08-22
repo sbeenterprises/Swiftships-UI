@@ -1,0 +1,253 @@
+<style>
+  .ap-confirm-icon {
+    min-width: 35px;
+    max-width: 35px;
+    text-align: left;
+  }
+
+  .mat-form-field {
+    width: 100%;
+  }
+  .nosmall {
+    display: none;
+  }
+  :host ::ng-deep .ck.ck-editor__main > .ck-editor__editable {
+    color: black;
+  }
+  @media only screen and (min-width: 600px) {
+    .ap-confirm-icon {
+      min-width: 25%;
+      max-width: 25%;
+    }
+
+    .nosmall {
+      display: flex;
+    }
+    .nosmall.block {
+      display: block;
+    }
+
+    .note-details {
+      min-width: 400px;
+    }
+  }
+</style>
+
+@if(!data.editable) {
+<div class="note-details">
+  <mat-toolbar style="background-color: transparent">
+    <span class="dialog-icon">
+      <mat-icon [class]="icon.class" [svgIcon]="icon.svgIcon"
+        >{{icon.name}}</mat-icon
+      >
+    </span>
+    <span style="flex: 1 1 auto; text-align: center">Note Details</span>
+    <span style="text-align: right">
+      <button mat-icon-button (click)="dialogRef.close({result:false})">
+        <mat-icon>close</mat-icon>
+      </button>
+    </span>
+  </mat-toolbar>
+  <mat-dialog-content>
+    <mat-card appearance="outlined">
+      <mat-card-content>
+        @if(data.note.properties.draft) {
+        <p class="draft-watermark">Draft</p>
+        }
+        <div style="display: flex; flex-direction: column">
+          <div style="padding-bottom: 5px; display: flex">
+            <div style="font-weight: bold; vertical-align: top">Name:</div>
+            <div style="padding-left: 10px">{{data.note?.name}}</div>
+          </div>
+          @if(data.note.group) {
+          <div style="padding-bottom: 5px; display: flex">
+            <div style="font-weight: bold; vertical-align: top">Group:</div>
+            <div style="padding-left: 10px; flex: 1 1 auto">
+              {{data.note?.group}}
+            </div>
+            @if(data.note.group && app.config.resources.notes.groupNameEdit) {
+            <div>
+              <button
+                mat-button
+                (click)="dialogRef.close({result:true, data: 'group', value: data.note.group})"
+                matTooltip="View Group Notes"
+              >
+                <mat-icon>style</mat-icon>
+              </button>
+            </div>
+            }
+          </div>
+          }
+          <div style="flex: 1 1 auto; padding: 5px 0 5px 0">
+            <div style="font-weight: bold; vertical-align: top">
+              Description:
+            </div>
+            <div
+              class="note-description"
+              style="overflow-y: auto; height: 150px"
+              target="notelink"
+              [innerHTML]="data.note.description | addTarget: '_notes'"
+            ></div>
+          </div>
+        </div>
+      </mat-card-content>
+      @if(data.note.url || !data.note.properties.readOnly){
+      <mat-card-actions>
+        <div style="display: flex; width: 100%">
+          <div>
+            @if(data.note.url) {
+            <button
+              mat-icon-button
+              (click)="openNoteUrl()"
+              matTooltip="Open Note link in browser window"
+            >
+              <mat-icon>open_in_new</mat-icon>
+            </button>
+            &nbsp; } @if(!data.note.properties.readOnly) {
+            <button
+              mat-icon-button
+              (click)="dialogRef.close({result:true, data: 'edit'})"
+              matTooltip="Edit Note"
+            >
+              <mat-icon>edit</mat-icon>
+            </button>
+            &nbsp;
+            <button
+              mat-icon-button
+              (click)="dialogRef.close({result:true, data: 'delete'})"
+              matTooltip="Delete Note"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+            }
+          </div>
+          @if(data.note.position) {
+          <div
+            class="nosmall block"
+            style="flex: 1; font-size: 10pt; padding: 0 0 0 10px"
+          >
+            <span style="font-weight: bold">Lat:</span>&nbsp;
+            {{data.note?.position?.latitude | coords :
+            app.config.selections.positionFormat : true}}
+
+            <br />
+            <span>
+              <span style="font-weight: bold">Lon:</span>&nbsp;
+              {{data.note?.position?.longitude | coords :
+              app.config.selections.positionFormat : false}}
+            </span>
+          </div>
+          }
+        </div>
+      </mat-card-actions>
+      }
+    </mat-card>
+  </mat-dialog-content>
+</div>
+} @else {
+<div>
+  <mat-toolbar style="background-color: transparent">
+    <span style="flex: 1 1 auto; text-align: center"
+      >{{(!data.title) ? (data.addMode) ? 'New Note' : 'Edit Note' :
+      data.title}}</span
+    >
+  </mat-toolbar>
+  <mat-dialog-content>
+    <div class="note-details" style="display: flex">
+      <div style="flex: 1 1 auto">
+        <div>
+          <mat-form-field floatLabel="always" style="width: 100%">
+            <mat-label>Note name</mat-label>
+            <input
+              matInput
+              #inptitle="ngModel"
+              type="text"
+              required
+              [disabled]="false"
+              [(ngModel)]="data.note.name"
+            />
+            @if(inptitle.invalid && (inptitle.dirty || inptitle.touched)) {
+            <mat-error> Please enter a title for the note </mat-error>
+            }
+          </mat-form-field>
+        </div>
+        @if(app.config.resources.notes.groupNameEdit) {
+        <div>
+          <mat-form-field floatLabel="always">
+            <mat-label>Group Name</mat-label>
+            <input
+              matInput
+              #inpgroup="ngModel"
+              type="text"
+              [(ngModel)]="data.note.group"
+            />
+          </mat-form-field>
+        </div>
+        }
+        <div class="note-editor">
+          @defer{
+          <angular-editor
+            height
+            [config]="editorConfig"
+            [placeholder]="'Add note text here.'"
+            [(ngModel)]="data.note.description"
+          >
+          </angular-editor>
+          }
+        </div>
+
+        <div>
+          <mat-form-field floatLabel="always" style="width: 100%">
+            <mat-label>Link to additional content</mat-label>
+            <input
+              type="text"
+              matInput
+              placeholder="URL"
+              [(ngModel)]="data.note.url"
+            />
+          </mat-form-field>
+        </div>
+        <div>
+          <mat-slide-toggle
+            labelPosition="before"
+            [hideIcon]="true"
+            [checked]="data.note.properties.draft"
+            (change)="data.note.properties.draft=$event.checked;"
+          >
+            Draft:
+          </mat-slide-toggle>
+        </div>
+        @if(data.position) {
+        <div style="font-size: 10pt">
+          <div style="display: flex">
+            <div style="width: 45px; font-weight: bold">Lat:</div>
+            <div style="flex: 1 1 auto">{{data.note.position.latitude}}</div>
+          </div>
+          <div style="display: flex">
+            <div style="width: 45px; font-weight: bold">Lon:</div>
+            <div style="flex: 1 1 auto">{{data.note.position.longitude}}</div>
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+  </mat-dialog-content>
+  <mat-dialog-actions>
+    <div style="text-align: center; width: 100%">
+      <button
+        mat-raised-button
+        [disabled]="inptitle.invalid"
+        (click)="dialogRef.close({result:true, data: data.note, action: 'save'})"
+      >
+        SAVE
+      </button>
+      <button
+        mat-raised-button
+        (click)="dialogRef.close({result:false, data: null})"
+      >
+        CANCEL
+      </button>
+    </div>
+  </mat-dialog-actions>
+</div>
+}

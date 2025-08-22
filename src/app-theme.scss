@@ -1,0 +1,246 @@
+@use '@angular/material' as mat;
+
+// Include non-theme styles for core.
+@include mat.elevation-classes();
+@include mat.app-background();
+
+$light-theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: mat.$azure-palette,
+    tertiary: mat.$blue-palette
+  ),
+  typography: (
+    brand-family: 'Roboto',
+    bold-weight: 500
+  ),
+  density: (
+    scale: -1
+  )
+));
+
+$dark-theme: mat.define-theme((
+  color: (
+    theme-type: dark,
+    primary: mat.$red-palette,
+    tertiary: mat.$orange-palette
+  ),
+  typography: (
+    brand-family: 'Roboto',
+    bold-weight: 500
+  ),
+  density: (
+    scale: -1
+  )
+));
+
+
+html {
+    @include mat.elevation-classes();
+    @include mat.app-background();
+    @include mat.all-component-themes($light-theme);
+
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #888;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+
+    .popover-title {
+        border-bottom: 1px solid silver;
+    }   
+
+    .popover > .arrow:after {
+        border-color: transparent;
+    }
+
+    .popover.top > .arrow {
+        border-top-color: mat.get-theme-color($light-theme, surface);
+    }   
+
+    .popover.top > .arrow:after {
+        border-top-color: mat.get-theme-color($light-theme, surface);
+    }
+
+    .bg-primary {
+        background-color: mat.get-theme-color($light-theme, primary) !important;
+        color: mat.get-theme-color($light-theme, on-primary) !important;
+    }
+    .bg-primary .mat-icon {
+        color: mat.get-theme-color($light-theme, on-primary) !important;
+    }
+    .bg-tertiary {
+        background-color: mat.get-theme-color($light-theme, tertiary) !important;
+        color: mat.get-theme-color($light-theme, on-tertiary) !important;
+    }
+    .bg-tertiary .mat-icon {
+        color: mat.get-theme-color($light-theme, on-tertiary) !important;
+    }
+
+    .icon-note {
+        color: unset;
+    }
+    .icon-region {
+        color: purple !important;
+    }
+    .icon-route {
+        color: green !important;
+        stroke: green !important;
+    }
+    .icon-waypoint,
+    .icon-accent {
+        color: orange !important;
+    }
+    .icon-primary {
+        color: mat.get-theme-color($light-theme, primary) !important;
+    }
+    .icon-track,
+    .icon-warn {
+        color: red !important;
+    }
+
+    .ob path {
+        stroke: mat.get-theme-color($light-theme, on-surface) !important;
+        fill: mat.get-theme-color($light-theme, on-surface) !important;
+    }
+    
+    .button-primary {
+        background-color: mat.get-theme-color($light-theme, primary) !important;
+        color: white !important;
+    }
+    .button-secondary {
+        background-color: mat.get-theme-color($light-theme, secondary) !important;
+        color: white !important;
+    }
+    .button-tertiary {
+        background-color: mat.get-theme-color($light-theme, tertiary) !important;
+        color: white !important;
+    }
+    .button-error,
+    .button-warn {
+        background-color: rgb(230,0,0) !important;
+        color: white !important;
+    }
+    .button-primary .ob path,
+    .button-secondary .ob path,
+    .button-tertiary .ob path,
+    .button-error .ob path,
+    .button-warn .ob path {
+        stroke: white !important;
+        fill: white !important;
+    }
+    .button-accent {
+        background-color: orange!important;
+        color: black !important;
+    }
+    .button-toolbar {
+        background-color: #e0e0ff !important;
+        color: black !important;
+
+    }
+    .button-accent .ob path,
+    .button-toolbar .ob path {
+        stroke: black !important;
+        fill: black !important;
+    }
+
+    .about-row .item a,
+    .welcome a {
+        color: mat.get-theme-color($light-theme, tertiary);
+    }
+    .welcome .step-current {
+        color: mat.get-theme-color($light-theme, tertiary);
+    }
+    .welcome .step-other {
+        color: mat.get-theme-color($light-theme, secondary);
+    }
+
+    .note-description a {
+        color: mat.get-theme-color($light-theme, primary);
+    }
+
+
+  //@media (prefers-color-scheme: dark) {
+  .dark-theme {
+    @include mat.all-component-colors($dark-theme);
+    @include mat.color-variants-backwards-compatibility($dark-theme);
+
+    ::-webkit-scrollbar-track {
+        background: rgba(0,0,0,.5);
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
+    .popover.top > .arrow {
+        border-top-color: mat.get-theme-color($dark-theme, surface);
+    }
+    
+    .popover.top > .arrow:after {
+        border-top-color: mat.get-theme-color($dark-theme, surface);
+    }
+
+    .title-bar-bg {
+        background-color: mat.get-theme-color($dark-theme, tertiary) !important;
+        color: mat.get-theme-color($dark-theme, on-tertiary) !important;
+    }
+
+    .bg-primary {
+        background-color: mat.get-theme-color($dark-theme, primary) !important;
+        color: mat.get-theme-color($dark-theme, on-primary) !important;
+    }
+    .bg-primary .mat-icon {
+        color: mat.get-theme-color($dark-theme, on-primary) !important;
+    }
+    .bg-tertiary {
+        background-color: mat.get-theme-color($dark-theme, tertiary) !important;
+        color: mat.get-theme-color($dark-theme, on-tertiary) !important;
+    }
+    .bg-tertiary .mat-icon {
+        color: mat.get-theme-color($dark-theme, on-tertiary) !important;
+    }
+    .about-row .item a,
+    .welcome a {
+        color: mat.get-theme-color($dark-theme, tertiary);
+    }
+    .welcome .step-current {
+        color: mat.get-theme-color($dark-theme, tertiary);
+    }
+    .welcome .step-other {
+        color: mat.get-theme-color($dark-theme, secondary);
+    }
+    .note-description a {
+        color: mat.get-theme-color($dark-theme, primary);
+    }
+
+    .ob path {
+        stroke: mat.get-theme-color($dark-theme, on-surface) !important;
+        fill: mat.get-theme-color($dark-theme, on-surface) !important;
+    }
+    .button-primary .ob path,
+    .button-secondary .ob path,
+    .button-tertiary .ob path,
+    .button-error .ob path,
+    .button-warn .ob path {
+        stroke: white !important;
+        fill: white !important;
+    }
+    .button-accent .ob path,
+    .button-toolbar .ob path  {
+        stroke: black !important;
+        fill: black !important;
+    }
+  }
+}

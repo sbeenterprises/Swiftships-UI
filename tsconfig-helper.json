@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./plugin",
+    "types": [],
+    "resolveJsonModule": true,
+    "sourceMap": false,
+    "module": "commonjs",
+    "moduleResolution": "node"
+  },
+  "include": ["helper/**/*", "helper/openApi.json"],
+  "exclude": ["src","projects"]
+}

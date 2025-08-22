@@ -1,0 +1,17 @@
+.draft-watermark {
+    color:lightgrey;
+    font-size:120px;
+    transform:rotate(300deg);
+    -webkit-transform:rotate(300deg);
+    position: absolute;
+    z-index: 0;
+    left: 25%;
+    bottom: 0;
+    opacity: .4;   
+}
+
+
+:host ::ng-deep .angular-editor-textarea b {
+    font-weight: bold;
+}
+

@@ -1,0 +1,49 @@
+
+.mapButton {
+    position: fixed;
+    z-index: 4000;
+}
+
+.control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin: 20px;
+}
+
+.ol-mouse-position {
+    width: 100%;
+    top: unset;
+    bottom: 10px; 
+    left: unset; 
+    right:unset; 
+    text-align: center;
+    color: rgb(30,30,30);
+    font-family: roboto; 
+}
+
+.ol-zoom {
+    position: fixed; 
+    top:10px; 
+    left:60px; 
+    color: rgb(30,30,30);
+    font-family:roboto; 
+    background-color: transparent;  
+    height: 45px;
+}
+
+.nosmall {
+    display: block;
+} 
+
+@media only screen and (max-width: 650px) { 
+}
+
+@media only screen and (max-width: 400px) { 
+    .nosmall {
+        display: none;
+    }
+    .ol-mouse-position {
+        bottom: 2px;
+    }
+}
