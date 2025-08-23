@@ -356,6 +356,19 @@ export class AppComponent {
     this.focusMap();
   }
 
+  protected toggleRadarDisplay() {
+    this.app.config.selections.radarControl = !this.app.config.selections.radarControl;
+    this.app.saveConfig();
+    this.app.showMessage(
+      this.app.config.selections.radarControl
+        ? 'Radar Display Enabled'
+        : 'Radar Display Disabled',
+      false,
+      3000
+    );
+    this.focusMap();
+  }
+
   protected toggleToolbarButtons() {
     this.app.uiConfig.update((current) => {
       return Object.assign({}, current, {

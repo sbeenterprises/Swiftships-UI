@@ -488,6 +488,24 @@
             </div>
             <div class="buttonPanelItem">
               <button
+                mat-mini-fab
+                [ngClass]="{
+                  'button-primary': app.config.selections.radarControl,
+                  'button-toolbar': !app.config.selections.radarControl
+                }"
+                (click)="toggleRadarDisplay()"
+                [matTooltip]="
+                  app.config.selections.radarControl
+                    ? 'Hide Radar Display'
+                    : 'Show Radar Display'
+                "
+                matTooltipPosition="right"
+              >
+                <mat-icon>track_changes</mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
+              <button
                 class="button-toolbar"
                 mat-mini-fab
                 [disabled]="isInteracting"
