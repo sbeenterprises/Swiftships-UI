@@ -234,6 +234,11 @@ export class AppComponent {
     // ** connect to signalk server and intialise
     this.connectSignalKServer();
 
+    // ** connect to MOOS-IvP server if enabled
+    if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
+      this.connectMoosIvPServer();
+    }
+
     // ********************* SUBSCRIPTIONS *****************
     // ** SIGNAL K STREAM **
     this.obsList.push(
@@ -295,6 +300,7 @@ export class AppComponent {
     this.stopTimers();
     this.stream.terminate();
     this.signalk.disconnect();
+    this.disconnectMoosIvPServer();
     this.obsList.forEach((i) => i.unsubscribe());
   }
 
@@ -610,6 +616,148 @@ export class AppComponent {
       );
   }
 
+  /** establish connection to MOOS-IvP server */
+  private connectMoosIvPServer() {
+    if (this.app.data.connectionState.moosIvP.connecting) {
+      return; // already connecting
+    }
+
+    this.app.data.connectionState.moosIvP.connecting = true;
+    this.app.data.connectionState.moosIvP.lastAttempt = Date.now();
+    
+    const wsUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
+    this.app.data.moosIvPServer.url = wsUrl;
+
+    try {
+      const socket = new WebSocket(wsUrl);
+      this.app.data.moosIvPServer.socket = socket;
+
+      socket.onopen = () => {
+        this.app.debug('MOOS-IvP WebSocket connection opened');
+        this.app.data.moosIvPServer.connected = true;
+        this.app.data.connectionState.moosIvP.connected = true;
+        this.app.data.connectionState.moosIvP.connecting = false;
+        this.app.showMessage('MOOS-IvP connection established', false, 3000);
+      };
+
+      socket.onmessage = (event) => {
+        this.handleMoosIvPMessage(event.data);
+      };
+
+      socket.onclose = (event) => {
+        this.app.debug('MOOS-IvP WebSocket connection closed', event);
+        this.app.data.moosIvPServer.connected = false;
+        this.app.data.connectionState.moosIvP.connected = false;
+        this.app.data.connectionState.moosIvP.connecting = false;
+        
+        if (!event.wasClean) {
+          this.app.showMessage('MOOS-IvP connection lost. Retrying...', false, 3000);
+          // Auto-retry connection after 5 seconds
+          setTimeout(() => {
+            if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
+              this.connectMoosIvPServer();
+            }
+          }, 5000);
+        }
+      };
+
+      socket.onerror = (error) => {
+        this.app.debug('MOOS-IvP WebSocket error:', error);
+        this.app.data.connectionState.moosIvP.connecting = false;
+        this.app.showMessage('MOOS-IvP connection failed', false, 3000);
+      };
+
+    } catch (error) {
+      this.app.debug('Failed to create MOOS-IvP WebSocket:', error);
+      this.app.data.connectionState.moosIvP.connecting = false;
+      this.app.showMessage('Failed to connect to MOOS-IvP server', false, 3000);
+    }
+  }
+
+  /** handle MOOS-IvP WebSocket message */
+  private handleMoosIvPMessage(data: string) {
+    try {
+      this.app.data.moosIvPServer.lastMessage = data;
+      this.app.debug('MOOS-IvP message received:', data);
+      
+      // Parse MOOS variable updates (format: VAR=value)
+      const lines = data.split('\n');
+      lines.forEach(line => {
+        if (line.includes('=')) {
+          const [variable, value] = line.split('=', 2);
+          this.processMoosVariable(variable.trim(), value.trim());
+        }
+      });
+    } catch (error) {
+      this.app.debug('Error processing MOOS-IvP message:', error);
+    }
+  }
+
+  /** process individual MOOS variable */
+  private processMoosVariable(variable: string, value: string) {
+    switch (variable) {
+      case 'IVP_HELM_STATE':
+        this.app.data.moosIvPServer.ivpHelmState = value;
+        break;
+      case 'IVP_HELM_ALLSTOP':
+        this.app.data.moosIvPServer.ivpHelmAllstop = value;
+        break;
+      case 'WPT_INDEX':
+        this.app.data.moosIvPServer.wptIndex = parseInt(value) || 0;
+        break;
+      case 'WPT_DIST':
+        this.app.data.moosIvPServer.wptDist = parseFloat(value) || 0;
+        break;
+      case 'WPT_ETA':
+        this.app.data.moosIvPServer.wptEta = parseFloat(value) || 0;
+        break;
+      case 'WPT_COMPLETED':
+        this.app.data.moosIvPServer.wptCompleted = value.toLowerCase() === 'true';
+        break;
+      default:
+        // Handle other MOOS variables as needed
+        this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
+    }
+  }
+
+  /** disconnect from MOOS-IvP server */
+  private disconnectMoosIvPServer() {
+    if (this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.close();
+      this.app.data.moosIvPServer.socket = null;
+      this.app.data.moosIvPServer.connected = false;
+      this.app.data.connectionState.moosIvP.connected = false;
+      this.app.data.connectionState.moosIvP.connecting = false;
+    }
+  }
+
+  /** send command to MOOS-IvP server */
+  public sendMoosIvPCommand(command: string) {
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      try {
+        this.app.data.moosIvPServer.socket.send(command);
+        this.app.debug(`Sent MOOS-IvP command: ${command}`);
+      } catch (error) {
+        this.app.debug('Error sending MOOS-IvP command:', error);
+        this.app.showMessage('Failed to send command to MOOS-IvP', false, 3000);
+      }
+    } else {
+      this.app.showMessage('MOOS-IvP not connected', false, 3000);
+    }
+  }
+
+  /** public method to manually connect to MOOS-IvP */
+  public connectToMoosIvP() {
+    if (!this.app.data.connectionState.moosIvP.connected && !this.app.data.connectionState.moosIvP.connecting) {
+      this.connectMoosIvPServer();
+    }
+  }
+
+  /** public method to manually disconnect from MOOS-IvP */
+  public disconnectFromMoosIvP() {
+    this.disconnectMoosIvPServer();
+  }
+
   // ** discover server features **
   private getFeatures() {
     // check server features
@@ -817,6 +965,15 @@ export class AppComponent {
         } else {
           this.app.data.serverTrail = false;
         }
+      }
+
+      // ** MOOS-IvP connection settings changed
+      if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
+        if (!this.app.data.connectionState.moosIvP.connected && !this.app.data.connectionState.moosIvP.connecting) {
+          this.connectMoosIvPServer();
+        }
+      } else if (!this.app.config.moosIvP.enabled && this.app.data.connectionState.moosIvP.connected) {
+        this.disconnectMoosIvPServer();
       }
     }
     // update instrument app state

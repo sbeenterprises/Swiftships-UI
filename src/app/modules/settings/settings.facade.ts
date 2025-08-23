@@ -320,4 +320,18 @@ export class SettingsFacade {
     }
     this.app.saveConfig(options ?? {});
   }
+
+  // ** MOOS-IvP connection methods **
+  connectToMoosIvP() {
+    (this.app as any).connectToMoosIvP();
+  }
+
+  disconnectFromMoosIvP() {
+    (this.app as any).disconnectFromMoosIvP();
+  }
+
+  // ** getter for app facade access in templates **
+  get appFacade() {
+    return this.app as any;
+  }
 }

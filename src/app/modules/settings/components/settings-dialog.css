@@ -31,6 +31,61 @@ only screen	and (min-width : 800px) {
 		padding: 5px 5% 5px 5%;
     }	
 }
+
+/* MOOS-IvP specific styles */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.status-connected {
+    color: #4caf50;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-connecting {
+    color: #ff9800;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-disconnected {
+    color: #f44336;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.moos-data {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.moos-variables {
+    font-family: monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+.moos-variables div {
+    margin: 4px 0;
+}
+
+.status-connecting mat-icon {
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 @media only screen and (max-height: 500px) {
 }
 /*sm*/

@@ -298,6 +298,26 @@ export function cleanConfig(
       );
     }
   }
+
+  //Remote Control Configs
+  if (typeof settings.selections.remoteControl === 'undefined') {
+    settings.selections.remoteControl = false;
+  }
+
+  //Autonomous Control Configs
+  if (typeof settings.selections.autonomousControl === 'undefined') {
+    settings.selections.autonomousControl = false;
+  }
+
+  // MOOS-IvP connection config
+  if (typeof settings.moosIvP === 'undefined') {
+    settings.moosIvP = {
+      enabled: false,
+      url: 'ws://127.0.0.1',
+      port: 9000,
+      autoConnect: false
+    };
+  }
 }
 
 // initialise default configuration
@@ -417,7 +437,10 @@ export function defaultConfig(): IAppConfig {
         autoNextPointOnArrival: false,
         autoNextPointDelay: 5000,
         autoNextPointTrigger: 'perpendicularPassed'
-      }
+      },
+      remoteControl: false,
+      autonomousControl: false,
+      radarControl: false
     },
     resources: {
       // ** resource options
@@ -436,6 +459,12 @@ export function defaultConfig(): IAppConfig {
         url: null
       },
       paths: []
+    },
+    moosIvP: {
+      enabled: false,
+      url: 'ws://127.0.0.1',
+      port: 9000,
+      autoConnect: false
     }
   };
 }
@@ -514,6 +543,30 @@ export function initData(): FBAppData {
     },
     racing: {
       startLine: []
+    },
+    moosIvPServer: {
+      socket: null,
+      url: '',
+      connected: false,
+      lastMessage: '',
+      ivpHelmState: '',
+      ivpHelmAllstop: '',
+      wptIndex: 0,
+      wptDist: 0,
+      wptEta: 0,
+      wptCompleted: false
+    },
+    connectionState: {
+      signalK: {
+        connected: false,
+        connecting: false,
+        lastAttempt: 0
+      },
+      moosIvP: {
+        connected: false,
+        connecting: false,
+        lastAttempt: 0
+      }
     }
   };
 }

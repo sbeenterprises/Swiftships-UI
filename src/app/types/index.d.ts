@@ -144,6 +144,9 @@ export interface IAppConfig {
       autoNextPointDelay: number;
       autoNextPointTrigger: 'perpendicularPassed' | 'arrivalCircleEntered';
     };
+    remoteControl: boolean;
+    autonomousControl: boolean;
+    radarControl: boolean;
   };
   resources: {
     // ** resource options
@@ -160,6 +163,12 @@ export interface IAppConfig {
       url: string | null;
     };
     paths: string[];
+  };
+  moosIvP: {
+    enabled: boolean;
+    url: string;
+    port: number;
+    autoConnect: boolean;
   };
 }
 
@@ -238,4 +247,29 @@ export interface FBAppData {
   racing: {
     startLine: LineString;
   };
+  moosIvPServer?: {
+    socket: WebSocket;
+    url: string;
+    connected: boolean;
+    lastMessage?: string;
+    ivpHelmState?: string;
+    ivpHelmAllstop?: string;
+    wptIndex?: number;
+    wptDist?: number;
+    wptEta?: number;
+    wptCompleted?: boolean;
+  };
+  connectionState?: {
+    signalK: {
+      connected: boolean;
+      connecting: boolean;
+      lastAttempt: number;
+    };
+    moosIvP: {
+      connected: boolean;
+      connecting: boolean;
+      lastAttempt: number;
+    };
+  };
+  signalkConnecting?: boolean;
 }

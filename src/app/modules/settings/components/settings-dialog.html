@@ -1189,6 +1189,149 @@
       </div>
     </mat-tab>
 
+    <mat-tab label="MOOS-IvP">
+      <div class="theme-page settings">
+        <div class="theme-panel">
+          <div class="setting-group" id="sectMoosIvP">
+            <div class="setting-group-title">MOOS-IvP CONNECTION</div>
+            <mat-card class="setting-card">
+              <mat-card-content>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <mat-checkbox
+                      [(ngModel)]="facade.settings.moosIvP.enabled"
+                      (change)="persistModel()"
+                      label="after"
+                      matTooltip="Enable connection to MOOS-IvP WebSocket server"
+                    >
+                      Enable MOOS-IvP Connection
+                    </mat-checkbox>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <mat-checkbox
+                      [(ngModel)]="facade.settings.moosIvP.autoConnect"
+                      (change)="persistModel()"
+                      [disabled]="!facade.settings.moosIvP.enabled"
+                      label="after"
+                      matTooltip="Automatically connect to MOOS-IvP server on startup"
+                    >
+                      Auto Connect
+                    </mat-checkbox>
+                  </div>
+                </div>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <mat-form-field style="width: 100%" floatLabel="always">
+                      <mat-label>WebSocket URL</mat-label>
+                      <input
+                        matInput
+                        type="text"
+                        #moosurl="ngModel"
+                        required
+                        [disabled]="!facade.settings.moosIvP.enabled"
+                        [(ngModel)]="facade.settings.moosIvP.url"
+                        (change)="persistModel()"
+                        placeholder="ws://127.0.0.1"
+                        matTooltip="MOOS-IvP WebSocket server URL (e.g., ws://127.0.0.1)"
+                      />
+                      @if(moosurl.invalid) {
+                      <mat-error> URL required. </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <mat-form-field style="width: 100%" floatLabel="always">
+                      <mat-label>Port</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        #moosport="ngModel"
+                        required
+                        min="1"
+                        max="65535"
+                        [disabled]="!facade.settings.moosIvP.enabled"
+                        [(ngModel)]="facade.settings.moosIvP.port"
+                        (change)="parseNumber(moosport)"
+                        placeholder="9000"
+                        matTooltip="MOOS-IvP WebSocket server port (default: 9000)"
+                      />
+                      @if(moosport.invalid) {
+                      <mat-error> Valid port number required (1-65535). </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                </div>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <div class="connection-status">
+                      <strong>Connection Status:</strong>
+                      @if(facade.appFacade.data.connectionState?.moosIvP?.connected) {
+                        <span class="status-connected">
+                          <mat-icon>check_circle</mat-icon> Connected
+                        </span>
+                      } @else if(facade.appFacade.data.connectionState?.moosIvP?.connecting) {
+                        <span class="status-connecting">
+                          <mat-icon>sync</mat-icon> Connecting...
+                        </span>
+                      } @else {
+                        <span class="status-disconnected">
+                          <mat-icon>cancel</mat-icon> Disconnected
+                        </span>
+                      }
+                    </div>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <button 
+                      mat-raised-button 
+                      color="primary"
+                      [disabled]="!facade.settings.moosIvP.enabled || facade.appFacade.data.connectionState?.moosIvP?.connecting"
+                      (click)="toggleMoosIvPConnection()"
+                      matTooltip="Manually connect/disconnect from MOOS-IvP server"
+                    >
+                      @if(facade.appFacade.data.connectionState?.moosIvP?.connected) {
+                        <ng-container><mat-icon>link_off</mat-icon></ng-container> Disconnect
+                      } @else {
+                        <ng-container><mat-icon>link</mat-icon></ng-container> Connect
+                      }
+                    </button>
+                  </div>
+                </div>
+                @if(facade.appFacade.data.moosIvPServer?.connected) {
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item" style="width: 100%;">
+                    <div class="moos-data">
+                      <h4>MOOS-IvP Data:</h4>
+                      <div class="moos-variables">
+                        @if(facade.appFacade.data.moosIvPServer.ivpHelmState) {
+                          <div><strong>Helm State:</strong> {{facade.appFacade.data.moosIvPServer.ivpHelmState}}</div>
+                        }
+                        @if(facade.appFacade.data.moosIvPServer.ivpHelmAllstop) {
+                          <div><strong>Helm Allstop:</strong> {{facade.appFacade.data.moosIvPServer.ivpHelmAllstop}}</div>
+                        }
+                        @if(facade.appFacade.data.moosIvPServer.wptIndex !== undefined) {
+                          <div><strong>Waypoint Index:</strong> {{facade.appFacade.data.moosIvPServer.wptIndex}}</div>
+                        }
+                        @if(facade.appFacade.data.moosIvPServer.wptDist) {
+                          <div><strong>Waypoint Distance:</strong> {{facade.appFacade.data.moosIvPServer.wptDist | number:'1.2-2'}}m</div>
+                        }
+                        @if(facade.appFacade.data.moosIvPServer.wptEta) {
+                          <div><strong>Waypoint ETA:</strong> {{facade.appFacade.data.moosIvPServer.wptEta | number:'1.1-1'}}s</div>
+                        }
+                        @if(facade.appFacade.data.moosIvPServer.wptCompleted !== undefined) {
+                          <div><strong>Waypoint Completed:</strong> {{facade.appFacade.data.moosIvPServer.wptCompleted ? 'Yes' : 'No'}}</div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                }
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
     <mat-tab label="Experiments">
       <div class="theme-page settings">
         <div class="theme-panel">

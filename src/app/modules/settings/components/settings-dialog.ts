@@ -1,4 +1,5 @@
 import { Component, OnInit, ElementRef, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 
 import { FormsModule, NgModel } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -34,6 +35,7 @@ interface PreferredPathsResult {
   selector: 'settings-dialog',
   imports: [
     FormsModule,
+    DecimalPipe,
     MatDialogModule,
     MatCheckboxModule,
     MatRadioModule,
@@ -228,5 +230,16 @@ export class SettingsDialog implements OnInit {
    */
   clearAuthToken() {
     this.facade.clearToken();
+  }
+
+  /**
+   * toggle MOOS-IvP connection
+   */
+  toggleMoosIvPConnection() {
+    if (this.facade.appFacade.data.connectionState?.moosIvP?.connected) {
+      this.facade.disconnectFromMoosIvP();
+    } else {
+      this.facade.connectToMoosIvP();
+    }
   }
 }
