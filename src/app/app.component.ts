@@ -91,6 +91,7 @@ export class AppComponent {
     instrumentPanelOpen: true,
     instrumentAppActive: true,
     remoteControlPanelOpen: false,
+    autonomousControlPanelOpen: false,
     routeList: false,
     waypointList: false,
     chartList: false,
@@ -120,6 +121,18 @@ export class AppComponent {
     thrust: 0,    // 0 to 100%
     gear: 'neutral'  // forward, neutral, reverse
   };
+
+  // Autonomous control data
+  public autonomousControl = {
+    selectedRoute: '',     // Selected route ID
+    speed: 10,            // Speed in knots (0-35)
+    status: 'standby',    // standby, active, paused, returning, aborted
+    currentWaypoint: 0,   // Current waypoint index
+    progress: 0          // Mission progress percentage
+  };
+
+  // Available routes for autonomous control
+  public availableRoutes: [string, any, boolean][] = [];
 
   private timers = [];
 
@@ -340,17 +353,25 @@ export class AppComponent {
 
   protected toggleRemoteControl() {
     if (this.app.config.selections.remoteControl) {
-      // If already active, open the remote control panel
+      // If already active, toggle the panel and deactivate if closing
       this.display.remoteControlPanelOpen = !this.display.remoteControlPanelOpen;
+      
       if (this.display.remoteControlPanelOpen) {
-        // Close instrument panel if open
+        // Opening panel - close other panels
         this.display.instrumentPanelOpen = false;
+        this.display.autonomousControlPanelOpen = false;
+      } else {
+        // Closing panel - deactivate remote control
+        this.app.config.selections.remoteControl = false;
+        this.app.saveConfig();
+        this.app.showMessage('Remote Control Deactivated', false, 3000);
       }
     } else {
       // Activate remote control and open panel
       this.app.config.selections.remoteControl = true;
       this.display.remoteControlPanelOpen = true;
       this.display.instrumentPanelOpen = false;
+      this.display.autonomousControlPanelOpen = false;
       this.app.saveConfig();
       this.app.showMessage('Remote Control Activated', false, 3000);
     }
@@ -358,16 +379,52 @@ export class AppComponent {
   }
 
   protected toggleAutonomousControl() {
-    this.app.config.selections.autonomousControl = !this.app.config.selections.autonomousControl;
-    this.app.saveConfig();
-    this.app.showMessage(
-      this.app.config.selections.autonomousControl
-        ? 'Autonomous Control Activated'
-        : 'Autonomous Control Deactivated',
-      false,
-      3000
-    );
+    if (this.app.config.selections.autonomousControl) {
+      // If already active, toggle the panel and deactivate if closing
+      this.display.autonomousControlPanelOpen = !this.display.autonomousControlPanelOpen;
+      
+      if (this.display.autonomousControlPanelOpen) {
+        // Opening panel - close other panels
+        this.display.instrumentPanelOpen = false;
+        this.display.remoteControlPanelOpen = false;
+        // Load routes for the dropdown
+        this.loadAvailableRoutes();
+      } else {
+        // Closing panel - deactivate autonomous control
+        this.app.config.selections.autonomousControl = false;
+        this.autonomousControl.status = 'standby';
+        this.app.saveConfig();
+        this.app.showMessage('Autonomous Control Deactivated', false, 3000);
+      }
+    } else {
+      // Activate autonomous control and open panel
+      this.app.config.selections.autonomousControl = true;
+      this.display.autonomousControlPanelOpen = true;
+      this.display.instrumentPanelOpen = false;
+      this.display.remoteControlPanelOpen = false;
+      this.autonomousControl.status = 'standby';
+      this.app.saveConfig();
+      // Load routes for the dropdown
+      this.loadAvailableRoutes();
+      this.app.showMessage('Autonomous Control Activated', false, 3000);
+    }
     this.focusMap();
+  }
+
+  // Load available routes for autonomous control
+  private async loadAvailableRoutes() {
+    try {
+      console.log('Starting to load routes...');
+      const routes = await this.skres.listFromServer<[string, any, boolean]>('routes');
+      console.log('Raw routes from server:', routes);
+      this.availableRoutes = routes.filter((route: [string, any, boolean]) => route[2]); // Only show active routes
+      console.log('Filtered available routes:', this.availableRoutes);
+      console.log('Total routes loaded:', this.availableRoutes.length);
+    } catch (error) {
+      console.error('Failed to load routes:', error);
+      this.availableRoutes = [];
+      this.app.showMessage('Failed to load routes', true, 3000);
+    }
   }
 
   protected toggleRadarDisplay() {
@@ -414,6 +471,69 @@ export class AppComponent {
     this.app.config.selections.remoteControl = false;
     this.app.saveConfig();
     this.app.showMessage('Remote Control Deactivated', false, 3000);
+    this.focusMap();
+  }
+
+  // Autonomous control methods
+  protected selectRoute(routeId: string) {
+    this.autonomousControl.selectedRoute = routeId;
+    this.autonomousControl.currentWaypoint = 0;
+    this.autonomousControl.progress = 0;
+    console.log('Route selected:', routeId);
+  }
+
+  protected updateSpeed(speed: number) {
+    this.autonomousControl.speed = Math.max(0, Math.min(35, speed));
+    console.log('Speed updated:', this.autonomousControl.speed);
+  }
+
+  protected startMission() {
+    if (!this.autonomousControl.selectedRoute) {
+      this.app.showMessage('Please select a route first', true, 3000);
+      return;
+    }
+    this.autonomousControl.status = 'active';
+    this.autonomousControl.currentWaypoint = 0;
+    this.autonomousControl.progress = 0;
+    this.app.showMessage('Mission Started', false, 3000);
+    console.log('Mission started:', this.autonomousControl);
+  }
+
+  protected stopMission() {
+    this.autonomousControl.status = 'paused';
+    this.app.showMessage('Mission Stopped', false, 3000);
+    console.log('Mission stopped');
+  }
+
+  protected clearPath() {
+    this.autonomousControl.selectedRoute = '';
+    this.autonomousControl.currentWaypoint = 0;
+    this.autonomousControl.progress = 0;
+    this.autonomousControl.status = 'standby';
+    this.app.showMessage('Path Cleared', false, 3000);
+    console.log('Path cleared');
+  }
+
+  protected returnToBase() {
+    this.autonomousControl.status = 'returning';
+    this.app.showMessage('Returning to Base', false, 3000);
+    console.log('Returning to base');
+  }
+
+  protected abortMission() {
+    this.autonomousControl.status = 'aborted';
+    this.autonomousControl.currentWaypoint = 0;
+    this.autonomousControl.progress = 0;
+    this.app.showMessage('Mission Aborted', true, 3000);
+    console.log('Mission aborted');
+  }
+
+  protected closeAutonomousControl() {
+    this.display.autonomousControlPanelOpen = false;
+    this.app.config.selections.autonomousControl = false;
+    this.autonomousControl.status = 'standby';
+    this.app.saveConfig();
+    this.app.showMessage('Autonomous Control Deactivated', false, 3000);
     this.focusMap();
   }
 
@@ -1082,6 +1202,11 @@ export class AppComponent {
 
   public rightSideNavAction(e: boolean) {
     this.display.instrumentPanelOpen = e;
+    if (e) {
+      // Opening instrument panel - close other right-side panels
+      this.display.remoteControlPanelOpen = false;
+      this.display.autonomousControlPanelOpen = false;
+    }
     if (this.app.config.plugins.startOnOpen) {
       this.display.instrumentAppActive = e;
     }
