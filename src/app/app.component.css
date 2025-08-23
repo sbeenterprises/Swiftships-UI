@@ -199,3 +199,118 @@ mat-nav-list {
         left: 50px;
     }
 }
+
+/* Floating Navigation Bar */
+.floatingNavBar {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4900;
+    display: flex;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(128, 128, 128, 0.5);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'Roboto', sans-serif;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.navItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 12px;
+    min-width: 55px;
+}
+
+.navItem:first-child {
+    margin-left: 0;
+    min-width: 30px;
+}
+
+.navItem:last-child {
+    margin-right: 0;
+}
+
+.navLabel {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 2px;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.navValue {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+    text-align: center;
+    min-height: 16px;
+    line-height: 1.2;
+}
+
+.navIcon {
+    font-size: 24px !important;
+    color: #4CAF50;
+    width: 24px !important;
+    height: 24px !important;
+}
+
+.northIcon {
+    color: #ff6b6b !important;
+}
+
+/* Responsive design for smaller screens */
+@media only screen and (max-width: 768px) {
+    .floatingNavBar {
+        font-size: 11px;
+        padding: 6px 12px;
+        left: 10px;
+        right: 10px;
+        transform: none;
+        max-width: calc(100vw - 20px);
+        overflow-x: auto;
+    }
+    
+    .navItem {
+        margin: 0 8px;
+        min-width: 45px;
+    }
+    
+    .navLabel {
+        font-size: 9px;
+    }
+    
+    .navValue {
+        font-size: 11px;
+    }
+    
+    .navIcon {
+        font-size: 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+    }
+}
+
+@media only screen and (max-width: 480px) {
+    .floatingNavBar {
+        padding: 4px 8px;
+    }
+    
+    .navItem {
+        margin: 0 6px;
+        min-width: 40px;
+    }
+    
+    .navLabel {
+        font-size: 8px;
+    }
+    
+    .navValue {
+        font-size: 10px;
+    }
+}

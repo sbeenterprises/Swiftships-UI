@@ -230,6 +230,37 @@
     </mat-menu>
     <!--/toolbar button menus-->
 
+    <!-- Floating Navigation Bar -->
+    <div class="floatingNavBar">
+      <div class="navItem">
+        <mat-icon class="navIcon northIcon" [style.transform]="getOrientation()">navigation</mat-icon>
+      </div>
+      <div class="navItem">
+        <div class="navLabel">HDG</div>
+        <div class="navValue">{{ app.data.vessels.self.heading ? (app.data.vessels.self.heading * 180/3.14159).toFixed(0) + '°' : '--°' }}</div>
+      </div>
+      <div class="navItem">
+        <div class="navLabel">SOG</div>
+        <div class="navValue">{{ app.data.vessels.self.sog ? app.formatSpeed(app.data.vessels.self.sog, true) : '--' }}</div>
+      </div>
+      <div class="navItem">
+        <div class="navLabel">LAT</div>
+        <div class="navValue">{{ app.data.vessels.self.position && app.data.vessels.self.position[1] ? app.data.vessels.self.position[1].toFixed(6) : '--' }}</div>
+      </div>
+      <div class="navItem">
+        <div class="navLabel">LON</div>
+        <div class="navValue">{{ app.data.vessels.self.position && app.data.vessels.self.position[0] ? app.data.vessels.self.position[0].toFixed(6) : '--' }}</div>
+      </div>
+      <div class="navItem">
+        <div class="navLabel">STATUS</div>
+        <div class="navValue">{{ app.data.vessels.self.state || 'UNKNOWN' }}</div>
+      </div>
+      <div class="navItem">
+        <div class="navLabel">MODE</div>
+        <div class="navValue">{{ mode === 0 ? 'REALTIME' : 'PLAYBACK' }}</div>
+      </div>
+    </div>
+
     <!-- content -->
     <div class="view" theme-main>
       <mat-sidenav-container hasBackdrop="false">
