@@ -567,7 +567,8 @@ export function initData(): FBAppData {
         connecting: false,
         lastAttempt: 0
       }
-    }
+    },
+    showChecklist: false
   };
 }
 

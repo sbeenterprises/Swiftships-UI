@@ -369,6 +369,11 @@ export class AppComponent {
     this.focusMap();
   }
 
+  protected toggleChecklist() {
+    this.app.data.showChecklist = !this.app.data.showChecklist;
+    this.focusMap();
+  }
+
   protected toggleToolbarButtons() {
     this.app.uiConfig.update((current) => {
       return Object.assign({}, current, {

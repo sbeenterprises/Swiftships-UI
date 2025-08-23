@@ -506,6 +506,20 @@
             </div>
             <div class="buttonPanelItem">
               <button
+                mat-mini-fab
+                [ngClass]="{
+                  'button-primary': app.data.showChecklist,
+                  'button-toolbar': !app.data.showChecklist
+                }"
+                (click)="toggleChecklist()"
+                matTooltip="System Checklist"
+                matTooltipPosition="right"
+              >
+                <mat-icon>playlist_add_check</mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
+              <button
                 class="button-toolbar"
                 mat-mini-fab
                 [disabled]="isInteracting"
@@ -918,29 +932,35 @@
           }
 
           <!-- *** Alarm / Mode panel ***-->
-          @if(!app.kioskMode()) { @if( app.uiCtrl().alertList) {
-          <alert-list
-            [alerts]="notiMgr.alerts()"
-            (closed)="toggleAlertList(false)"
-          ></alert-list>
-          }
-          <div class="alarmPanel">
-            @for(n of notiMgr.alerts(); track n[0]) {
-            <span style="margin-bottom: 5px">
-              <fb-alert
-                [audioStatus]="display.audio.state"
-                [alert]="n[1]"
-                [acknowledged]="n[1].acknowledged"
-                [silenced]="n[1].silenced"
-                [doNotPlaySound]="app.config.muteSound"
-                (nextPoint)="
-                  course.coursePointIndex(app.data.navData.pointIndex + 1)
-                "
-              >
-              </fb-alert>
-            </span>
-            }
-          </div>
+          @if(!app.kioskMode()) { 
+            @if( app.uiCtrl().alertList) {
+            <alert-list
+              [alerts]="notiMgr.alerts()"
+              (closed)="toggleAlertList(false)"
+            ></alert-list>
+            } 
+            @if(app.data.showChecklist) {
+            <system-checklist
+              (closed)="toggleChecklist()"
+            ></system-checklist>
+            } 
+            <div class="alarmPanel">
+              @for(n of notiMgr.alerts(); track n[0]) {
+              <span style="margin-bottom: 5px">
+                <fb-alert
+                  [audioStatus]="display.audio.state"
+                  [alert]="n[1]"
+                  [acknowledged]="n[1].acknowledged"
+                  [silenced]="n[1].silenced"
+                  [doNotPlaySound]="app.config.muteSound"
+                  (nextPoint)="
+                    course.coursePointIndex(app.data.navData.pointIndex + 1)
+                  "
+                >
+                </fb-alert>
+              </span>
+              }
+            </div>
           }
 
           <!-- Measurement panel -->

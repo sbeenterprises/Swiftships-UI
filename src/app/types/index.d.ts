@@ -272,4 +272,5 @@ export interface FBAppData {
     };
   };
   signalkConnecting?: boolean;
+  showChecklist: boolean;
 }

@@ -23,6 +23,7 @@ import {
   AnchorWatchComponent,
   AlertComponent,
   AlertListComponent,
+  SystemChecklistComponent,
   AutopilotComponent,
   RouteNextPointComponent,
   RouteListComponent,
@@ -82,6 +83,7 @@ import {
     AnchorWatchComponent,
     AlertComponent,
     AlertListComponent,
+    SystemChecklistComponent,
     RouteNextPointComponent
   ],
   providers: [provideHttpClient(withInterceptorsFromDi())]
