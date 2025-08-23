@@ -570,7 +570,7 @@ export class AppComponent {
         r.status === 'loggedIn' ? true : false
       );
       // ** Request using cached auth token and display badge
-      this.signalk.get('/plugins/freeboard-sk').subscribe(
+      this.signalk.get('/plugins/swiftships-ui').subscribe(
         () => {
           this.app.debug('User Authenticated');
           this.app.isLoggedIn.set(true);

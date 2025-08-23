@@ -1,11 +1,11 @@
 {
-  "name": "Freeboard",
-  "short_name": "Freeboard",
+  "name": "SwiftShips UI",
+  "short_name": "SwiftShips",
   "theme_color": "#1976d2",
   "background_color": "#fafafa",
   "display": "fullscreen",
   "orientation": "portrait",
-  "scope": "/@signalk/freeboard-sk/",
+  "scope": "/@signalk/swiftships-ui/",
   "start_url": "index.html",
   "icons": [
     {

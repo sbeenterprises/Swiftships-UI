@@ -250,7 +250,7 @@ export class SettingsFacade {
       (a: Array<SKAppsList>) => {
         this.applicationList = a
           .map((i) => {
-            if (i.name === '@signalk/freeboard-sk') {
+            if (i.name === '@signalk/swiftships-ui') {
               return null;
             }
             if (!i._location && !i.location) {

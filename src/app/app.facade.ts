@@ -43,9 +43,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 // App details
 const FSK: AppInfoDef = {
-  id: 'freeboard',
-  name: 'Freeboard-SK',
-  description: `Signal K Chart Plotter.`,
+  id: 'swiftships',
+  name: 'SwiftShips UI',
+  description: `Signal K and MOOS-IvP Chart Plotter.`,
   version: '2.16.2',
   url: 'https://github.com/signalk/freeboard-sk',
   logo: './assets/img/app_logo.png'

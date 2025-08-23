@@ -1,7 +1,7 @@
 {
-  "name": "@signalk/freeboard-sk",
+  "name": "@signalk/swiftships-ui",
   "version": "2.16.2",
-  "description": "Openlayers chart plotter implementation for Signal K",
+  "description": "SwiftShips UI - Openlayers chart plotter implementation for Signal K and MOOS-IvP",
   "keywords": [
     "signalk-webapp",
     "signalk-node-server-plugin",
@@ -9,7 +9,7 @@
   ],
   "signalk": {
     "appIcon": "./assets/icons/icon-72x72.png",
-    "displayName": "Freeboard-SK"
+    "displayName": "SwiftShips UI"
   },
   "repository": "https://github.com/SignalK/freeboard-sk",
   "main": "plugin/index.js",
