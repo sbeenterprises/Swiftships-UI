@@ -343,6 +343,19 @@ export class AppComponent {
     this.focusMap();
   }
 
+  protected toggleAutonomousControl() {
+    this.app.config.selections.autonomousControl = !this.app.config.selections.autonomousControl;
+    this.app.saveConfig();
+    this.app.showMessage(
+      this.app.config.selections.autonomousControl
+        ? 'Autonomous Control Activated'
+        : 'Autonomous Control Deactivated',
+      false,
+      3000
+    );
+    this.focusMap();
+  }
+
   protected toggleToolbarButtons() {
     this.app.uiConfig.update((current) => {
       return Object.assign({}, current, {

@@ -470,6 +470,24 @@
             </div>
             <div class="buttonPanelItem">
               <button
+                mat-mini-fab
+                [ngClass]="{
+                  'button-primary': app.config.selections.autonomousControl,
+                  'button-toolbar': !app.config.selections.autonomousControl
+                }"
+                (click)="toggleAutonomousControl()"
+                [matTooltip]="
+                  app.config.selections.autonomousControl
+                    ? 'Deactivate Autonomous Control'
+                    : 'Activate Autonomous Control'
+                "
+                matTooltipPosition="right"
+              >
+                <mat-icon class="ob" svgIcon="autonomous_control"></mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
+              <button
                 class="button-toolbar"
                 mat-mini-fab
                 [disabled]="isInteracting"
