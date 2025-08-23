@@ -330,6 +330,19 @@ export class AppComponent {
     this.focusMap();
   }
 
+  protected toggleRemoteControl() {
+    this.app.config.selections.remoteControl = !this.app.config.selections.remoteControl;
+    this.app.saveConfig();
+    this.app.showMessage(
+      this.app.config.selections.remoteControl
+        ? 'Remote Control Activated'
+        : 'Remote Control Deactivated',
+      false,
+      3000
+    );
+    this.focusMap();
+  }
+
   protected toggleToolbarButtons() {
     this.app.uiConfig.update((current) => {
       return Object.assign({}, current, {

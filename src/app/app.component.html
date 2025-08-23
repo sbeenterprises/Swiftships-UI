@@ -452,6 +452,24 @@
             }
             <div class="buttonPanelItem">
               <button
+                mat-mini-fab
+                [ngClass]="{
+                  'button-primary': app.config.selections.remoteControl,
+                  'button-toolbar': !app.config.selections.remoteControl
+                }"
+                (click)="toggleRemoteControl()"
+                [matTooltip]="
+                  app.config.selections.remoteControl
+                    ? 'Deactivate Remote Control'
+                    : 'Activate Remote Control'
+                "
+                matTooltipPosition="right"
+              >
+                <mat-icon class="ob" svgIcon="remote_control"></mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
+              <button
                 class="button-toolbar"
                 mat-mini-fab
                 [disabled]="isInteracting"
