@@ -90,6 +90,7 @@ export class AppComponent {
     leftMenuPanel: false,
     instrumentPanelOpen: true,
     instrumentAppActive: true,
+    remoteControlPanelOpen: false,
     routeList: false,
     waypointList: false,
     chartList: false,
@@ -112,6 +113,13 @@ export class AppComponent {
   // APP features / mode
   public features = { playbackAPI: true };
   public mode: SKSTREAM_MODE = SKSTREAM_MODE.REALTIME; // current mode
+
+  // Remote control data
+  public remoteControl = {
+    rudder: 0,    // -50 to 50
+    thrust: 0,    // 0 to 100%
+    gear: 'neutral'  // forward, neutral, reverse
+  };
 
   private timers = [];
 
@@ -331,15 +339,21 @@ export class AppComponent {
   }
 
   protected toggleRemoteControl() {
-    this.app.config.selections.remoteControl = !this.app.config.selections.remoteControl;
-    this.app.saveConfig();
-    this.app.showMessage(
-      this.app.config.selections.remoteControl
-        ? 'Remote Control Activated'
-        : 'Remote Control Deactivated',
-      false,
-      3000
-    );
+    if (this.app.config.selections.remoteControl) {
+      // If already active, open the remote control panel
+      this.display.remoteControlPanelOpen = !this.display.remoteControlPanelOpen;
+      if (this.display.remoteControlPanelOpen) {
+        // Close instrument panel if open
+        this.display.instrumentPanelOpen = false;
+      }
+    } else {
+      // Activate remote control and open panel
+      this.app.config.selections.remoteControl = true;
+      this.display.remoteControlPanelOpen = true;
+      this.display.instrumentPanelOpen = false;
+      this.app.saveConfig();
+      this.app.showMessage('Remote Control Activated', false, 3000);
+    }
     this.focusMap();
   }
 
@@ -371,6 +385,35 @@ export class AppComponent {
 
   protected toggleChecklist() {
     this.app.data.showChecklist = !this.app.data.showChecklist;
+    this.focusMap();
+  }
+
+  // Remote control methods
+  protected updateRudder(value: number) {
+    this.remoteControl.rudder = Math.max(-50, Math.min(50, value));
+    this.sendRemoteControlData();
+  }
+
+  protected updateThrust(value: number) {
+    this.remoteControl.thrust = Math.max(0, Math.min(100, value));
+    this.sendRemoteControlData();
+  }
+
+  protected updateGear(gear: 'forward' | 'neutral' | 'reverse') {
+    this.remoteControl.gear = gear;
+    this.sendRemoteControlData();
+  }
+
+  private sendRemoteControlData() {
+    // TODO: Send remote control data to SignalK server or MOOS-IvP
+    console.log('Remote Control Data:', this.remoteControl);
+  }
+
+  protected closeRemoteControl() {
+    this.display.remoteControlPanelOpen = false;
+    this.app.config.selections.remoteControl = false;
+    this.app.saveConfig();
+    this.app.showMessage('Remote Control Deactivated', false, 3000);
     this.focusMap();
   }
 

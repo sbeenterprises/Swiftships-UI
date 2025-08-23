@@ -339,6 +339,122 @@
           </div>
         </mat-sidenav>
         }
+        <!--remote control-->
+        @if(display.remoteControlPanelOpen) {
+        <mat-sidenav
+          #sideremotecontrol
+          mode="side"
+          position="end"
+          [opened]="display.remoteControlPanelOpen"
+          class="remote-control-sidenav"
+          style="width: 350px;"
+        >
+          <div style="display: flex; flex-direction: column; position: relative; height: 100%">
+            <mat-nav-list>
+              <a mat-list-item>
+                <a mat-icon-button (click)="closeRemoteControl()">
+                  <mat-icon>close</mat-icon>
+                </a>
+                <span style="margin-left: 16px; font-weight: 500;">Remote Control</span>
+              </a>
+              <mat-divider></mat-divider>
+            </mat-nav-list>
+            
+            <div style="padding: 20px; flex: 1; overflow-y: auto">
+              <!-- Rudder Control -->
+              <div class="remote-control-section">
+                <h3>Rudder Control</h3>
+                <div class="control-group">
+                  <mat-slider 
+                    min="-50" 
+                    max="50" 
+                    step="1" 
+                    class="rudder-slider">
+                    <input matSliderThumb 
+                           [value]="remoteControl.rudder"
+                           (input)="updateRudder($any($event.target).value)">
+                  </mat-slider>
+                  <div class="control-display">
+                    <span class="control-label">Rudder Angle:</span>
+                    <span class="control-value">{{ remoteControl.rudder }}°</span>
+                  </div>
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="updateRudder(-50)" class="control-btn">Port -50°</button>
+                    <button mat-raised-button (click)="updateRudder(0)" class="control-btn center-btn">Center 0°</button>
+                    <button mat-raised-button (click)="updateRudder(50)" class="control-btn">Stbd +50°</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Thrust Control -->
+              <div class="remote-control-section">
+                <h3>Thrust Control</h3>
+                <div class="control-group">
+                  <mat-slider 
+                    min="0" 
+                    max="100" 
+                    step="5" 
+                    class="thrust-slider">
+                    <input matSliderThumb 
+                           [value]="remoteControl.thrust"
+                           (input)="updateThrust($any($event.target).value)">
+                  </mat-slider>
+                  <div class="control-display">
+                    <span class="control-label">Thrust:</span>
+                    <span class="control-value">{{ remoteControl.thrust }}%</span>
+                  </div>
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="updateThrust(0)" class="control-btn">Stop 0%</button>
+                    <button mat-raised-button (click)="updateThrust(50)" class="control-btn">Half 50%</button>
+                    <button mat-raised-button (click)="updateThrust(100)" class="control-btn">Full 100%</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Gear Control -->
+              <div class="remote-control-section">
+                <h3>Gear Control</h3>
+                <div class="control-group">
+                  <mat-button-toggle-group 
+                    [value]="remoteControl.gear" 
+                    (change)="updateGear($event.value)"
+                    class="gear-toggle-group"
+                    aria-label="Gear selection">
+                    <mat-button-toggle value="reverse" class="gear-btn reverse-btn">
+                      <mat-icon>keyboard_arrow_down</mat-icon>
+                      <span>Reverse</span>
+                    </mat-button-toggle>
+                    <mat-button-toggle value="neutral" class="gear-btn neutral-btn">
+                      <mat-icon>pause</mat-icon>
+                      <span>Neutral</span>
+                    </mat-button-toggle>
+                    <mat-button-toggle value="forward" class="gear-btn forward-btn">
+                      <mat-icon>keyboard_arrow_up</mat-icon>
+                      <span>Forward</span>
+                    </mat-button-toggle>
+                  </mat-button-toggle-group>
+                  <div class="control-display">
+                    <span class="control-label">Selected Gear:</span>
+                    <span class="control-value gear-value">{{ remoteControl.gear | titlecase }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Emergency Stop -->
+              <div class="remote-control-section">
+                <button 
+                  mat-raised-button 
+                  color="warn" 
+                  class="emergency-stop-btn"
+                  (click)="updateThrust(0); updateRudder(0); updateGear('neutral')">
+                  <mat-icon>warning</mat-icon>
+                  EMERGENCY STOP
+                </button>
+              </div>
+            </div>
+          </div>
+        </mat-sidenav>
+        }
         <mat-sidenav-content style="overflow: hidden">
           @if(app.sIsFetching()) {
           <div
