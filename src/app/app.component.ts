@@ -417,7 +417,10 @@ export class AppComponent {
       console.log('Starting to load routes...');
       const routes = await this.skres.listFromServer<[string, any, boolean]>('routes');
       console.log('Raw routes from server:', routes);
-      this.availableRoutes = routes.filter((route: [string, any, boolean]) => route[2]); // Only show active routes
+      // Show all routes that have valid geometry/data (not just visible ones)
+      this.availableRoutes = routes.filter((route: [string, any, boolean]) => 
+        route[1] && route[1].feature && route[1].feature.geometry
+      );
       console.log('Filtered available routes:', this.availableRoutes);
       console.log('Total routes loaded:', this.availableRoutes.length);
     } catch (error) {
