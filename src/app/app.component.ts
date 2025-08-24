@@ -489,10 +489,27 @@ export class AppComponent {
 
   // Autonomous control methods
   protected selectRoute(routeId: string) {
+    // Remove previously selected route from map (if any)
+    if (this.autonomousControl.selectedRoute) {
+      this.skres.routeRemove([this.autonomousControl.selectedRoute]);
+    }
+    
     this.autonomousControl.selectedRoute = routeId;
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
-    console.log('Route selected:', routeId);
+    
+    // Add newly selected route to map display
+    if (routeId) {
+      const selectedRoute = this.availableRoutes.find(r => r[0] === routeId);
+      if (selectedRoute) {
+        // Create a copy with visibility flag set to true (like the checkbox does)
+        const visibleRoute: [string, any, boolean] = [selectedRoute[0], selectedRoute[1], true];
+        this.skres.routeAdd([visibleRoute]);
+        console.log('Route selected and added to map:', routeId, selectedRoute[1].name);
+      }
+    } else {
+      console.log('Route deselected');
+    }
   }
 
   protected updateSpeed(speed: number) {
@@ -542,9 +559,17 @@ export class AppComponent {
   }
 
   protected closeAutonomousControl() {
+    // Remove selected route from map when closing autonomous control
+    if (this.autonomousControl.selectedRoute) {
+      this.skres.routeRemove([this.autonomousControl.selectedRoute]);
+    }
+    
     this.display.autonomousControlPanelOpen = false;
     this.app.config.selections.autonomousControl = false;
     this.autonomousControl.status = 'standby';
+    this.autonomousControl.selectedRoute = '';
+    this.autonomousControl.currentWaypoint = 0;
+    this.autonomousControl.progress = 0;
     this.app.saveConfig();
     this.app.showMessage('Autonomous Control Deactivated', false, 3000);
     this.focusMap();
