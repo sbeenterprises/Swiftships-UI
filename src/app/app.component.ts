@@ -520,6 +520,13 @@ export class AppComponent {
 
   protected updateSpeed(speed: number) {
     this.autonomousControl.speed = Math.max(0, Math.min(35, speed));
+    
+    // Send speed to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send(`DESIRED_SPEED=${this.autonomousControl.speed}`);
+      console.log(`Sent DESIRED_SPEED=${this.autonomousControl.speed} to MOOS-IvP`);
+    }
+    
     console.log('Speed updated:', this.autonomousControl.speed);
   }
 
