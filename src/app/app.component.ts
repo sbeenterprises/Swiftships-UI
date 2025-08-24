@@ -531,12 +531,26 @@ export class AppComponent {
     this.autonomousControl.status = 'active';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
+    
+    // Send start command to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send('AUTONOMOUS_START=true');
+      console.log('Sent AUTONOMOUS_START=true to MOOS-IvP');
+    }
+    
     this.app.showMessage('Mission Started', false, 3000);
     console.log('Mission started:', this.autonomousControl);
   }
 
   protected stopMission() {
     this.autonomousControl.status = 'paused';
+    
+    // Send stop command to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send('AUTONOMOUS_STOP=true');
+      console.log('Sent AUTONOMOUS_STOP=true to MOOS-IvP');
+    }
+    
     this.app.showMessage('Mission Stopped', false, 3000);
     console.log('Mission stopped');
   }
@@ -560,6 +574,13 @@ export class AppComponent {
     this.autonomousControl.status = 'aborted';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
+    
+    // Send stop command to MOOS-IvP when aborting
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send('AUTONOMOUS_STOP=true');
+      console.log('Sent AUTONOMOUS_STOP=true to MOOS-IvP (mission aborted)');
+    }
+    
     this.app.showMessage('Mission Aborted', true, 3000);
     console.log('Mission aborted');
   }
