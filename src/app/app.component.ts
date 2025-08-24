@@ -941,10 +941,10 @@ export class AppComponent {
   /** process individual MOOS variable */
   private processMoosVariable(variable: string, value: string) {
     switch (variable) {
-      case 'IVP_HELM_STATE':
+      case 'IVPHELM_STATE':
         this.app.data.moosIvPServer.ivpHelmState = value;
         break;
-      case 'IVP_HELM_ALLSTOP':
+      case 'IVPHELM_ALLSTOP':
         this.app.data.moosIvPServer.ivpHelmAllstop = value;
         break;
       case 'WPT_INDEX':

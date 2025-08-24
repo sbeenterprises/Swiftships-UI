@@ -253,11 +253,11 @@
       </div>
       <div class="navItem">
         <div class="navLabel">STATUS</div>
-        <div class="navValue">{{ app.data.vessels.self.state || 'UNKNOWN' }}</div>
+        <div class="navValue">{{ app.data.moosIvPServer.ivpHelmState || 'UNKNOWN' }}</div>
       </div>
       <div class="navItem">
         <div class="navLabel">MODE</div>
-        <div class="navValue">{{ mode === 0 ? 'REALTIME' : 'PLAYBACK' }}</div>
+        <div class="navValue">{{ app.data.moosIvPServer.ivpHelmAllstop || 'UNKNOWN' }}</div>
       </div>
     </div>
 
