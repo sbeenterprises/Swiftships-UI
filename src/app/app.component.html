@@ -365,15 +365,28 @@
               <div class="remote-control-section">
                 <h3>Rudder Control</h3>
                 <div class="control-group">
-                  <mat-slider 
-                    min="-50" 
-                    max="50" 
-                    step="1" 
-                    class="rudder-slider">
-                    <input matSliderThumb 
-                           [value]="remoteControl.rudder"
-                           (input)="updateRudder($any($event.target).value)">
-                  </mat-slider>
+                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
+                    <button mat-icon-button (click)="updateRudder(remoteControl.rudder - 1)" 
+                            [disabled]="remoteControl.rudder <= -50"
+                            class="slider-btn minus-btn">
+                      <mat-icon>remove</mat-icon>
+                    </button>
+                    <mat-slider 
+                      min="-50" 
+                      max="50" 
+                      step="1" 
+                      class="rudder-slider"
+                      style="flex: 1;">
+                      <input matSliderThumb 
+                             [value]="remoteControl.rudder"
+                             (input)="updateRudder($any($event.target).value)">
+                    </mat-slider>
+                    <button mat-icon-button (click)="updateRudder(remoteControl.rudder + 1)" 
+                            [disabled]="remoteControl.rudder >= 50"
+                            class="slider-btn plus-btn">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                  </div>
                   <div class="control-display">
                     <span class="control-label">Rudder Angle:</span>
                     <span class="control-value">{{ remoteControl.rudder }}°</span>
@@ -390,15 +403,28 @@
               <div class="remote-control-section">
                 <h3>Thrust Control</h3>
                 <div class="control-group">
-                  <mat-slider 
-                    min="0" 
-                    max="100" 
-                    step="5" 
-                    class="thrust-slider">
-                    <input matSliderThumb 
-                           [value]="remoteControl.thrust"
-                           (input)="updateThrust($any($event.target).value)">
-                  </mat-slider>
+                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
+                    <button mat-icon-button (click)="updateThrust(remoteControl.thrust - 5)" 
+                            [disabled]="remoteControl.thrust <= 0"
+                            class="slider-btn minus-btn">
+                      <mat-icon>remove</mat-icon>
+                    </button>
+                    <mat-slider 
+                      min="0" 
+                      max="100" 
+                      step="5" 
+                      class="thrust-slider"
+                      style="flex: 1;">
+                      <input matSliderThumb 
+                             [value]="remoteControl.thrust"
+                             (input)="updateThrust($any($event.target).value)">
+                    </mat-slider>
+                    <button mat-icon-button (click)="updateThrust(remoteControl.thrust + 5)" 
+                            [disabled]="remoteControl.thrust >= 100"
+                            class="slider-btn plus-btn">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                  </div>
                   <div class="control-display">
                     <span class="control-label">Thrust:</span>
                     <span class="control-value">{{ remoteControl.thrust }}%</span>
