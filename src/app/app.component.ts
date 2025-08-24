@@ -506,6 +506,12 @@ export class AppComponent {
         const visibleRoute: [string, any, boolean] = [selectedRoute[0], selectedRoute[1], true];
         this.skres.routeAdd([visibleRoute]);
         console.log('Route selected and added to map:', routeId, selectedRoute[1].name);
+        
+        // Extract waypoints and send to MOOS-IvP
+        if (selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
+          const waypoints = selectedRoute[1].feature.geometry.coordinates;
+          this.sendWaypointsToMOOS(waypoints);
+        }
       }
     } else {
       console.log('Route deselected');
@@ -1001,6 +1007,31 @@ export class AppComponent {
   /** public method to manually disconnect from MOOS-IvP */
   public disconnectFromMoosIvP() {
     this.disconnectMoosIvPServer();
+  }
+
+  /** send waypoints to MOOS-IvP server */
+  private sendWaypointsToMOOS(waypoints: any[]) {
+    if (
+      this.app.data.moosIvPServer &&
+      this.app.data.moosIvPServer.socket &&
+      this.app.data.moosIvPServer.socket.readyState === WebSocket.OPEN
+    ) {
+      // Format waypoints as lat1,lon1:lat2,lon2:lat3,lon3...
+      // Note that waypoints in SignalK are stored as [longitude, latitude]
+      // but we need to send as latitude,longitude format
+      const waypointString = waypoints.map(point => {
+        // Extract lat and lon from the point and format
+        const lat = point[1]; // Latitude is at index 1
+        const lon = point[0]; // Longitude is at index 0
+        return `${lat},${lon}`;
+      }).join(':');
+      
+      // Send the formatted waypoint string
+      this.app.data.moosIvPServer.socket.send(`AUTONOMOUS_WAYPOINTS=${waypointString}`);
+      console.log('Sent waypoints to MOOS-IvP:', waypointString);
+    } else {
+      console.error('MOOS-IvP connection not available');
+    }
   }
 
   // ** discover server features **
