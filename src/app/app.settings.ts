@@ -312,10 +312,10 @@ export function cleanConfig(
   // MOOS-IvP connection config
   if (typeof settings.moosIvP === 'undefined') {
     settings.moosIvP = {
-      enabled: false,
+      enabled: true,
       url: 'ws://127.0.0.1',
-      port: 9000,
-      autoConnect: false
+      port: 8000,
+      autoConnect: true
     };
   }
 }
@@ -461,10 +461,10 @@ export function defaultConfig(): IAppConfig {
       paths: []
     },
     moosIvP: {
-      enabled: false,
+      enabled: true,
       url: 'ws://127.0.0.1',
-      port: 9000,
-      autoConnect: false
+      port: 8000,
+      autoConnect: true
     }
   };
 }
