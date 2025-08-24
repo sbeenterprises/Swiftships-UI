@@ -430,6 +430,16 @@ export class AppComponent {
     }
   }
 
+  // Get route name by ID for display
+  public getSelectedRouteName(): string {
+    if (!this.autonomousControl.selectedRoute) {
+      return 'None';
+    }
+    
+    const route = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
+    return route ? (route[1].name || 'Route ' + route[0]) : this.autonomousControl.selectedRoute;
+  }
+
   protected toggleRadarDisplay() {
     this.app.config.selections.radarControl = !this.app.config.selections.radarControl;
     this.app.saveConfig();
