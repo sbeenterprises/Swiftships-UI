@@ -1,10 +1,10 @@
-import { Component, ViewChild, effect, signal } from '@angular/core';
+import { Component, ViewChild, effect, signal, OnDestroy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog } from '@angular/material/dialog';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, Subscription } from 'rxjs';
 
 import { AppFacade } from './app.facade';
 import { SettingsEventMessage } from './lib/services';
@@ -41,7 +41,9 @@ import {
   NotificationManager,
   GPXImportDialog,
   GPXExportDialog,
-  CourseService
+  CourseService,
+  RadarService,
+  RadarDisplayComponent
 } from 'src/app/modules';
 
 import { SignalKClient } from 'signalk-client-angular';
@@ -82,8 +84,9 @@ interface DrawEndEvent {
   styleUrls: ['./app.component.css'],
   standalone: false
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   @ViewChild('sideright', { static: false }) sideright;
+  @ViewChild(RadarDisplayComponent) radarDisplay?: RadarDisplayComponent;
 
   public display = {
     fullscreen: { active: false, enabled: document.fullscreenEnabled },
@@ -147,6 +150,7 @@ export class AppComponent {
   public convert = Convert;
   private obsList = []; // observables array
   private streamOptions = { options: null, toMode: null };
+  private radarSubscriptions: Subscription[] = [];
 
   protected mapSetFocus = signal<string>('');
 
@@ -162,6 +166,7 @@ export class AppComponent {
     protected skres: SKResourceService,
     protected skresOther: SKOtherResources,
     protected signalk: SignalKClient,
+    protected radarService: RadarService,
     private dom: DomSanitizer,
     private overlayContainer: OverlayContainer,
     private bottomSheet: MatBottomSheet,
@@ -322,6 +327,8 @@ export class AppComponent {
     this.stream.terminate();
     this.signalk.disconnect();
     this.disconnectMoosIvPServer();
+    this.cleanupRadarSubscriptions();
+    this.radarService.disconnect();
     this.obsList.forEach((i) => i.unsubscribe());
   }
 
@@ -443,6 +450,13 @@ export class AppComponent {
   protected toggleRadarDisplay() {
     this.app.config.selections.radarControl = !this.app.config.selections.radarControl;
     this.app.saveConfig();
+    
+    if (this.app.config.selections.radarControl) {
+      this.connectToRadar();
+    } else {
+      this.disconnectFromRadar();
+    }
+    
     this.app.showMessage(
       this.app.config.selections.radarControl
         ? 'Radar Display Enabled'
@@ -452,6 +466,65 @@ export class AppComponent {
     );
     this.focusMap();
   }
+
+  private async connectToRadar() {
+    try {
+      await this.radarService.connectToRadar();
+      this.app.showMessage('Connected to radar server', false, 2000);
+      this.setupRadarSubscriptions();
+    } catch (error) {
+      console.error('Failed to connect to radar:', error);
+      this.app.showAlert('Radar Connection Failed', 'Failed to connect to radar server. Make sure the Mayara server is running.');
+      this.app.config.selections.radarControl = false;
+      this.app.saveConfig();
+    }
+  }
+
+  private setupRadarSubscriptions() {
+    // Clear any existing subscriptions
+    this.cleanupRadarSubscriptions();
+
+    // Subscribe to radar configuration updates
+    this.radarSubscriptions.push(
+      this.radarService.radarConfig$.subscribe(config => {
+        if (config && this.radarDisplay) {
+          this.radarDisplay.setRadarConfig(config);
+        }
+      })
+    );
+
+    // Subscribe to spoke data
+    this.radarSubscriptions.push(
+      this.radarService.spokeData$.subscribe(spoke => {
+        if (this.radarDisplay) {
+          this.radarDisplay.drawSpoke(spoke);
+        }
+      })
+    );
+
+    // Subscribe to radar errors
+    this.radarSubscriptions.push(
+      this.radarService.error$.subscribe(error => {
+        console.error('Radar error:', error);
+        this.app.showAlert('Radar Error', error);
+      })
+    );
+  }
+
+  private cleanupRadarSubscriptions() {
+    this.radarSubscriptions.forEach(sub => sub.unsubscribe());
+    this.radarSubscriptions = [];
+  }
+
+  private disconnectFromRadar() {
+    this.cleanupRadarSubscriptions();
+    this.radarService.disconnect();
+    if (this.radarDisplay) {
+      this.radarDisplay.clearDisplay();
+    }
+    this.app.showMessage('Disconnected from radar server', false, 2000);
+  }
+
 
   protected toggleChecklist() {
     this.app.data.showChecklist = !this.app.data.showChecklist;

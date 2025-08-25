@@ -1155,6 +1155,20 @@
               (menuItemSelected)="handleContextMenuSelection($event)"
             >
             </fb-map>
+            
+            <!-- RADAR DISPLAY OVERLAY -->
+            @if(app.config.selections.radarControl) {
+            <div 
+              class="radar-overlay"
+              style="position: absolute; top: 20px; right: 20px; z-index: 1000; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"
+            >
+              <app-radar-display
+                [width]="300"
+                [height]="300"
+                [boatHeading]="app.data.vessels.self?.heading || 0"
+              ></app-radar-display>
+            </div>
+            }
           </div>
           <!--/map panel-->
 

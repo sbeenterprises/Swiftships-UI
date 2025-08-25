@@ -4,6 +4,7 @@ export * from './buddies/buddy.service';
 export * from './course';
 export * from './gpx/gpx.module';
 export * from './map';
+export * from './radar';
 export * from './settings';
 export * from './skresources';
 export * from './weather';
