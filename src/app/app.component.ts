@@ -1030,7 +1030,7 @@ export class AppComponent implements OnDestroy {
   private handleMoosIvPMessage(data: string) {
     try {
       this.app.data.moosIvPServer.lastMessage = data;
-      this.app.debug('MOOS-IvP message received:', data);
+      // this.app.debug('MOOS-IvP message received:', data);
       
       // Parse MOOS variable updates (format: VAR=value)
       const lines = data.split('\n');
@@ -1068,7 +1068,7 @@ export class AppComponent implements OnDestroy {
         break;
       default:
         // Handle other MOOS variables as needed
-        this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
+        // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
     }
   }
 
