@@ -328,6 +328,16 @@ export function cleanConfig(
       autoConnect: true
     };
   }
+
+  // Radar (Mayara) server connection config
+  if (typeof settings.radar === 'undefined') {
+    settings.radar = {
+      enabled: true,
+      url: 'http://127.0.0.1',
+      port: 3001,
+      autoConnect: true
+    };
+  }
 }
 
 // initialise default configuration
@@ -480,6 +490,12 @@ export function defaultConfig(): IAppConfig {
       enabled: true,
       url: 'http://127.0.0.1',
       port: 3000,
+      autoConnect: true
+    },
+    radar: {
+      enabled: true,
+      url: 'http://127.0.0.1',
+      port: 3001,
       autoConnect: true
     }
   };

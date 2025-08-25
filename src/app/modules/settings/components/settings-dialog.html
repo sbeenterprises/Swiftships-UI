@@ -1397,6 +1397,140 @@
       </div>
     </mat-tab>
 
+    <mat-tab label="Radar">
+      <div class="theme-page settings">
+        <div class="theme-panel">
+          <div class="setting-group" id="sectRadar">
+            <div class="setting-group-title">RADAR CONNECTION</div>
+            <mat-card class="setting-card">
+              <mat-card-content>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <mat-checkbox
+                      [(ngModel)]="facade.settings.radar.enabled"
+                      (change)="persistModel()"
+                      label="after"
+                      matTooltip="Enable connection to Mayara radar server"
+                    >
+                      Enable Radar Connection
+                    </mat-checkbox>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <mat-checkbox
+                      [(ngModel)]="facade.settings.radar.autoConnect"
+                      (change)="persistModel()"
+                      [disabled]="!facade.settings.radar.enabled"
+                      label="after"
+                      matTooltip="Automatically connect to Mayara radar server on startup"
+                    >
+                      Auto Connect
+                    </mat-checkbox>
+                  </div>
+                </div>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <mat-form-field style="width: 100%" floatLabel="always">
+                      <mat-label>Server URL</mat-label>
+                      <input
+                        matInput
+                        type="text"
+                        #radarurl="ngModel"
+                        required
+                        [disabled]="!facade.settings.radar.enabled"
+                        [(ngModel)]="facade.settings.radar.url"
+                        (change)="persistModel()"
+                        placeholder="http://127.0.0.1"
+                        matTooltip="Mayara radar server URL (e.g., http://127.0.0.1)"
+                      />
+                      @if(radarurl.invalid) {
+                      <mat-error> URL required. </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <mat-form-field style="width: 100%" floatLabel="always">
+                      <mat-label>Port</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        #radarport="ngModel"
+                        required
+                        min="1"
+                        max="65535"
+                        [disabled]="!facade.settings.radar.enabled"
+                        [(ngModel)]="facade.settings.radar.port"
+                        (change)="parseNumber(radarport)"
+                        placeholder="3001"
+                        matTooltip="Mayara radar server port (default: 3001)"
+                      />
+                      @if(radarport.invalid) {
+                      <mat-error> Valid port number required (1-65535). </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                </div>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <div class="connection-status">
+                      <strong>Connection Status:</strong>
+                      @if(facade.appFacade.data.connectionState?.radar?.connected) {
+                        <span class="status-connected">
+                          <mat-icon>check_circle</mat-icon> Connected
+                        </span>
+                      } @else if(facade.appFacade.data.connectionState?.radar?.connecting) {
+                        <span class="status-connecting">
+                          <mat-icon>sync</mat-icon> Connecting...
+                        </span>
+                      } @else {
+                        <span class="status-disconnected">
+                          <mat-icon>cancel</mat-icon> Disconnected
+                        </span>
+                      }
+                    </div>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <button 
+                      mat-raised-button 
+                      color="primary"
+                      [disabled]="!facade.settings.radar.enabled || facade.appFacade.data.connectionState?.radar?.connecting"
+                      (click)="toggleRadarConnection()"
+                      matTooltip="Manually connect/disconnect from Mayara radar server"
+                    >
+                      @if(facade.appFacade.data.connectionState?.radar?.connected) {
+                        <ng-container><mat-icon>link_off</mat-icon></ng-container> Disconnect
+                      } @else {
+                        <ng-container><mat-icon>link</mat-icon></ng-container> Connect
+                      }
+                    </button>
+                  </div>
+                </div>
+                @if(facade.appFacade.data.radarServer?.connected) {
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item" style="width: 100%;">
+                    <div class="radar-data">
+                      <h4>Radar Data:</h4>
+                      <div class="radar-variables">
+                        @if(facade.appFacade.data.radarServer.status) {
+                          <div><strong>Status:</strong> {{facade.appFacade.data.radarServer.status}}</div>
+                        }
+                        @if(facade.appFacade.data.radarServer.range) {
+                          <div><strong>Range:</strong> {{facade.appFacade.data.radarServer.range}}m</div>
+                        }
+                        @if(facade.appFacade.data.radarServer.targets !== undefined) {
+                          <div><strong>Targets:</strong> {{facade.appFacade.data.radarServer.targets}}</div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                }
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
     <mat-tab label="Experiments">
       <div class="theme-page settings">
         <div class="theme-panel">

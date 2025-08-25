@@ -920,12 +920,31 @@ export class AppComponent implements OnDestroy {
     this.app.data.selfId = null;
     this.app.data.server = null;
     this.signalk.proxied = this.app.config.selections.signalk.proxied;
+    
+    // Use SignalK settings if enabled, otherwise fallback to hostDef
+    let host = this.app.hostDef.name;
+    let port = this.app.hostDef.port;
+    let ssl = this.app.hostDef.ssl;
+    
+    if (this.app.config.signalk?.enabled) {
+      // Parse URL to extract host
+      const signalkUrl = this.app.config.signalk.url;
+      if (signalkUrl) {
+        try {
+          const url = new URL(signalkUrl);
+          host = url.hostname;
+          ssl = url.protocol === 'https:';
+        } catch (e) {
+          // If URL parsing fails, treat as hostname
+          host = signalkUrl.replace(/^https?:\/\//, '');
+          ssl = signalkUrl.startsWith('https://');
+        }
+      }
+      port = this.app.config.signalk.port;
+    }
+    
     this.signalk
-      .connect(
-        this.app.hostDef.name,
-        this.app.hostDef.port,
-        this.app.hostDef.ssl
-      )
+      .connect(host, port, ssl)
       .subscribe(
         () => {
           this.signalk.authToken = this.app.getFBToken();

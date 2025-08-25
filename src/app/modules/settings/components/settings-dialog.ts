@@ -242,4 +242,15 @@ export class SettingsDialog implements OnInit {
       this.facade.connectToMoosIvP();
     }
   }
+
+  /**
+   * toggle Radar connection
+   */
+  toggleRadarConnection() {
+    if (this.facade.appFacade.data.connectionState?.radar?.connected) {
+      this.facade.disconnectFromRadar();
+    } else {
+      this.facade.connectToRadar();
+    }
+  }
 }

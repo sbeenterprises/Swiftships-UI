@@ -176,6 +176,12 @@ export interface IAppConfig {
     port: number;
     autoConnect: boolean;
   };
+  radar: {
+    enabled: boolean;
+    url: string;
+    port: number;
+    autoConnect: boolean;
+  };
 }
 
 export interface FBAppData {

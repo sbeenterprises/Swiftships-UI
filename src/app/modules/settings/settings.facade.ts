@@ -330,6 +330,15 @@ export class SettingsFacade {
     (this.app as any).disconnectFromMoosIvP();
   }
 
+  // ** Radar connection methods **
+  connectToRadar() {
+    (this.app as any).connectToRadar();
+  }
+
+  disconnectFromRadar() {
+    (this.app as any).disconnectFromRadar();
+  }
+
   // ** getter for app facade access in templates **
   get appFacade() {
     return this.app as any;
