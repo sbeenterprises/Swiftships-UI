@@ -41,6 +41,7 @@ import { AISWindLayerComponent } from './lib/resources/layer-aiswind.component';
 import { AISTargetsLayerComponent } from './lib/resources/layer-aistargets.component';
 import { AISVesselsLayerComponent } from './lib/resources/layer-aisvessels.component';
 import { AISTargetsTrackLayerComponent } from './lib/resources/layer-aistargets-track.component';
+import { RadarLayerComponent } from './lib/radar/layer-radar.component';
 
 export * from './lib/util';
 export { MapService } from './lib/map.service';
@@ -86,6 +87,7 @@ export { AISWindLayerComponent } from './lib/resources/layer-aiswind.component';
 export { AISTargetsLayerComponent } from './lib/resources/layer-aistargets.component';
 export { AISVesselsLayerComponent } from './lib/resources/layer-aisvessels.component';
 export { AISTargetsTrackLayerComponent } from './lib/resources/layer-aistargets-track.component';
+export { RadarLayerComponent } from './lib/radar/layer-radar.component';
 
 const declarations = [
   ContentComponent,
@@ -123,7 +125,8 @@ const declarations = [
   AISWindLayerComponent,
   AISTargetsLayerComponent,
   AISVesselsLayerComponent,
-  AISTargetsTrackLayerComponent
+  AISTargetsTrackLayerComponent,
+  RadarLayerComponent
 ];
 
 @NgModule({

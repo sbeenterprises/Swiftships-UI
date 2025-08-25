@@ -575,6 +575,17 @@
   </fb-arrival-circle>
   } }
 
+  <!-- Radar -->
+  @if(app.config.selections.radarControl) {
+  <fb-radar
+    [position]="dfeat.self.position"
+    [heading]="dfeat.self.orientation"
+    [zIndex]="800"
+    [visible]="true"
+  >
+  </fb-radar>
+  }
+
   <!-- Vessel (self) -->
   <fb-vessel
     [position]="dfeat.self.position"

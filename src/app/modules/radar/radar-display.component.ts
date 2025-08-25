@@ -1,4 +1,5 @@
 import { Component, ElementRef, ViewChild, OnInit, OnDestroy, Input } from '@angular/core';
+import { Position } from 'src/app/types';
 
 export interface RadarSpoke {
   angle: number;
@@ -14,10 +15,27 @@ export interface RadarConfig {
   range: number;
 }
 
+export interface RadarDisplayMode {
+  overlay: boolean; // true for overlay mode, false for integrated mode
+  centerPosition?: Position; // boat position in chart coordinates
+  mapBounds?: { // current map view bounds
+    north: number;
+    south: number;
+    east: number; 
+    west: number;
+  };
+  mapZoom?: number; // current map zoom level
+  pixelsPerMeter?: number; // conversion factor from meters to pixels
+}
+
 @Component({
   selector: 'app-radar-display',
   template: `
-    <div class="radar-container" [style.width.px]="width" [style.height.px]="height">
+    <div class="radar-container" 
+         [style.width.px]="width" 
+         [style.height.px]="height"
+         [class.radar-overlay]="displayMode.overlay"
+         [class.radar-integrated]="!displayMode.overlay">
       <canvas #backgroundCanvas class="radar-canvas"></canvas>
       <canvas #radarCanvas class="radar-canvas"></canvas>
     </div>
@@ -25,7 +43,15 @@ export interface RadarConfig {
   styles: [`
     .radar-container {
       position: relative;
+    }
+    .radar-overlay {
       background-color: #000;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .radar-integrated {
+      background-color: transparent;
+      pointer-events: none;
     }
     .radar-canvas {
       position: absolute;
@@ -43,6 +69,7 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
   @Input() width = 600;
   @Input() height = 600;
   @Input() boatHeading = 0; // Current boat heading in degrees
+  @Input() displayMode: RadarDisplayMode = { overlay: true }; // Default to overlay mode
 
   private backgroundCtx!: CanvasRenderingContext2D;
   private radarCtx!: CanvasRenderingContext2D;
@@ -75,16 +102,53 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
     this.backgroundCtx = backgroundCanvas.getContext('2d')!;
     this.radarCtx = radarCanvas.getContext('2d')!;
 
-    this.centerX = this.width / 2;
-    this.centerY = this.height / 2;
-    this.maxRadius = Math.min(this.centerX, this.centerY) * this.RANGE_SCALE;
-
+    this.updateCenterAndRadius();
     this.drawBackground();
+  }
+
+  private updateCenterAndRadius() {
+    if (this.displayMode.overlay) {
+      // Overlay mode: center in the canvas
+      this.centerX = this.width / 2;
+      this.centerY = this.height / 2;
+      this.maxRadius = Math.min(this.centerX, this.centerY) * this.RANGE_SCALE;
+    } else {
+      // Integrated mode: position based on boat position in chart
+      if (this.displayMode.centerPosition && this.displayMode.mapBounds && this.displayMode.pixelsPerMeter) {
+        const { centerPosition, mapBounds, pixelsPerMeter } = this.displayMode;
+        
+        // Calculate boat position in canvas coordinates
+        const lonRange = mapBounds.east - mapBounds.west;
+        const latRange = mapBounds.north - mapBounds.south;
+        
+        this.centerX = ((centerPosition[0] - mapBounds.west) / lonRange) * this.width;
+        this.centerY = ((mapBounds.north - centerPosition[1]) / latRange) * this.height;
+        
+        // Calculate radar range in pixels based on current zoom
+        if (this.config) {
+          this.maxRadius = (this.config.range * pixelsPerMeter) * this.RANGE_SCALE;
+        } else {
+          this.maxRadius = Math.min(this.width, this.height) / 4;
+        }
+      } else {
+        // Fallback to center if no positioning info
+        this.centerX = this.width / 2;
+        this.centerY = this.height / 2;
+        this.maxRadius = Math.min(this.centerX, this.centerY) * this.RANGE_SCALE;
+      }
+    }
   }
 
   setRadarConfig(config: RadarConfig) {
     this.config = config;
     this.expandLegend(config.legend);
+    this.updateCenterAndRadius();
+    this.drawBackground();
+  }
+
+  updateDisplayMode(displayMode: RadarDisplayMode) {
+    this.displayMode = displayMode;
+    this.updateCenterAndRadius();
     this.drawBackground();
   }
 
@@ -173,22 +237,41 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
   private drawBackground() {
     this.backgroundCtx.clearRect(0, 0, this.width, this.height);
     
+    // Only draw background elements if we have a valid config and center
+    if (!this.config || this.maxRadius <= 0) {
+      return;
+    }
+    
     // Set styles for range rings
-    this.backgroundCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-    this.backgroundCtx.fillStyle = 'white';
-    this.backgroundCtx.font = '12px Arial';
+    const opacity = this.displayMode.overlay ? 0.5 : 0.3; // Less opacity for integrated mode
+    this.backgroundCtx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+    this.backgroundCtx.fillStyle = `rgba(255, 255, 255, ${opacity + 0.2})`;
+    this.backgroundCtx.font = '10px Arial';
     this.backgroundCtx.lineWidth = 1;
 
     // Draw range rings (4 rings like in Mayara)
     for (let i = 1; i <= 4; i++) {
       const radius = (i * this.maxRadius) / 4;
       
+      // Skip rings that would be too large or off-canvas in integrated mode
+      if (!this.displayMode.overlay) {
+        const maxDimension = Math.max(
+          Math.abs(this.centerX), 
+          Math.abs(this.centerY),
+          Math.abs(this.width - this.centerX),
+          Math.abs(this.height - this.centerY)
+        );
+        if (radius > maxDimension * 2) {
+          continue;
+        }
+      }
+      
       this.backgroundCtx.beginPath();
       this.backgroundCtx.arc(this.centerX, this.centerY, radius, 0, 2 * Math.PI);
       this.backgroundCtx.stroke();
       
-      // Draw range labels
-      if (this.config && this.config.range) {
+      // Draw range labels only in overlay mode or if they fit
+      if (this.displayMode.overlay && this.config && this.config.range) {
         const rangeValue = (this.config.range * i) / 4;
         const text = this.formatRange(rangeValue);
         
@@ -196,29 +279,34 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
         const labelX = this.centerX + radius * Math.cos(-Math.PI / 4);
         const labelY = this.centerY + radius * Math.sin(-Math.PI / 4);
         
-        this.backgroundCtx.fillText(text, labelX + 5, labelY - 5);
+        // Only draw label if it's within canvas bounds
+        if (labelX + 50 < this.width && labelY - 5 > 0) {
+          this.backgroundCtx.fillText(text, labelX + 5, labelY - 5);
+        }
       }
     }
 
-    // Draw center crosshairs
-    this.backgroundCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    this.backgroundCtx.beginPath();
-    // Vertical line
-    this.backgroundCtx.moveTo(this.centerX, this.centerY - 10);
-    this.backgroundCtx.lineTo(this.centerX, this.centerY + 10);
-    // Horizontal line
-    this.backgroundCtx.moveTo(this.centerX - 10, this.centerY);
-    this.backgroundCtx.lineTo(this.centerX + 10, this.centerY);
-    this.backgroundCtx.stroke();
+    // Draw center crosshairs only if center is visible
+    if (this.centerX >= 0 && this.centerX <= this.width && this.centerY >= 0 && this.centerY <= this.height) {
+      this.backgroundCtx.strokeStyle = `rgba(255, 255, 255, ${opacity + 0.3})`;
+      this.backgroundCtx.beginPath();
+      // Vertical line
+      this.backgroundCtx.moveTo(this.centerX, this.centerY - 10);
+      this.backgroundCtx.lineTo(this.centerX, this.centerY + 10);
+      // Horizontal line
+      this.backgroundCtx.moveTo(this.centerX - 10, this.centerY);
+      this.backgroundCtx.lineTo(this.centerX + 10, this.centerY);
+      this.backgroundCtx.stroke();
 
-    // Draw boat icon in center (simple triangle pointing up)
-    this.backgroundCtx.fillStyle = 'yellow';
-    this.backgroundCtx.beginPath();
-    this.backgroundCtx.moveTo(this.centerX, this.centerY - 8);
-    this.backgroundCtx.lineTo(this.centerX - 4, this.centerY + 6);
-    this.backgroundCtx.lineTo(this.centerX + 4, this.centerY + 6);
-    this.backgroundCtx.closePath();
-    this.backgroundCtx.fill();
+      // Draw boat icon in center (simple triangle pointing up)
+      this.backgroundCtx.fillStyle = 'yellow';
+      this.backgroundCtx.beginPath();
+      this.backgroundCtx.moveTo(this.centerX, this.centerY - 8);
+      this.backgroundCtx.lineTo(this.centerX - 4, this.centerY + 6);
+      this.backgroundCtx.lineTo(this.centerX + 4, this.centerY + 6);
+      this.backgroundCtx.closePath();
+      this.backgroundCtx.fill();
+    }
   }
 
   private formatRange(rangeInMeters: number): string {

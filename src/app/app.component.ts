@@ -86,7 +86,6 @@ interface DrawEndEvent {
 })
 export class AppComponent implements OnDestroy {
   @ViewChild('sideright', { static: false }) sideright;
-  @ViewChild(RadarDisplayComponent) radarDisplay?: RadarDisplayComponent;
 
   public display = {
     fullscreen: { active: false, enabled: document.fullscreenEnabled },
@@ -484,24 +483,6 @@ export class AppComponent implements OnDestroy {
     // Clear any existing subscriptions
     this.cleanupRadarSubscriptions();
 
-    // Subscribe to radar configuration updates
-    this.radarSubscriptions.push(
-      this.radarService.radarConfig$.subscribe(config => {
-        if (config && this.radarDisplay) {
-          this.radarDisplay.setRadarConfig(config);
-        }
-      })
-    );
-
-    // Subscribe to spoke data
-    this.radarSubscriptions.push(
-      this.radarService.spokeData$.subscribe(spoke => {
-        if (this.radarDisplay) {
-          this.radarDisplay.drawSpoke(spoke);
-        }
-      })
-    );
-
     // Subscribe to radar errors
     this.radarSubscriptions.push(
       this.radarService.error$.subscribe(error => {
@@ -519,9 +500,6 @@ export class AppComponent implements OnDestroy {
   private disconnectFromRadar() {
     this.cleanupRadarSubscriptions();
     this.radarService.disconnect();
-    if (this.radarDisplay) {
-      this.radarDisplay.clearDisplay();
-    }
     this.app.showMessage('Disconnected from radar server', false, 2000);
   }
 
