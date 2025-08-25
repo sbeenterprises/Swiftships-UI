@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { RadarSpoke, RadarConfig } from './radar-display.component';
+import { AppFacade } from '../../app.facade';
 
 declare const protobuf: any;
 
@@ -31,7 +32,7 @@ export class RadarService {
 
   private currentRadar: RadarServerInfo | null = null;
 
-  constructor() {
+  constructor(private app: AppFacade) {
     this.loadProtobuf();
   }
 
@@ -71,8 +72,14 @@ export class RadarService {
     this.connecting$.next(true);
 
     try {
+      // Get radar server URL from configuration
+      const radarConfig = this.app.config.radar;
+      const baseUrl = radarConfig?.enabled 
+        ? `${radarConfig.url}:${radarConfig.port}`
+        : 'http://localhost:3001';
+      
       // Fetch available radars
-      const response = await fetch('http://localhost:3001/v1/api/radars');
+      const response = await fetch(`${baseUrl}/v1/api/radars`);
       const radars = await response.json();
 
       // If no specific radar ID provided, use the first available radar
