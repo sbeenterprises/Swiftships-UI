@@ -170,6 +170,12 @@ export interface IAppConfig {
     port: number;
     autoConnect: boolean;
   };
+  signalk: {
+    enabled: boolean;
+    url: string;
+    port: number;
+    autoConnect: boolean;
+  };
 }
 
 export interface FBAppData {

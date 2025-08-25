@@ -1091,6 +1091,71 @@
             <mat-card class="setting-card">
               <mat-card-content>
                 <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <mat-checkbox
+                      [(ngModel)]="facade.settings.signalk.enabled"
+                      (change)="persistModel()"
+                      label="after"
+                      matTooltip="Enable connection to Signal K server"
+                    >
+                      Enable Signal K Connection
+                    </mat-checkbox>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <mat-checkbox
+                      [(ngModel)]="facade.settings.signalk.autoConnect"
+                      (change)="persistModel()"
+                      [disabled]="!facade.settings.signalk.enabled"
+                      label="after"
+                      matTooltip="Automatically connect to Signal K server on startup"
+                    >
+                      Auto Connect
+                    </mat-checkbox>
+                  </div>
+                </div>
+                <div class="setting-card-row">
+                  <div class="setting-card-row-item">
+                    <mat-form-field style="width: 100%" floatLabel="always">
+                      <mat-label>Server URL</mat-label>
+                      <input
+                        matInput
+                        type="text"
+                        #signalkurl="ngModel"
+                        required
+                        [disabled]="!facade.settings.signalk.enabled"
+                        [(ngModel)]="facade.settings.signalk.url"
+                        (change)="persistModel()"
+                        placeholder="http://127.0.0.1"
+                        matTooltip="Signal K server URL (e.g., http://127.0.0.1)"
+                      />
+                      @if(signalkurl.invalid) {
+                      <mat-error> URL required. </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                  <div class="setting-card-row-item">
+                    <mat-form-field style="width: 100%" floatLabel="always">
+                      <mat-label>Port</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        #signalkport="ngModel"
+                        required
+                        min="1"
+                        max="65535"
+                        [disabled]="!facade.settings.signalk.enabled"
+                        [(ngModel)]="facade.settings.signalk.port"
+                        (change)="parseNumber(signalkport)"
+                        placeholder="3000"
+                        matTooltip="Signal K server port (default: 3000)"
+                      />
+                      @if(signalkport.invalid) {
+                      <mat-error> Valid port number required (1-65535). </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                </div>
+                <div class="setting-card-row">
                   <fieldset>
                     <legend>Filter Stream data:</legend>
                     <span style="font-size: smaller">

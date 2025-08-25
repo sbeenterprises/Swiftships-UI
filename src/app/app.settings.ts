@@ -318,6 +318,16 @@ export function cleanConfig(
       autoConnect: true
     };
   }
+
+  // Signal K server connection config
+  if (typeof settings.signalk === 'undefined') {
+    settings.signalk = {
+      enabled: true,
+      url: 'http://127.0.0.1',
+      port: 3000,
+      autoConnect: true
+    };
+  }
 }
 
 // initialise default configuration
@@ -464,6 +474,12 @@ export function defaultConfig(): IAppConfig {
       enabled: true,
       url: 'ws://127.0.0.1',
       port: 8000,
+      autoConnect: true
+    },
+    signalk: {
+      enabled: true,
+      url: 'http://127.0.0.1',
+      port: 3000,
       autoConnect: true
     }
   };
