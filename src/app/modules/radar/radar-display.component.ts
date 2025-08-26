@@ -78,6 +78,10 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
   private maxRadius!: number;
   private config!: RadarConfig;
   private legend: number[][] = [];
+  
+  // Spoke data storage (like Mayara's approach)
+  private spokeDataBuffer: Uint8Array[] = [];
+  private pendingRender = false;
 
   // Range scale factor (similar to Mayara's RANGE_SCALE = 0.9)
   private readonly RANGE_SCALE = 0.9;
@@ -144,6 +148,9 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
     this.expandLegend(config.legend);
     this.updateCenterAndRadius();
     this.drawBackground();
+    
+    // Initialize spoke data buffer
+    this.spokeDataBuffer = new Array(config.spokes);
   }
 
   updateDisplayMode(displayMode: RadarDisplayMode) {
@@ -179,40 +186,89 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
     return rgba;
   }
 
+  private clearSpokeArea(angle: number, radius: number) {
+    // Clear a wedge-shaped area for the spoke - use a wider clearing area
+    const spokeWidth = (2 * Math.PI) / this.config.spokes; // Angular width of one spoke
+    const clearWidth = spokeWidth * 2.0; // Much wider clearing to ensure complete removal
+    
+    this.radarCtx.save();
+    this.radarCtx.translate(this.centerX, this.centerY);
+    
+    // Method 1: Use clearRect in a wedge pattern (more aggressive)
+    this.radarCtx.beginPath();
+    this.radarCtx.moveTo(0, 0);
+    this.radarCtx.arc(0, 0, radius, angle - clearWidth/2, angle + clearWidth/2);
+    this.radarCtx.closePath();
+    this.radarCtx.clip(); // Clip to this wedge shape
+    
+    // Clear the entire clipped area
+    this.radarCtx.clearRect(-radius, -radius, radius * 2, radius * 2);
+    
+    this.radarCtx.restore();
+  }
+
+  private drawSweepLine(angle: number, radius: number) {
+    // Draw a bright sweep line to show current radar position
+    this.radarCtx.save();
+    this.radarCtx.translate(this.centerX, this.centerY);
+    this.radarCtx.rotate(angle);
+    
+    // Draw a bright green sweep line
+    this.radarCtx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+    this.radarCtx.lineWidth = 2;
+    this.radarCtx.beginPath();
+    this.radarCtx.moveTo(0, 0);
+    this.radarCtx.lineTo(radius, 0);
+    this.radarCtx.stroke();
+    
+    this.radarCtx.restore();
+  }
+
   drawSpoke(spoke: RadarSpoke) {
     if (!this.config || !this.legend.length) return;
 
+    // Store spoke data in buffer (like Mayara approach)
+    this.spokeDataBuffer[spoke.angle] = new Uint8Array(spoke.data);
+    
+    // Schedule a render if not already pending
+    if (!this.pendingRender) {
+      this.pendingRender = true;
+      requestAnimationFrame(() => this.render());
+    }
+  }
+
+  // Render all accumulated spoke data (like Mayara's render method)
+  private render() {
+    if (!this.config || !this.legend.length) {
+      this.pendingRender = false;
+      return;
+    }
+
+    // Clear the entire radar canvas for fresh rendering
+    this.radarCtx.clearRect(0, 0, this.width, this.height);
+
+    // Render all spokes in the buffer
+    for (let angle = 0; angle < this.config.spokes; angle++) {
+      const spokeData = this.spokeDataBuffer[angle];
+      if (!spokeData) continue;
+
+      this.renderSingleSpoke(angle, spokeData);
+    }
+
+    this.pendingRender = false;
+  }
+
+  private renderSingleSpoke(spokeAngle: number, spokeData: Uint8Array) {
     // Convert angle to radians, adjusting for boat-centered display
-    // In Mayara: angle 0 = front of boat, we add 3/4 rotation to make north up
-    const adjustedAngle = (spoke.angle + (this.config.spokes * 3) / 4) % this.config.spokes;
+    const adjustedAngle = (spokeAngle + (this.config.spokes * 3) / 4) % this.config.spokes;
     const angleRad = (2 * Math.PI * adjustedAngle) / this.config.spokes;
 
     // Apply boat heading correction to keep boat centered with heading up
     const headingRad = (this.boatHeading * Math.PI) / 180;
     const finalAngle = angleRad - headingRad;
 
-    const pixelsPerDataPoint = (this.maxRadius * this.RANGE_SCALE) / spoke.data.length;
-    const rangeScale = this.config.range ? spoke.range / this.config.range : 1;
-    const scaledPixelsPerDataPoint = pixelsPerDataPoint * rangeScale;
-
-    const cosAngle = Math.cos(finalAngle) * scaledPixelsPerDataPoint;
-    const sinAngle = Math.sin(finalAngle) * scaledPixelsPerDataPoint;
-
-    // Create image data for this spoke
-    const spokeLength = spoke.data.length;
-    const imageData = this.radarCtx.createImageData(spokeLength, 1);
-
-    for (let i = 0; i < spokeLength; i++) {
-      const value = spoke.data[i];
-      const colorIdx = Math.min(value, 255);
-      const color = this.legend[colorIdx];
-
-      const pixelIdx = i * 4;
-      imageData.data[pixelIdx] = color[0];     // Red
-      imageData.data[pixelIdx + 1] = color[1]; // Green  
-      imageData.data[pixelIdx + 2] = color[2]; // Blue
-      imageData.data[pixelIdx + 3] = color[3]; // Alpha
-    }
+    const pixelsPerDataPoint = (this.maxRadius * this.RANGE_SCALE) / spokeData.length;
+    const scaledPixelsPerDataPoint = pixelsPerDataPoint;
 
     // Draw the spoke data as a line from center outward
     this.radarCtx.save();
@@ -220,8 +276,8 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
     this.radarCtx.rotate(finalAngle);
     
     // Draw each data point along the spoke
-    for (let i = 0; i < spokeLength; i++) {
-      const value = spoke.data[i];
+    for (let i = 0; i < spokeData.length; i++) {
+      const value = spokeData[i];
       const color = this.legend[Math.min(value, 255)];
       const distance = i * scaledPixelsPerDataPoint;
       

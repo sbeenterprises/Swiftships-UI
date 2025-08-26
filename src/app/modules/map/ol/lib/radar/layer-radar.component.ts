@@ -46,6 +46,11 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
   private currentRange = 1852; // Default 1nm in meters
   private legend: number[][] = [];
   private updateExtentFunc: ((location: Coordinate, range: number) => void) | null = null;
+  
+  // Spoke data buffer for radar sweep effect
+  private spokeBuffer: Map<number, { data: Uint8Array; range: number }> = new Map();
+  private pendingRender = false;
+  private lastSweepAngle = -1; // Track last sweep position for clearing
 
   @Output() layerReady: AsyncSubject<Layer> = new AsyncSubject();
   @Input() position: Position = [0, 0];
@@ -231,20 +236,92 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
   private drawSpoke(spoke: RadarSpoke): void {
     if (!this.radarConfig || !this.legend.length) return;
 
+    // Store spoke data in buffer (replaces old data at same angle)
+    this.spokeBuffer.set(spoke.angle, {
+      data: new Uint8Array(spoke.data),
+      range: spoke.range
+    });
+
+    // Clear spokes that the radar sweep has passed
+    this.clearSweptArea(spoke.angle);
+    
+    // Schedule render if not already pending
+    if (!this.pendingRender) {
+      this.pendingRender = true;
+      requestAnimationFrame(() => this.renderRadarSweep());
+    }
+  }
+
+  private clearSweptArea(currentAngle: number): void {
+    if (this.lastSweepAngle === -1) {
+      this.lastSweepAngle = currentAngle;
+      return;
+    }
+
+    const totalSpokes = this.radarConfig!.spokes;
+    let anglesToClear: number[] = [];
+
+    // Handle wrap-around (360° to 0°)
+    if (currentAngle < this.lastSweepAngle) {
+      // Sweep crossed zero, clear from lastSweepAngle to totalSpokes and 0 to currentAngle
+      for (let angle = this.lastSweepAngle + 1; angle < totalSpokes; angle++) {
+        anglesToClear.push(angle);
+      }
+      for (let angle = 0; angle < currentAngle; angle++) {
+        anglesToClear.push(angle);
+      }
+    } else {
+      // Normal case: clear from lastSweepAngle to currentAngle
+      for (let angle = this.lastSweepAngle + 1; angle < currentAngle; angle++) {
+        anglesToClear.push(angle);
+      }
+    }
+
+    // Remove old spokes that have been swept over
+    anglesToClear.forEach(angle => {
+      this.spokeBuffer.delete(angle);
+    });
+
+    this.lastSweepAngle = currentAngle;
+  }
+
+  private renderRadarSweep(): void {
+    if (!this.radarConfig || !this.legend.length) {
+      this.pendingRender = false;
+      return;
+    }
+
+    // Clear the entire canvas
+    this.clearRadarCanvas();
+
     const centerX = this.radarCanvas.width / 2;
     const centerY = this.radarCanvas.height / 2;
-
-    // Convert angle to radians and adjust for boat heading
-    const adjustedAngle = (spoke.angle + (this.radarConfig.spokes * 3) / 4) % this.radarConfig.spokes;
-    const angleRad = (2 * Math.PI * adjustedAngle) / this.radarConfig.spokes;
-    
-    // Apply boat heading correction
     const currentState = this.shipStateSubject.value;
     const headingRad = (currentState.heading * Math.PI) / 180;
+
+    // Render all spokes in buffer
+    this.spokeBuffer.forEach((spokeData, angle) => {
+      this.renderSingleSpoke(spokeData, angle, centerX, centerY, headingRad);
+    });
+
+    this.pendingRender = false;
+    this.refreshLayer();
+  }
+
+  private renderSingleSpoke(
+    spokeData: { data: Uint8Array; range: number }, 
+    angle: number, 
+    centerX: number, 
+    centerY: number, 
+    headingRad: number
+  ): void {
+    // Convert angle to radians and adjust for boat heading
+    const adjustedAngle = (angle + (this.radarConfig!.spokes * 3) / 4) % this.radarConfig!.spokes;
+    const angleRad = (2 * Math.PI * adjustedAngle) / this.radarConfig!.spokes;
     const finalAngle = angleRad - headingRad;
 
-    const pixelsPerDataPoint = (Math.min(centerX, centerY) * 0.9) / spoke.data.length;
-    const rangeScale = this.radarConfig.range ? spoke.range / this.radarConfig.range : 1;
+    const pixelsPerDataPoint = (Math.min(centerX, centerY) * 0.9) / spokeData.data.length;
+    const rangeScale = this.radarConfig!.range ? spokeData.range / this.radarConfig!.range : 1;
     const scaledPixelsPerDataPoint = pixelsPerDataPoint * rangeScale;
 
     // Draw the spoke data
@@ -252,8 +329,8 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
     this.radarCtx.translate(centerX, centerY);
     this.radarCtx.rotate(finalAngle);
     
-    for (let i = 0; i < spoke.data.length; i++) {
-      const value = spoke.data[i];
+    for (let i = 0; i < spokeData.data.length; i++) {
+      const value = spokeData.data[i];
       const color = this.legend[Math.min(value, 255)];
       const distance = i * scaledPixelsPerDataPoint;
       
