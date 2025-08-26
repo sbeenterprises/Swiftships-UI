@@ -47,10 +47,11 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
   private legend: number[][] = [];
   private updateExtentFunc: ((location: Coordinate, range: number) => void) | null = null;
   
-  // Spoke data buffer for radar sweep effect
-  private spokeBuffer: Map<number, { data: Uint8Array; range: number }> = new Map();
-  private pendingRender = false;
-  private lastSweepAngle = -1; // Track last sweep position for clearing
+  // Mayara-style optimizations
+  private patternCanvas: HTMLCanvasElement;
+  private patternCtx: CanvasRenderingContext2D;
+  private imageData: ImageData;
+  private renderPending = false;
 
   @Output() layerReady: AsyncSubject<Layer> = new AsyncSubject();
   @Input() position: Position = [0, 0];
@@ -110,6 +111,13 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
     this.radarCanvas.width = 1024; // Default size, will be updated based on config
     this.radarCanvas.height = 1024;
     this.radarCtx = this.radarCanvas.getContext('2d')!;
+    
+    // Create pattern canvas like Mayara (for efficient spoke rendering)
+    this.patternCanvas = document.createElement('canvas');
+    this.patternCanvas.width = 2048; // Match Mayara's pattern size
+    this.patternCanvas.height = 1;
+    this.patternCtx = this.patternCanvas.getContext('2d')!;
+    this.imageData = this.patternCtx.createImageData(2048, 1);
   }
 
   private setupRadarLayer(): void {
@@ -206,7 +214,7 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
       const size = 2 * config.maxSpokeLen;
       this.radarCanvas.width = size;
       this.radarCanvas.height = size;
-      this.clearRadarCanvas();
+      this.radarCtx.clearRect(0, 0, this.radarCanvas.width, this.radarCanvas.height);
     }
   }
 
@@ -236,116 +244,73 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
   private drawSpoke(spoke: RadarSpoke): void {
     if (!this.radarConfig || !this.legend.length) return;
 
-    // Store spoke data in buffer (replaces old data at same angle)
-    this.spokeBuffer.set(spoke.angle, {
-      data: new Uint8Array(spoke.data),
-      range: spoke.range
-    });
-
-    // Clear spokes that the radar sweep has passed
-    this.clearSweptArea(spoke.angle);
+    // Mayara-style immediate rendering (no buffering, no clearing)
+    this.renderSpokeMayaraStyle(spoke);
     
-    // Schedule render if not already pending
-    if (!this.pendingRender) {
-      this.pendingRender = true;
-      requestAnimationFrame(() => this.renderRadarSweep());
+    // Schedule layer refresh (batched using requestAnimationFrame)
+    if (!this.renderPending) {
+      this.renderPending = true;
+      requestAnimationFrame(() => {
+        this.refreshLayer();
+        this.renderPending = false;
+      });
     }
   }
 
-  private clearSweptArea(currentAngle: number): void {
-    if (this.lastSweepAngle === -1) {
-      this.lastSweepAngle = currentAngle;
-      return;
-    }
-
-    const totalSpokes = this.radarConfig!.spokes;
-    let anglesToClear: number[] = [];
-
-    // Handle wrap-around (360° to 0°)
-    if (currentAngle < this.lastSweepAngle) {
-      // Sweep crossed zero, clear from lastSweepAngle to totalSpokes and 0 to currentAngle
-      for (let angle = this.lastSweepAngle + 1; angle < totalSpokes; angle++) {
-        anglesToClear.push(angle);
-      }
-      for (let angle = 0; angle < currentAngle; angle++) {
-        anglesToClear.push(angle);
-      }
-    } else {
-      // Normal case: clear from lastSweepAngle to currentAngle
-      for (let angle = this.lastSweepAngle + 1; angle < currentAngle; angle++) {
-        anglesToClear.push(angle);
-      }
-    }
-
-    // Remove old spokes that have been swept over
-    anglesToClear.forEach(angle => {
-      this.spokeBuffer.delete(angle);
-    });
-
-    this.lastSweepAngle = currentAngle;
-  }
-
-  private renderRadarSweep(): void {
-    if (!this.radarConfig || !this.legend.length) {
-      this.pendingRender = false;
-      return;
-    }
-
-    // Clear the entire canvas
-    this.clearRadarCanvas();
-
+  private renderSpokeMayaraStyle(spoke: RadarSpoke): void {
     const centerX = this.radarCanvas.width / 2;
     const centerY = this.radarCanvas.height / 2;
+    const beamLength = Math.min(centerX, centerY) * 0.9;
+    
+    // Calculate angle (same logic as Mayara)
+    const adjustedAngle = (spoke.angle + (this.radarConfig!.spokes * 3) / 4) % this.radarConfig!.spokes;
+    const angleRad = (2 * Math.PI * adjustedAngle) / this.radarConfig!.spokes;
+    
+    // Apply heading correction
     const currentState = this.shipStateSubject.value;
     const headingRad = (currentState.heading * Math.PI) / 180;
-
-    // Render all spokes in buffer
-    this.spokeBuffer.forEach((spokeData, angle) => {
-      this.renderSingleSpoke(spokeData, angle, centerX, centerY, headingRad);
-    });
-
-    this.pendingRender = false;
-    this.refreshLayer();
-  }
-
-  private renderSingleSpoke(
-    spokeData: { data: Uint8Array; range: number }, 
-    angle: number, 
-    centerX: number, 
-    centerY: number, 
-    headingRad: number
-  ): void {
-    // Convert angle to radians and adjust for boat heading
-    const adjustedAngle = (angle + (this.radarConfig!.spokes * 3) / 4) % this.radarConfig!.spokes;
-    const angleRad = (2 * Math.PI * adjustedAngle) / this.radarConfig!.spokes;
     const finalAngle = angleRad - headingRad;
-
-    const pixelsPerDataPoint = (Math.min(centerX, centerY) * 0.9) / spokeData.data.length;
-    const rangeScale = this.radarConfig!.range ? spokeData.range / this.radarConfig!.range : 1;
-    const scaledPixelsPerDataPoint = pixelsPerDataPoint * rangeScale;
-
-    // Draw the spoke data
-    this.radarCtx.save();
-    this.radarCtx.translate(centerX, centerY);
-    this.radarCtx.rotate(finalAngle);
     
-    for (let i = 0; i < spokeData.data.length; i++) {
-      const value = spokeData.data[i];
-      const color = this.legend[Math.min(value, 255)];
-      const distance = i * scaledPixelsPerDataPoint;
-      
-      if (color[3] > 0) { // Only draw if not transparent
-        this.radarCtx.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
-        this.radarCtx.fillRect(distance, -0.5, scaledPixelsPerDataPoint, 1);
-      }
+    // Calculate pixels per data point
+    let pixelsPerItem = (beamLength * 0.9) / spoke.data.length;
+    if (this.radarConfig!.range && spoke.range) {
+      pixelsPerItem = (pixelsPerItem * spoke.range) / this.radarConfig!.range;
     }
     
-    this.radarCtx.restore();
+    // Mayara's transform approach
+    const cosA = Math.cos(finalAngle) * pixelsPerItem;
+    const sinA = Math.sin(finalAngle) * pixelsPerItem;
+    
+    // Fill ImageData with spoke colors (reuse same ImageData object like Mayara)
+    for (let i = 0, idx = 0; i < spoke.data.length && i < 2048; i++, idx += 4) {
+      const value = spoke.data[i];
+      const color = this.legend[Math.min(value, 255)] || [0, 0, 0, 0];
+      
+      this.imageData.data[idx] = color[0];     // Red
+      this.imageData.data[idx + 1] = color[1]; // Green  
+      this.imageData.data[idx + 2] = color[2]; // Blue
+      this.imageData.data[idx + 3] = color[3]; // Alpha
+    }
+    
+    // Put ImageData to pattern canvas
+    this.patternCtx.putImageData(this.imageData, 0, 0);
+    
+    // Create pattern and draw (Mayara's approach)
+    const pattern = this.radarCtx.createPattern(this.patternCanvas, 'repeat-x');
+    const arcAngle = (2 * Math.PI) / this.radarConfig!.spokes;
+    
+    this.radarCtx.setTransform(cosA, sinA, -sinA, cosA, centerX, centerY);
+    this.radarCtx.fillStyle = pattern!;
+    this.radarCtx.beginPath();
+    this.radarCtx.moveTo(0, 0);
+    this.radarCtx.arc(0, 0, spoke.data.length, 0, arcAngle);
+    this.radarCtx.closePath();
+    this.radarCtx.fill();
+    
+    // Reset transform
+    this.radarCtx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  private clearRadarCanvas(): void {
-    this.radarCtx.clearRect(0, 0, this.radarCanvas.width, this.radarCanvas.height);
-  }
 
 
   private refreshLayer(): void {
