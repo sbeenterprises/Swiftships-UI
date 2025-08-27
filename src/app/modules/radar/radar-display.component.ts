@@ -207,6 +207,37 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
     this.radarCtx.restore();
   }
 
+  private clearSpokeAreaForAngle(spokeAngle: number) {
+    if (!this.config) return;
+    
+    // Convert angle to radians, adjusting for boat-centered display
+    const adjustedAngle = (spokeAngle + (this.config.spokes * 3) / 4) % this.config.spokes;
+    const angleRad = (2 * Math.PI * adjustedAngle) / this.config.spokes;
+
+    // Apply boat heading correction
+    const headingRad = (this.boatHeading * Math.PI) / 180;
+    const finalAngle = angleRad - headingRad;
+    
+    // Calculate spoke width for clearing
+    const spokeWidth = (2 * Math.PI) / this.config.spokes;
+    const clearWidth = spokeWidth * 1.5; // Slightly wider to ensure complete clearing
+    
+    // Clear the wedge-shaped area for this spoke
+    this.radarCtx.save();
+    this.radarCtx.translate(this.centerX, this.centerY);
+    
+    this.radarCtx.beginPath();
+    this.radarCtx.moveTo(0, 0);
+    this.radarCtx.arc(0, 0, this.maxRadius, finalAngle - clearWidth/2, finalAngle + clearWidth/2);
+    this.radarCtx.closePath();
+    this.radarCtx.clip();
+    
+    // Clear the entire clipped area
+    this.radarCtx.clearRect(-this.maxRadius, -this.maxRadius, this.maxRadius * 2, this.maxRadius * 2);
+    
+    this.radarCtx.restore();
+  }
+
   private drawSweepLine(angle: number, radius: number) {
     // Draw a bright sweep line to show current radar position
     this.radarCtx.save();
@@ -226,6 +257,9 @@ export class RadarDisplayComponent implements OnInit, OnDestroy {
 
   drawSpoke(spoke: RadarSpoke) {
     if (!this.config || !this.legend.length) return;
+
+    // Clear the old spoke area before storing new data
+    this.clearSpokeAreaForAngle(spoke.angle);
 
     // Store spoke data in buffer (like Mayara approach)
     this.spokeDataBuffer[spoke.angle] = new Uint8Array(spoke.data);

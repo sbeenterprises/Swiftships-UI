@@ -244,7 +244,10 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
   private drawSpoke(spoke: RadarSpoke): void {
     if (!this.radarConfig || !this.legend.length) return;
 
-    // Mayara-style immediate rendering (no buffering, no clearing)
+    // Clear the old spoke area before drawing the new one
+    this.clearSpokeArea(spoke);
+    
+    // Render the new spoke
     this.renderSpokeMayaraStyle(spoke);
     
     // Schedule layer refresh (batched using requestAnimationFrame)
@@ -312,6 +315,42 @@ export class RadarLayerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
 
+
+  private clearSpokeArea(spoke: RadarSpoke): void {
+    if (!this.radarConfig) return;
+    
+    const centerX = this.radarCanvas.width / 2;
+    const centerY = this.radarCanvas.height / 2;
+    const beamLength = Math.min(centerX, centerY) * 0.9;
+    
+    // Calculate angle (same logic as renderSpokeMayaraStyle)
+    const adjustedAngle = (spoke.angle + (this.radarConfig.spokes * 3) / 4) % this.radarConfig.spokes;
+    const angleRad = (2 * Math.PI * adjustedAngle) / this.radarConfig.spokes;
+    
+    // Apply heading correction
+    const currentState = this.shipStateSubject.value;
+    const headingRad = (currentState.heading * Math.PI) / 180;
+    const finalAngle = angleRad - headingRad;
+    
+    // Calculate spoke width for clearing
+    const spokeWidth = (2 * Math.PI) / this.radarConfig.spokes;
+    const clearWidth = spokeWidth * 1.5; // Slightly wider to ensure complete clearing
+    
+    // Clear the wedge-shaped area for this spoke
+    this.radarCtx.save();
+    this.radarCtx.translate(centerX, centerY);
+    
+    this.radarCtx.beginPath();
+    this.radarCtx.moveTo(0, 0);
+    this.radarCtx.arc(0, 0, beamLength, finalAngle - clearWidth/2, finalAngle + clearWidth/2);
+    this.radarCtx.closePath();
+    this.radarCtx.clip();
+    
+    // Clear the entire clipped area
+    this.radarCtx.clearRect(-beamLength, -beamLength, beamLength * 2, beamLength * 2);
+    
+    this.radarCtx.restore();
+  }
 
   private refreshLayer(): void {
     if (this.layer && this.layer.getSource()) {
