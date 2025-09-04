@@ -1,4 +1,4 @@
-# Freeboard-SK
+# SwiftShips UI
 Freeboard-SK is a stateless, multi-station, Openlayers based chart plotter for Signal K.
 Use it to display:
 - Resources _(i.e. routes, waypoints, notes, charts, etc)_
@@ -249,3 +249,4 @@ To build the NPM package use the `npm pack` command to:
 ---
 
 _**Freeboard-SK** is a port of http://www.42.co.nz/freeboard for use with Signal K communication protocols and server features._
+
