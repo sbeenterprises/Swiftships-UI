@@ -526,8 +526,15 @@ export class AppComponent implements OnDestroy {
   }
 
   private sendRemoteControlData() {
-    // TODO: Send remote control data to SignalK server or MOOS-IvP
-    console.log('Remote Control Data:', this.remoteControl);
+    // Send remote control data to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      // Convert rudder angle from UI range (-50 to +50) to MOOS-IvP range (-100 to +100)
+      const desiredRudder = this.remoteControl.rudder * 2;
+      this.app.data.moosIvPServer.socket.send(`DESIRED_RUDDER=${desiredRudder}`);
+      console.log(`Sent DESIRED_RUDDER=${desiredRudder} to MOOS-IvP (UI rudder: ${this.remoteControl.rudder})`);
+    } else {
+      console.log('MOOS-IvP not connected, cannot send remote control data:', this.remoteControl);
+    }
   }
 
   protected closeRemoteControl() {
