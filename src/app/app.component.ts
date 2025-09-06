@@ -512,12 +512,12 @@ export class AppComponent implements OnDestroy {
   // Remote control methods
   protected updateRudder(value: number) {
     this.remoteControl.rudder = Math.max(-50, Math.min(50, value));
-    this.sendRemoteControlData();
+    this.sendRudderData();
   }
 
   protected updateThrust(value: number) {
     this.remoteControl.thrust = Math.max(0, Math.min(100, value));
-    this.sendRemoteControlData();
+    this.sendThrustData();
   }
 
   protected updateGear(gear: 'forward' | 'neutral' | 'reverse') {
@@ -525,13 +525,32 @@ export class AppComponent implements OnDestroy {
     this.sendRemoteControlData();
   }
 
-  private sendRemoteControlData() {
-    // Send remote control data to MOOS-IvP
+  private sendRudderData() {
+    // Send only rudder data to MOOS-IvP
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       // Convert rudder angle from UI range (-50 to +50) to MOOS-IvP range (-100 to +100)
       const desiredRudder = this.remoteControl.rudder * 2;
       this.app.data.moosIvPServer.socket.send(`DESIRED_RUDDER=${desiredRudder}`);
       console.log(`Sent DESIRED_RUDDER=${desiredRudder} to MOOS-IvP (UI rudder: ${this.remoteControl.rudder})`);
+    } else {
+      console.log('MOOS-IvP not connected, cannot send rudder data');
+    }
+  }
+
+  private sendThrustData() {
+    // Send only thrust data to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send(`DESIRED_THRUST=${this.remoteControl.thrust}`);
+      console.log(`Sent DESIRED_THRUST=${this.remoteControl.thrust} to MOOS-IvP`);
+    } else {
+      console.log('MOOS-IvP not connected, cannot send thrust data');
+    }
+  }
+
+  private sendRemoteControlData() {
+    // Send other remote control data to MOOS-IvP (for gear, etc.)
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      console.log('MOOS-IvP not connected, cannot send remote control data:', this.remoteControl);
     } else {
       console.log('MOOS-IvP not connected, cannot send remote control data:', this.remoteControl);
     }
@@ -1349,8 +1368,17 @@ export class AppComponent implements OnDestroy {
       }
 
       // ** MOOS-IvP connection settings changed
+      const currentUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
+      const connectedUrl = this.app.data.moosIvPServer.url;
+      
       if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
-        if (!this.app.data.connectionState.moosIvP.connected && !this.app.data.connectionState.moosIvP.connecting) {
+        // Check if URL/port changed - if so, reconnect
+        if (this.app.data.connectionState.moosIvP.connected && connectedUrl !== currentUrl) {
+          this.app.showMessage(`MOOS-IvP URL changed, reconnecting to ${currentUrl}`, false, 3000);
+          this.disconnectMoosIvPServer();
+          // Reconnect after a brief delay
+          setTimeout(() => this.connectMoosIvPServer(), 1000);
+        } else if (!this.app.data.connectionState.moosIvP.connected && !this.app.data.connectionState.moosIvP.connecting) {
           this.connectMoosIvPServer();
         }
       } else if (!this.app.config.moosIvP.enabled && this.app.data.connectionState.moosIvP.connected) {
