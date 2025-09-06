@@ -120,7 +120,7 @@ export class AppComponent implements OnDestroy {
   // Remote control data
   public remoteControl = {
     rudder: 0,    // -50 to 50
-    thrust: 0,    // 0 to 100%
+    thrust: 0,    // -100 to 100%
     gear: 'neutral'  // forward, neutral, reverse
   };
 
@@ -516,7 +516,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected updateThrust(value: number) {
-    this.remoteControl.thrust = Math.max(0, Math.min(100, value));
+    this.remoteControl.thrust = Math.max(-100, Math.min(100, value));
     this.sendThrustData();
   }
 

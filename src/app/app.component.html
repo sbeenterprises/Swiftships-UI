@@ -404,22 +404,22 @@
                 <h3>Thrust Control</h3>
                 <div class="control-group">
                   <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
-                    <button mat-icon-button (click)="updateThrust(remoteControl.thrust - 5)" 
-                            [disabled]="remoteControl.thrust <= 0"
+                    <button mat-icon-button (click)="updateThrust(remoteControl.thrust - 1)" 
+                            [disabled]="remoteControl.thrust <= -100"
                             class="slider-btn minus-btn">
                       <mat-icon>remove</mat-icon>
                     </button>
                     <mat-slider 
-                      min="0" 
+                      min="-100" 
                       max="100" 
-                      step="5" 
+                      step="1" 
                       class="thrust-slider"
                       style="flex: 1;">
                       <input matSliderThumb 
                              [value]="remoteControl.thrust"
                              (input)="updateThrust($any($event.target).value)">
                     </mat-slider>
-                    <button mat-icon-button (click)="updateThrust(remoteControl.thrust + 5)" 
+                    <button mat-icon-button (click)="updateThrust(remoteControl.thrust + 1)" 
                             [disabled]="remoteControl.thrust >= 100"
                             class="slider-btn plus-btn">
                       <mat-icon>add</mat-icon>
@@ -430,9 +430,9 @@
                     <span class="control-value">{{ remoteControl.thrust }}%</span>
                   </div>
                   <div class="control-buttons">
-                    <button mat-raised-button (click)="updateThrust(0)" class="control-btn">Stop 0%</button>
-                    <button mat-raised-button (click)="updateThrust(50)" class="control-btn">Half 50%</button>
-                    <button mat-raised-button (click)="updateThrust(100)" class="control-btn">Full 100%</button>
+                    <button mat-raised-button (click)="updateThrust(-100)" class="control-btn">Rev -100%</button>
+                    <button mat-raised-button (click)="updateThrust(0)" class="control-btn center-btn">Stop 0%</button>
+                    <button mat-raised-button (click)="updateThrust(100)" class="control-btn">Fwd +100%</button>
                   </div>
                 </div>
               </div>
