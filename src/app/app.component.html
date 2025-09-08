@@ -466,6 +466,23 @@
                 </div>
               </div>
 
+              <!-- Trim Control -->
+              <div class="remote-control-section">
+                <h3>Trim Control</h3>
+                <div class="control-group">
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="sendTrimUp()" class="control-btn">
+                      <mat-icon>keyboard_arrow_up</mat-icon>
+                      Trim Up
+                    </button>
+                    <button mat-raised-button (click)="sendTrimDown()" class="control-btn">
+                      <mat-icon>keyboard_arrow_down</mat-icon>
+                      Trim Down
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Emergency Stop -->
               <div class="remote-control-section">
                 <button 

@@ -556,6 +556,30 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  protected sendTrimUp() {
+    // Send TRIM=1 to MOOS-IvP three times
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      for (let i = 0; i < 3; i++) {
+        this.app.data.moosIvPServer.socket.send('TRIM=1');
+        console.log(`Sent TRIM=1 to MOOS-IvP (${i + 1}/3)`);
+      }
+    } else {
+      console.log('MOOS-IvP not connected, cannot send trim up command');
+    }
+  }
+
+  protected sendTrimDown() {
+    // Send TRIM=-1 to MOOS-IvP three times
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      for (let i = 0; i < 3; i++) {
+        this.app.data.moosIvPServer.socket.send('TRIM=-1');
+        console.log(`Sent TRIM=-1 to MOOS-IvP (${i + 1}/3)`);
+      }
+    } else {
+      console.log('MOOS-IvP not connected, cannot send trim down command');
+    }
+  }
+
   protected closeRemoteControl() {
     this.display.remoteControlPanelOpen = false;
     this.app.config.selections.remoteControl = false;
