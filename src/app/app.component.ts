@@ -620,7 +620,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected updateSpeed(speed: number) {
-    this.autonomousControl.speed = Math.max(0, Math.min(35, speed));
+    this.autonomousControl.speed = Math.max(0, Math.min(50, speed));
     
     // Send speed to MOOS-IvP
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
