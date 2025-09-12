@@ -237,6 +237,13 @@ export class SKVessel extends SKTargetBase {
     awa: null,
     aws: null
   };
+  electrical = {
+    batteries: {
+      House: {
+        voltage: null
+      }
+    }
+  };
 
   // http api sourced attributes
   design = {
