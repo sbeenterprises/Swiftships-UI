@@ -896,6 +896,11 @@ function processVessel(d: SKVessel, v: any, isSelf = false) {
     apDeviceId = v.value;
   }
 
+  // ** electrical **
+  else if (v.path === 'electrical.batteries.House.voltage') {
+    d.electrical.batteries.House.voltage = v.value;
+  }
+
   // ** cog **
   else if (v.path === 'navigation.courseOverGroundTrue') {
     d.cogTrue = v.value;
