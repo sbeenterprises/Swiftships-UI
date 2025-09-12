@@ -901,6 +901,11 @@ function processVessel(d: SKVessel, v: any, isSelf = false) {
     d.electrical.batteries.House.voltage = v.value;
   }
 
+  // ** tanks **
+  else if (v.path === 'tanks.fuel.0.currentLevel') {
+    d.tanks.fuel[0].currentLevel = v.value;
+  }
+
   // ** cog **
   else if (v.path === 'navigation.courseOverGroundTrue') {
     d.cogTrue = v.value;

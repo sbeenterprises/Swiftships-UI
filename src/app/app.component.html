@@ -256,6 +256,10 @@
         <div class="navValue">{{ app.data.vessels.self.electrical.batteries.House.voltage ? app.data.vessels.self.electrical.batteries.House.voltage.toFixed(1) + 'V' : '--' }}</div>
       </div>
       <div class="navItem">
+        <div class="navLabel">Fuel Level</div>
+        <div class="navValue">{{ app.data.vessels.self.tanks?.fuel?.[0]?.currentLevel ? (app.data.vessels.self.tanks.fuel[0].currentLevel * 100).toFixed(0) + '%' : '--' }}</div>
+      </div>
+      <div class="navItem">
         <div class="navLabel">STATUS</div>
         <div class="navValue">{{ app.data.moosIvPServer.ivpHelmState || 'UNKNOWN' }}</div>
       </div>

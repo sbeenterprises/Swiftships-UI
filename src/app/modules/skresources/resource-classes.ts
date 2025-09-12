@@ -244,6 +244,13 @@ export class SKVessel extends SKTargetBase {
       }
     }
   };
+  tanks = {
+    fuel: [
+      {
+        currentLevel: null
+      }
+    ]
+  };
 
   // http api sourced attributes
   design = {
