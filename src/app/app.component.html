@@ -252,6 +252,10 @@
         <div class="navValue">{{ app.data.vessels.self.position && app.data.vessels.self.position[0] ? app.data.vessels.self.position[0].toFixed(6) : '--' }}</div>
       </div>
       <div class="navItem">
+        <div class="navLabel">Voltage</div>
+        <div class="navValue">{{ app.data.vessels.self.electrical?.batteries?.House?.voltage ? app.data.vessels.self.electrical.batteries.House.voltage.toFixed(1) + 'V' : '--' }}</div>
+      </div>
+      <div class="navItem">
         <div class="navLabel">STATUS</div>
         <div class="navValue">{{ app.data.moosIvPServer.ivpHelmState || 'UNKNOWN' }}</div>
       </div>
