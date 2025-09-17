@@ -237,6 +237,10 @@ export class AppComponent implements OnDestroy {
       this.display.audio.state = this.app.audio.context.state;
     };
 
+    // ** ensure control buttons start deactivated **
+    this.app.config.selections.remoteControl = false;
+    this.app.config.selections.autonomousControl = false;
+
     // ** apply loaded app config
     this.display.map.center = this.app.config.map.center;
     if (this.app.config.plugins.startOnOpen) {
