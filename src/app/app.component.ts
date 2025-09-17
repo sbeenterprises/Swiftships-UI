@@ -1043,13 +1043,16 @@ export class AppComponent implements OnDestroy {
   /** establish connection to MOOS-IvP server */
   private connectMoosIvPServer() {
     if (this.app.data.connectionState.moosIvP.connecting) {
+      console.log('[MOOS-IvP CONNECTION] Already connecting, skipping...');
       return; // already connecting
     }
 
+    console.log('[MOOS-IvP CONNECTION] Starting connection attempt...');
     this.app.data.connectionState.moosIvP.connecting = true;
     this.app.data.connectionState.moosIvP.lastAttempt = Date.now();
-    
+
     const wsUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
+    console.log('[MOOS-IvP CONNECTION] Connecting to WebSocket URL:', wsUrl);
     this.app.data.moosIvPServer.url = wsUrl;
 
     try {
@@ -1057,6 +1060,7 @@ export class AppComponent implements OnDestroy {
       this.app.data.moosIvPServer.socket = socket;
 
       socket.onopen = () => {
+        console.log('[MOOS-IvP CONNECTION] WebSocket connection opened successfully to:', wsUrl);
         this.app.debug('MOOS-IvP WebSocket connection opened');
         this.app.data.moosIvPServer.connected = true;
         this.app.data.connectionState.moosIvP.connected = true;
@@ -1065,10 +1069,12 @@ export class AppComponent implements OnDestroy {
       };
 
       socket.onmessage = (event) => {
+        console.log('[MOOS-IvP DEBUG] Raw message received:', event.data);
         this.handleMoosIvPMessage(event.data);
       };
 
       socket.onclose = (event) => {
+        console.log('[MOOS-IvP CONNECTION] WebSocket connection closed. Code:', event.code, 'Reason:', event.reason, 'WasClean:', event.wasClean);
         this.app.debug('MOOS-IvP WebSocket connection closed', event);
         this.app.data.moosIvPServer.connected = false;
         this.app.data.connectionState.moosIvP.connected = false;
@@ -1086,6 +1092,7 @@ export class AppComponent implements OnDestroy {
       };
 
       socket.onerror = (error) => {
+        console.error('[MOOS-IvP CONNECTION] WebSocket error:', error);
         this.app.debug('MOOS-IvP WebSocket error:', error);
         this.app.data.connectionState.moosIvP.connecting = false;
         this.app.showMessage('MOOS-IvP connection failed', false, 3000);
@@ -1101,18 +1108,22 @@ export class AppComponent implements OnDestroy {
   /** handle MOOS-IvP WebSocket message */
   private handleMoosIvPMessage(data: string) {
     try {
+      console.log('[MOOS-IvP DEBUG] Processing message:', data);
       this.app.data.moosIvPServer.lastMessage = data;
       // this.app.debug('MOOS-IvP message received:', data);
-      
+
       // Parse MOOS variable updates (format: VAR=value)
       const lines = data.split('\n');
+      console.log('[MOOS-IvP DEBUG] Message lines count:', lines.length);
       lines.forEach(line => {
         if (line.includes('=')) {
           const [variable, value] = line.split('=', 2);
+          console.log('[MOOS-IvP DEBUG] Variable:', variable.trim(), '=', value.trim());
           this.processMoosVariable(variable.trim(), value.trim());
         }
       });
     } catch (error) {
+      console.error('[MOOS-IvP ERROR] Error processing message:', error);
       this.app.debug('Error processing MOOS-IvP message:', error);
     }
   }
@@ -1141,36 +1152,47 @@ export class AppComponent implements OnDestroy {
       // Engine status variables
       case 'ENGINE_ACCELERATOR_PEDAL_POSITION':
         this.engineStatus.acceleratorPedalPosition = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Accelerator Pedal Position updated:', this.engineStatus.acceleratorPedalPosition);
         break;
       case 'ENGINE_PERCENT_LOAD':
         this.engineStatus.percentLoad = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Engine Load updated:', this.engineStatus.percentLoad);
         break;
       case 'ENGINE_SPEED':
         this.engineStatus.speed = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Engine Speed updated:', this.engineStatus.speed);
         break;
       case 'ENGINE_PERCENT_TORQUE':
         this.engineStatus.percentTorque = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Engine Torque updated:', this.engineStatus.percentTorque);
         break;
       case 'ENGINE_ACTIVE_DTCS':
         this.engineStatus.activeDtcs = parseInt(value) || 0;
+        console.log('[ENGINE DEBUG] Active DTCs updated:', this.engineStatus.activeDtcs);
         break;
       case 'ENGINE_COOLANT_TEMP':
         this.engineStatus.coolantTemp = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Coolant Temperature updated:', this.engineStatus.coolantTemp);
         break;
       case 'ENGINE_OIL_TEMP':
         this.engineStatus.oilTemp = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Oil Temperature updated:', this.engineStatus.oilTemp);
         break;
       case 'ENGINE_OIL_PRESSURE':
         this.engineStatus.oilPressure = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Oil Pressure updated:', this.engineStatus.oilPressure);
         break;
       case 'ENGINE_FUEL_RATE':
         this.engineStatus.fuelRate = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Fuel Rate updated:', this.engineStatus.fuelRate);
         break;
       case 'ENGINE_INTAKE_MANIFOLD_PRESSURE':
         this.engineStatus.intakeManifoldPressure = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Intake Manifold Pressure updated:', this.engineStatus.intakeManifoldPressure);
         break;
       case 'ENGINE_BATTERY_VOLTAGE':
         this.engineStatus.batteryVoltage = parseFloat(value) || 0;
+        console.log('[ENGINE DEBUG] Battery Voltage updated:', this.engineStatus.batteryVoltage);
         break;
       default:
         // Handle other MOOS variables as needed
