@@ -28,6 +28,7 @@ import {
   AlertComponent,
   AlertListComponent,
   SystemChecklistComponent,
+  EngineStatusComponent,
   AutopilotComponent,
   RouteNextPointComponent,
   RouteListComponent,
@@ -93,6 +94,7 @@ import {
     AlertComponent,
     AlertListComponent,
     SystemChecklistComponent,
+    EngineStatusComponent,
     RouteNextPointComponent,
     RadarDisplayComponent
   ],

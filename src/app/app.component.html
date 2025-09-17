@@ -863,6 +863,20 @@
             </div>
             <div class="buttonPanelItem">
               <button
+                mat-mini-fab
+                [ngClass]="{
+                  'button-primary': app.data.showEngineStatus,
+                  'button-toolbar': !app.data.showEngineStatus
+                }"
+                (click)="toggleEngineStatus()"
+                matTooltip="Engine Status"
+                matTooltipPosition="right"
+              >
+                <mat-icon>engineering</mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
+              <button
                 class="button-toolbar"
                 mat-mini-fab
                 [disabled]="isInteracting"
@@ -1277,7 +1291,14 @@
             <system-checklist
               (closed)="toggleChecklist()"
             ></system-checklist>
-            } 
+            }
+            @if(app.data.showEngineStatus) {
+            <engine-status
+              [engineData]="engineStatus"
+              (closed)="toggleEngineStatus()"
+            ></engine-status>
+            }
+ 
             <div class="alarmPanel">
               @for(n of notiMgr.alerts(); track n[0]) {
               <span style="margin-bottom: 5px">

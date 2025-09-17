@@ -43,7 +43,8 @@ import {
   GPXExportDialog,
   CourseService,
   RadarService,
-  RadarDisplayComponent
+  RadarDisplayComponent,
+  EngineStatusComponent
 } from 'src/app/modules';
 
 import { SignalKClient } from 'signalk-client-angular';
@@ -135,6 +136,21 @@ export class AppComponent implements OnDestroy {
 
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
+
+  // Engine status data from MOOS-IvP
+  public engineStatus = {
+    acceleratorPedalPosition: 0,    // ENGINE_ACCELERATOR_PEDAL_POSITION
+    percentLoad: 0,                 // ENGINE_PERCENT_LOAD
+    speed: 0,                       // ENGINE_SPEED
+    percentTorque: 0,               // ENGINE_PERCENT_TORQUE
+    activeDtcs: 0,                  // ENGINE_ACTIVE_DTCS
+    coolantTemp: 0,                 // ENGINE_COOLANT_TEMP
+    oilTemp: 0,                     // ENGINE_OIL_TEMP
+    oilPressure: 0,                 // ENGINE_OIL_PRESSURE
+    fuelRate: 0,                    // ENGINE_FUEL_RATE
+    intakeManifoldPressure: 0,      // ENGINE_INTAKE_MANIFOLD_PRESSURE
+    batteryVoltage: 0               // ENGINE_BATTERY_VOLTAGE
+  };
 
   private timers = [];
 
@@ -510,6 +526,11 @@ export class AppComponent implements OnDestroy {
 
   protected toggleChecklist() {
     this.app.data.showChecklist = !this.app.data.showChecklist;
+    this.focusMap();
+  }
+
+  protected toggleEngineStatus() {
+    this.app.data.showEngineStatus = !this.app.data.showEngineStatus;
     this.focusMap();
   }
 
@@ -1116,6 +1137,40 @@ export class AppComponent implements OnDestroy {
         break;
       case 'WPT_COMPLETED':
         this.app.data.moosIvPServer.wptCompleted = value.toLowerCase() === 'true';
+        break;
+      // Engine status variables
+      case 'ENGINE_ACCELERATOR_PEDAL_POSITION':
+        this.engineStatus.acceleratorPedalPosition = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_PERCENT_LOAD':
+        this.engineStatus.percentLoad = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_SPEED':
+        this.engineStatus.speed = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_PERCENT_TORQUE':
+        this.engineStatus.percentTorque = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_ACTIVE_DTCS':
+        this.engineStatus.activeDtcs = parseInt(value) || 0;
+        break;
+      case 'ENGINE_COOLANT_TEMP':
+        this.engineStatus.coolantTemp = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_OIL_TEMP':
+        this.engineStatus.oilTemp = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_OIL_PRESSURE':
+        this.engineStatus.oilPressure = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_FUEL_RATE':
+        this.engineStatus.fuelRate = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_INTAKE_MANIFOLD_PRESSURE':
+        this.engineStatus.intakeManifoldPressure = parseFloat(value) || 0;
+        break;
+      case 'ENGINE_BATTERY_VOLTAGE':
+        this.engineStatus.batteryVoltage = parseFloat(value) || 0;
         break;
       default:
         // Handle other MOOS variables as needed

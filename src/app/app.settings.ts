@@ -600,7 +600,8 @@ export function initData(): FBAppData {
         lastAttempt: 0
       }
     },
-    showChecklist: false
+    showChecklist: false,
+    showEngineStatus: false
   };
 }
 
