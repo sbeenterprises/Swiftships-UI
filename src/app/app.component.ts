@@ -615,16 +615,14 @@ export class AppComponent implements OnDestroy {
 
   // Autonomous control methods
   protected selectRoute(routeId: string) {
-    // Remove previously selected route from map (if any)
-    if (this.autonomousControl.selectedRoute) {
-      this.skres.routeRemove([this.autonomousControl.selectedRoute]);
-    }
-    
+    // Hide all currently visible routes when autonomous control selects a route
+    this.skres.routeRemove();
+
     this.autonomousControl.selectedRoute = routeId;
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
-    
-    // Add newly selected route to map display
+
+    // Add only the newly selected route to map display
     if (routeId) {
       const selectedRoute = this.availableRoutes.find(r => r[0] === routeId);
       if (selectedRoute) {
@@ -632,7 +630,7 @@ export class AppComponent implements OnDestroy {
         const visibleRoute: [string, any, boolean] = [selectedRoute[0], selectedRoute[1], true];
         this.skres.routeAdd([visibleRoute]);
         console.log('Route selected and added to map:', routeId, selectedRoute[1].name);
-        
+
         // Extract waypoints and send to MOOS-IvP
         if (selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
           const waypoints = selectedRoute[1].feature.geometry.coordinates;
@@ -720,11 +718,10 @@ export class AppComponent implements OnDestroy {
   }
 
   protected closeAutonomousControl() {
-    // Remove selected route from map when closing autonomous control
-    if (this.autonomousControl.selectedRoute) {
-      this.skres.routeRemove([this.autonomousControl.selectedRoute]);
-    }
-    
+    // Clear all routes and refresh to restore original visibility when closing autonomous control
+    this.skres.routeRemove();
+    this.skres.refreshRoutes();
+
     this.display.autonomousControlPanelOpen = false;
     this.app.config.selections.autonomousControl = false;
     this.autonomousControl.status = 'standby';
