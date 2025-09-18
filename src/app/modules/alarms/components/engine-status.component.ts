@@ -4,7 +4,6 @@
 ***********************************/
 import {
   Component,
-  ChangeDetectionStrategy,
   EventEmitter,
   Output,
   Input
@@ -40,7 +39,6 @@ export interface EngineData {
     MatIconModule,
     CdkDrag
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrls: ['./engine-status.component.css'],
   template: `
     <div class="engine-status-panel" cdkDrag cdkDragHandle>
