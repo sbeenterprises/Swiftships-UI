@@ -1,12 +1,13 @@
 /* Engine Status Panel Styles */
 .engine-status-panel {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
-  right: 20px;
+  bottom: 120px;
+  left: 70px;
+  right: 380px;
   z-index: 1000;
   min-width: unset;
-  max-width: unset;
+  max-width: calc(100vw - 450px);
+  transition: right 0.3s ease, max-width 0.3s ease;
 }
 
 .engine-status-card {
@@ -239,15 +240,36 @@
   border-color: rgba(52, 82, 112, 0.5);
 }
 
+/* Dynamic sizing when sidemenus are open */
+:global(.mat-sidenav-container.mat-sidenav-container-has-open) .engine-status-panel {
+  right: 280px !important;
+  max-width: calc(100vw - 350px) !important;
+}
+
+/* Specific targeting for remote and autonomous control panels */
+:global(body:has(.remote-control-sidenav.mat-sidenav-opened)) .engine-status-panel,
+:global(body:has(.autonomous-control-sidenav.mat-sidenav-opened)) .engine-status-panel {
+  right: 280px !important;
+  max-width: calc(100vw - 350px) !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .engine-status-panel {
     position: fixed;
-    bottom: 10px;
-    left: 10px;
-    right: 10px;
+    bottom: 120px;
+    left: 60px;
+    right: 60px;
     min-width: unset;
-    max-width: unset;
+    max-width: calc(100vw - 120px);
+  }
+
+  /* On mobile, sidemenus become overlays, so reset to normal sizing */
+  :global(.mat-sidenav-container.mat-sidenav-container-has-open) .engine-status-panel,
+  :global(body:has(.remote-control-sidenav.mat-sidenav-opened)) .engine-status-panel,
+  :global(body:has(.autonomous-control-sidenav.mat-sidenav-opened)) .engine-status-panel {
+    right: 60px !important;
+    max-width: calc(100vw - 120px) !important;
   }
 
   .status-sections {
@@ -257,5 +279,22 @@
 
   .status-section {
     min-width: unset;
+  }
+}
+
+@media (max-width: 480px) {
+  .engine-status-panel {
+    bottom: 110px;
+    left: 55px;
+    right: 55px;
+    max-width: calc(100vw - 110px);
+  }
+
+  /* Reset sizing on small mobile when sidemenus are open */
+  :global(.mat-sidenav-container.mat-sidenav-container-has-open) .engine-status-panel,
+  :global(body:has(.remote-control-sidenav.mat-sidenav-opened)) .engine-status-panel,
+  :global(body:has(.autonomous-control-sidenav.mat-sidenav-opened)) .engine-status-panel {
+    right: 55px !important;
+    max-width: calc(100vw - 110px) !important;
   }
 }
