@@ -1,5 +1,5 @@
 /***********************************
-  Engine Status Component
+  Engine Status Component (all metrics as centered gauges)
   <engine-status>
 ***********************************/
 import {
@@ -14,30 +14,33 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { CdkDrag } from '@angular/cdk/drag-drop';
+import { NgxGaugeModule } from 'ngx-gauge';
 
 export interface EngineData {
-  acceleratorPedalPosition: number;
-  percentLoad: number;
-  speed: number;
-  percentTorque: number;
-  activeDtcs: number;
-  coolantTemp: number;
-  oilTemp: number;
-  oilPressure: number;
-  fuelRate: number;
-  intakeManifoldPressure: number;
-  batteryVoltage: number;
+  acceleratorPedalPosition: number; // %
+  percentLoad: number;              // %
+  speed: number;                    // RPM
+  percentTorque: number;            // %
+  activeDtcs: number;               // count
+  coolantTemp: number;              // °C
+  oilTemp: number;                  // °C
+  oilPressure: number;              // PSI
+  fuelRate: number;                 // L/h
+  intakeManifoldPressure: number;   // kPa
+  batteryVoltage: number;           // V
 }
 
 @Component({
   selector: 'engine-status',
+  standalone: true,
   imports: [
-    MatTooltipModule,
     CommonModule,
+    MatTooltipModule,
     MatButtonModule,
     MatCardModule,
     MatIconModule,
-    CdkDrag
+    CdkDrag,
+    NgxGaugeModule
   ],
   styleUrls: ['./engine-status.component.css'],
   template: `
@@ -45,8 +48,10 @@ export interface EngineData {
       <mat-card class="engine-status-card">
         <mat-card-header>
           <mat-card-title>
-            <mat-icon>engineering</mat-icon>
-            Engine Status
+            <span style="display:flex;align-items:center;gap:8px;">
+              <mat-icon>engineering</mat-icon>
+              Engine Status
+            </span>
             <button
               mat-icon-button
               class="close-button"
@@ -60,99 +65,178 @@ export interface EngineData {
 
         <mat-card-content>
           <div class="status-sections">
-            <!-- Performance Section -->
+
+            <!-- PERFORMANCE -->
             <div class="status-section">
               <h4 class="section-title">
-                <mat-icon>speed</mat-icon>
-                Performance
+                <mat-icon>speed</mat-icon> Performance
               </h4>
-              <div class="status-grid">
-                <div class="status-item">
-                  <span class="status-label">Accelerator Position:</span>
-                  <span class="status-value">{{ engineData.acceleratorPedalPosition }}%</span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Engine Load:</span>
-                  <span class="status-value">{{ engineData.percentLoad }}%</span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Engine Speed:</span>
-                  <span class="status-value">{{ engineData.speed }} RPM</span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Torque:</span>
-                  <span class="status-value">{{ engineData.percentTorque }}%</span>
-                </div>
+
+              <!-- Accelerator Pedal Position -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.acceleratorPedalPosition || 0"
+                  [min]="0" [max]="100"
+                  [label]="'Accelerator %'"
+                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#6bb6ff'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="percentGenericThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Engine Load -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.percentLoad || 0"
+                  [min]="0" [max]="100"
+                  [label]="'Load %'"
+                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#4a6b8a'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="percentGenericThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Engine Speed (RPM) -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.speed || 0"
+                  [min]="0" [max]="rpmMax"
+                  [label]="'RPM'"
+                  [size]="gaugeSize" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#4a6b8a'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="rpmThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Torque (%) -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.percentTorque || 0"
+                  [min]="0" [max]="100"
+                  [label]="'Torque %'"
+                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#a8d4ff'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="percentGenericThresholds">
+                </ngx-gauge>
               </div>
             </div>
 
-            <!-- Temperatures Section -->
+            <!-- TEMPERATURES -->
             <div class="status-section">
               <h4 class="section-title">
-                <mat-icon>thermostat</mat-icon>
-                Temperatures
+                <mat-icon>thermostat</mat-icon> Temperatures
               </h4>
-              <div class="status-grid">
-                <div class="status-item">
-                  <span class="status-label">Coolant Temp:</span>
-                  <span class="status-value" [class.status-warning]="engineData.coolantTemp > 90">
-                    {{ engineData.coolantTemp }}°C
-                  </span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Oil Temp:</span>
-                  <span class="status-value" [class.status-warning]="engineData.oilTemp > 120">
-                    {{ engineData.oilTemp }}°C
-                  </span>
-                </div>
+
+              <!-- Coolant Temp -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.coolantTemp || 0"
+                  [min]="0" [max]="120"
+                  [label]="'Coolant °C'"
+                  [size]="gaugeSize" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#ff6b6b'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="coolantThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Oil Temp -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.oilTemp || 0"
+                  [min]="0" [max]="150"
+                  [label]="'Oil °C'"
+                  [size]="gaugeSize" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#ffc107'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="oilTempThresholds">
+                </ngx-gauge>
               </div>
             </div>
 
-            <!-- Pressures & Flow Section -->
+            <!-- PRESSURES & FLOW -->
             <div class="status-section">
               <h4 class="section-title">
-                <mat-icon>compress</mat-icon>
-                Pressures & Flow
+                <mat-icon>compress</mat-icon> Pressures & Flow
               </h4>
-              <div class="status-grid">
-                <div class="status-item">
-                  <span class="status-label">Oil Pressure:</span>
-                  <span class="status-value" [class.status-warning]="engineData.oilPressure < 10">
-                    {{ engineData.oilPressure }} PSI
-                  </span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Fuel Rate:</span>
-                  <span class="status-value">{{ engineData.fuelRate }} L/h</span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Manifold Pressure:</span>
-                  <span class="status-value">{{ engineData.intakeManifoldPressure }} kPa</span>
-                </div>
+
+              <!-- Oil Pressure -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.oilPressure || 0"
+                  [min]="0" [max]="80"
+                  [label]="'Oil PSI'"
+                  [size]="gaugeSize" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#6bb6ff'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="oilPressureThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Fuel Rate -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.fuelRate || 0"
+                  [min]="0" [max]="60"
+                  [label]="'Fuel L/h'"
+                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#a8d4ff'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="fuelRateThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Manifold Pressure (MAP) -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.intakeManifoldPressure || 0"
+                  [min]="0" [max]="300"
+                  [label]="'MAP kPa'"
+                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#4a6b8a'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="mapThresholds">
+                </ngx-gauge>
               </div>
             </div>
 
-            <!-- Electrical & Diagnostics Section -->
+            <!-- ELECTRICAL & DIAGNOSTICS -->
             <div class="status-section">
               <h4 class="section-title">
-                <mat-icon>electrical_services</mat-icon>
-                Electrical & Diagnostics
+                <mat-icon>electrical_services</mat-icon> Electrical & Diagnostics
               </h4>
-              <div class="status-grid">
-                <div class="status-item">
-                  <span class="status-label">Battery Voltage:</span>
-                  <span class="status-value" [class.status-warning]="engineData.batteryVoltage < 11">
-                    {{ engineData.batteryVoltage }}V
-                  </span>
-                </div>
-                <div class="status-item">
-                  <span class="status-label">Active DTCs:</span>
-                  <span class="status-value" [class.status-warning]="engineData.activeDtcs > 0">
-                    {{ engineData.activeDtcs }}
-                  </span>
-                </div>
+
+              <!-- Battery Voltage -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="engineData.batteryVoltage || 0"
+                  [min]="10" [max]="16"
+                  [label]="'Battery V'"
+                  [size]="gaugeSize" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#a8d4ff'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="batteryThresholds">
+                </ngx-gauge>
+              </div>
+
+              <!-- Active DTCs (visualized as % of nominal cap) -->
+              <div class="gauge-center">
+                <ngx-gauge
+                  [type]="'semi'"
+                  [value]="dtcPercent"
+                  [min]="0" [max]="100"
+                  [label]="'DTCs'"
+                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
+                  [foregroundColor]="'#ff6b6b'" [backgroundColor]="'#1e2d3e'"
+                  [thresholds]="dtcThresholds">
+                </ngx-gauge>
               </div>
             </div>
+
           </div>
         </mat-card-content>
       </mat-card>
@@ -175,6 +259,76 @@ export class EngineStatusComponent {
   };
 
   @Output() closed = new EventEmitter<void>();
+
+  // --- Gauge sizing (px) ---
+  gaugeSize = 220;
+  gaugeSizeSm = 180;
+
+  // --- Domain assumptions / ranges ---
+  rpmMax = 6000;
+
+  // --- Threshold bands ---
+  percentGenericThresholds = [
+    { from: 0,  color: '#4a6b8a' },
+    { from: 70, color: '#ffc107' },
+    { from: 90, color: '#ff6b6b' }
+  ];
+
+  rpmThresholds = [
+    { from: 0,    color: '#4a6b8a' },
+    { from: 4000, color: '#ffc107' },
+    { from: 5200, color: '#ff6b6b' }
+  ];
+
+  coolantThresholds = [
+    { from: 0,   color: '#4a6b8a' },
+    { from: 95,  color: '#ffc107' },
+    { from: 100, color: '#ff6b6b' }
+  ];
+
+  oilTempThresholds = [
+    { from: 0,   color: '#4a6b8a' },
+    { from: 110, color: '#ffc107' },
+    { from: 125, color: '#ff6b6b' }
+  ];
+
+  oilPressureThresholds = [
+    { from: 0,  color: '#ff6b6b' }, // too low
+    { from: 10, color: '#ffc107' }, // low
+    { from: 20, color: '#6bb6ff' }  // ok+
+  ];
+
+  fuelRateThresholds = [
+    { from: 0,  color: '#4a6b8a' },
+    { from: 40, color: '#ffc107' },
+    { from: 50, color: '#ff6b6b' }
+  ];
+
+  mapThresholds = [
+    { from: 0,   color: '#4a6b8a' },
+    { from: 180, color: '#ffc107' },
+    { from: 220, color: '#ff6b6b' }
+  ];
+
+  batteryThresholds = [
+    { from: 10.0, color: '#ff6b6b' }, // under-voltage
+    { from: 12.0, color: '#ffc107' }, // low
+    { from: 13.2, color: '#4a6b8a' }, // normal charging
+    { from: 14.8, color: '#ffc107' }  // high
+  ];
+
+  dtcThresholds = [
+    { from: 0,   color: '#4a6b8a' },
+    { from: 25,  color: '#ffc107' },
+    { from: 50,  color: '#ff6b6b' }
+  ];
+
+  // Visualize DTCs as percent of a nominal cap (e.g., 8)
+  get dtcPercent(): number {
+    const cap = 8;
+    const v = Math.min(this.engineData.activeDtcs, cap);
+    return (v / cap) * 100;
+  }
 
   protected handleClose(): void {
     this.closed.emit();

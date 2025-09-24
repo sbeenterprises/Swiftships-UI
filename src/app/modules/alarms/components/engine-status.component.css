@@ -1,12 +1,21 @@
 /* Engine Status Panel Styles */
+
+.gauge-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+
 .engine-status-panel {
   position: fixed;
-  bottom: 120px;
+  bottom: 20px;
   left: 70px;
   right: 380px;
   z-index: 1000;
   min-width: unset;
-  max-width: calc(100vw - 450px);
+  max-width: calc(100vw - 300px);
   transition: right 0.3s ease, max-width 0.3s ease;
 }
 

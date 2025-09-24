@@ -634,6 +634,14 @@
       <mat-icon>near_me</mat-icon>
       Navigate to here
     </button>
+    <button
+      mat-menu-item
+      (contextmenu)="$event.preventDefault()"
+      (click)="onContextMenuAction('nav_to', item)"
+    >
+      <mat-icon>anchor</mat-icon>
+      Station Keep
+    </button>
     @if(app.data.navData.position){
     <button
       mat-menu-item
