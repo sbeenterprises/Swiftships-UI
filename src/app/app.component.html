@@ -506,6 +506,179 @@
           </div>
         </mat-sidenav>
         }
+        <!--station keep control-->
+        @if(display.stationKeepPanelOpen) {
+        <mat-sidenav
+          #sidestationkeep
+          mode="side"
+          position="end"
+          [opened]="display.stationKeepPanelOpen"
+          class="station-keep-sidenav"
+          style="width: 350px;">
+          <div style="display: flex; flex-direction: column; position: relative; height: 100%">
+            <mat-nav-list>
+              <a mat-list-item>
+                <a mat-icon-button (click)="closeStationKeep()">
+                  <mat-icon>close</mat-icon>
+                </a>
+                <span style="margin-left: 16px; font-weight: 500;">Station Keep</span>
+              </a>
+              <mat-divider></mat-divider>
+            </mat-nav-list>
+
+            <div class="station-keep-content" style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
+              <!-- Inner Radius Control -->
+              <div class="station-keep-section">
+                <h3>Inner Radius</h3>
+                <div class="control-group">
+                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
+                    <button mat-icon-button (click)="updateStationKeepInnerRadius(stationKeep.innerRadius - 1)"
+                            [disabled]="stationKeep.innerRadius <= 1"
+                            class="slider-btn minus-btn">
+                      <mat-icon>remove</mat-icon>
+                    </button>
+                    <mat-slider
+                      min="1"
+                      max="100"
+                      step="1"
+                      class="inner-radius-slider"
+                      style="flex: 1;">
+                      <input matSliderThumb
+                             [value]="stationKeep.innerRadius"
+                             (input)="updateStationKeepInnerRadius($any($event.target).value)">
+                    </mat-slider>
+                    <button mat-icon-button (click)="updateStationKeepInnerRadius(stationKeep.innerRadius + 1)"
+                            [disabled]="stationKeep.innerRadius >= 100"
+                            class="slider-btn plus-btn">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                  </div>
+                  <div class="control-display">
+                    <span class="control-label">Inner Radius:</span>
+                    <span class="control-value">{{ stationKeep.innerRadius }}m</span>
+                  </div>
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="updateStationKeepInnerRadius(5)" class="control-btn">Small 5m</button>
+                    <button mat-raised-button (click)="updateStationKeepInnerRadius(10)" class="control-btn center-btn">Medium 10m</button>
+                    <button mat-raised-button (click)="updateStationKeepInnerRadius(20)" class="control-btn">Large 20m</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Outer Radius Control -->
+              <div class="station-keep-section">
+                <h3>Outer Radius</h3>
+                <div class="control-group">
+                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
+                    <button mat-icon-button (click)="updateStationKeepOuterRadius(stationKeep.outerRadius - 1)"
+                            [disabled]="stationKeep.outerRadius <= stationKeep.innerRadius + 1"
+                            class="slider-btn minus-btn">
+                      <mat-icon>remove</mat-icon>
+                    </button>
+                    <mat-slider
+                      [min]="stationKeep.innerRadius + 1"
+                      max="200"
+                      step="1"
+                      class="outer-radius-slider"
+                      style="flex: 1;">
+                      <input matSliderThumb
+                             [value]="stationKeep.outerRadius"
+                             (input)="updateStationKeepOuterRadius($any($event.target).value)">
+                    </mat-slider>
+                    <button mat-icon-button (click)="updateStationKeepOuterRadius(stationKeep.outerRadius + 1)"
+                            [disabled]="stationKeep.outerRadius >= 200"
+                            class="slider-btn plus-btn">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                  </div>
+                  <div class="control-display">
+                    <span class="control-label">Outer Radius:</span>
+                    <span class="control-value">{{ stationKeep.outerRadius }}m</span>
+                  </div>
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="updateStationKeepOuterRadius(stationKeep.innerRadius + 10)" class="control-btn">+10m</button>
+                    <button mat-raised-button (click)="updateStationKeepOuterRadius(stationKeep.innerRadius + 20)" class="control-btn center-btn">+20m</button>
+                    <button mat-raised-button (click)="updateStationKeepOuterRadius(stationKeep.innerRadius + 50)" class="control-btn">+50m</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Speed Control -->
+              <div class="station-keep-section">
+                <h3>Speed to Station</h3>
+                <div class="control-group">
+                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
+                    <button mat-icon-button (click)="updateStationKeepSpeed(stationKeep.speed - 0.5)"
+                            [disabled]="stationKeep.speed <= 0.5"
+                            class="slider-btn minus-btn">
+                      <mat-icon>remove</mat-icon>
+                    </button>
+                    <mat-slider
+                      min="0.5"
+                      max="25"
+                      step="0.5"
+                      class="speed-slider"
+                      style="flex: 1;">
+                      <input matSliderThumb
+                             [value]="stationKeep.speed"
+                             (input)="updateStationKeepSpeed($any($event.target).value)">
+                    </mat-slider>
+                    <button mat-icon-button (click)="updateStationKeepSpeed(stationKeep.speed + 0.5)"
+                            [disabled]="stationKeep.speed >= 25"
+                            class="slider-btn plus-btn">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                  </div>
+                  <div class="control-display">
+                    <span class="control-label">Speed:</span>
+                    <span class="control-value">{{ stationKeep.speed }} knots</span>
+                  </div>
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="updateStationKeepSpeed(2)" class="control-btn">Slow 2kn</button>
+                    <button mat-raised-button (click)="updateStationKeepSpeed(5)" class="control-btn center-btn">Medium 5kn</button>
+                    <button mat-raised-button (click)="updateStationKeepSpeed(10)" class="control-btn">Fast 10kn</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Station Keep Controls -->
+              <div class="station-keep-section">
+                <h3>Station Keep Control</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">Status:</span>
+                    <span class="control-value status-value" [class]="stationKeep.status">
+                      {{ stationKeep.status | titlecase }}
+                    </span>
+                  </div>
+                  <div class="control-display" *ngIf="stationKeep.position">
+                    <span class="control-label">Position:</span>
+                    <span class="control-value">{{ formatPosition(stationKeep.position) }}</span>
+                  </div>
+                  <div class="mission-buttons-row">
+                    <button
+                      mat-raised-button
+                      (click)="startStationKeep()"
+                      [disabled]="stationKeep.status === 'active'"
+                      class="mission-btn start-btn">
+                      <mat-icon>anchor</mat-icon>
+                      Start Station Keep
+                    </button>
+                    <button
+                      mat-raised-button
+                      (click)="stopStationKeep()"
+                      [disabled]="stationKeep.status !== 'active'"
+                      class="mission-btn stop-btn">
+                      <mat-icon>stop</mat-icon>
+                      Stop Station Keep
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </mat-sidenav>
+        }
         <!--autonomous control-->
         @if(display.autonomousControlPanelOpen) {
         <mat-sidenav

@@ -743,6 +743,167 @@ mat-nav-list {
     }
 }
 
+/* Station Keep Panel Styles - Custom colors with improved design */
+.station-keep-sidenav {
+    background: linear-gradient(180deg, #2d5a2d 0%, #265326 100%) !important;
+    color: #ffffff !important;
+    border-left: 4px solid #4a7c59 !important;
+    font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    box-shadow: -2px 0 15px rgba(0, 0, 0, 0.3) !important;
+}
+
+.station-keep-sidenav .mat-nav-list {
+    background: linear-gradient(180deg, #1f3f1f 0%, #1a361a 100%) !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid rgba(74, 124, 89, 0.6) !important;
+    padding: 12px 16px !important;
+}
+
+.station-keep-sidenav .mat-list-item {
+    color: #ffffff !important;
+    border-radius: 6px;
+    font-weight: 600 !important;
+    font-size: 16px !important;
+    letter-spacing: 0.5px !important;
+    padding: 16px 20px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.station-keep-sidenav .mat-list-item:hover {
+    background-color: rgba(74, 124, 89, 0.4) !important;
+    transform: translateX(2px);
+    transition: all 0.2s ease;
+}
+
+/* Ensure all child elements inherit the green theme */
+.station-keep-sidenav * {
+    color: #ffffff !important;
+}
+
+.station-keep-content {
+    position: relative;
+    animation: slideInRight 0.4s ease-out;
+}
+
+.station-keep-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.station-keep-content::-webkit-scrollbar-track {
+    background: rgba(74, 124, 89, 0.2);
+    border-radius: 2px;
+}
+
+.station-keep-content::-webkit-scrollbar-thumb {
+    background: rgba(74, 124, 89, 0.6);
+    border-radius: 2px;
+}
+
+.station-keep-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(74, 124, 89, 0.8);
+}
+
+.station-keep-section {
+    margin: 0 16px 24px 16px;
+    padding: 20px;
+    background: linear-gradient(135deg, #4a7c59 0%, #3f6b4e 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(74, 124, 89, 0.8);
+    box-shadow:
+        0 4px 12px rgba(31, 63, 31, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    animation: fadeInUp 0.5s ease-out forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.station-keep-section:nth-child(1) { animation-delay: 0.1s; }
+.station-keep-section:nth-child(2) { animation-delay: 0.2s; }
+.station-keep-section:nth-child(3) { animation-delay: 0.3s; }
+.station-keep-section:nth-child(4) { animation-delay: 0.4s; }
+
+.station-keep-section:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 6px 16px rgba(31, 63, 31, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.station-keep-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #4a7c59, #5a8c6a, #4a7c59);
+    opacity: 0.6;
+}
+
+.station-keep-section h3 {
+    margin: 0 0 20px 0;
+    color: #ffffff;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border-bottom: 2px solid rgba(74, 124, 89, 0.6);
+    padding-bottom: 12px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+
+.station-keep-section h3::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #5a8c6a, transparent);
+}
+
+.station-keep-section .status-value.standby {
+    color: #ffeb3b !important;
+}
+
+.station-keep-section .status-value.active {
+    color: #4caf50 !important;
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Dark theme adjustments for station keep */
+.dark-theme .station-keep-section {
+    background-color: #4a7c59;
+    border-color: rgba(74, 124, 89, 0.8);
+    box-shadow: 0 2px 10px rgba(31, 63, 31, 0.4);
+}
+
+/* Responsive adjustments for station keep */
+@media only screen and (max-width: 768px) {
+    .station-keep-section {
+        margin-bottom: 20px;
+        padding: 12px;
+    }
+
+    .control-btn {
+        font-size: 10px !important;
+        padding: 6px 2px !important;
+    }
+}
+
 /* Autonomous Control Panel Styles - Custom colors with improved design */
 .autonomous-control-sidenav {
     background: linear-gradient(180deg, #2a3f55 0%, #253549 100%) !important;

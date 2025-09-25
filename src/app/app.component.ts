@@ -95,6 +95,7 @@ export class AppComponent implements OnDestroy {
     instrumentAppActive: true,
     remoteControlPanelOpen: false,
     autonomousControlPanelOpen: false,
+    stationKeepPanelOpen: false,
     routeList: false,
     waypointList: false,
     chartList: false,
@@ -132,6 +133,15 @@ export class AppComponent implements OnDestroy {
     status: 'standby',    // standby, active, paused, returning, aborted
     currentWaypoint: 0,   // Current waypoint index
     progress: 0          // Mission progress percentage
+  };
+
+  // Station Keep control data
+  public stationKeep = {
+    innerRadius: 10,      // Inner radius in meters (1-100)
+    outerRadius: 25,      // Outer radius in meters (inner+1 to 200)
+    speed: 5,             // Speed to go to station in knots (0.5-25)
+    status: 'standby',    // standby, active
+    position: null        // Station keep position [lat, lon]
   };
 
   // Available routes for autonomous control
@@ -386,6 +396,7 @@ export class AppComponent implements OnDestroy {
         // Opening panel - close other panels
         this.display.instrumentPanelOpen = false;
         this.display.autonomousControlPanelOpen = false;
+        this.display.stationKeepPanelOpen = false;
       } else {
         // Closing panel - deactivate remote control
         this.app.config.selections.remoteControl = false;
@@ -398,6 +409,7 @@ export class AppComponent implements OnDestroy {
       this.display.remoteControlPanelOpen = true;
       this.display.instrumentPanelOpen = false;
       this.display.autonomousControlPanelOpen = false;
+      this.display.stationKeepPanelOpen = false;
       this.app.saveConfig();
       this.app.showMessage('Remote Control Activated', false, 3000);
     }
@@ -413,6 +425,7 @@ export class AppComponent implements OnDestroy {
         // Opening panel - close other panels
         this.display.instrumentPanelOpen = false;
         this.display.remoteControlPanelOpen = false;
+        this.display.stationKeepPanelOpen = false;
         // Load routes for the dropdown
         this.loadAvailableRoutes();
       } else {
@@ -428,6 +441,7 @@ export class AppComponent implements OnDestroy {
       this.display.autonomousControlPanelOpen = true;
       this.display.instrumentPanelOpen = false;
       this.display.remoteControlPanelOpen = false;
+      this.display.stationKeepPanelOpen = false;
       this.autonomousControl.status = 'standby';
       this.app.saveConfig();
       // Load routes for the dropdown
@@ -733,6 +747,76 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
+  // Station Keep control methods
+  protected updateStationKeepInnerRadius(value: number) {
+    this.stationKeep.innerRadius = Math.max(1, Math.min(100, value));
+    // Ensure outer radius is always greater than inner radius
+    if (this.stationKeep.outerRadius <= this.stationKeep.innerRadius) {
+      this.stationKeep.outerRadius = this.stationKeep.innerRadius + 5;
+    }
+  }
+
+  protected updateStationKeepOuterRadius(value: number) {
+    this.stationKeep.outerRadius = Math.max(this.stationKeep.innerRadius + 1, Math.min(200, value));
+  }
+
+  protected updateStationKeepSpeed(value: number) {
+    this.stationKeep.speed = Math.max(0.5, Math.min(25, value));
+  }
+
+  protected startStationKeep() {
+    if (!this.stationKeep.position) {
+      this.app.showMessage('Please set a Station Keep position first by right-clicking on the map', true, 3000);
+      return;
+    }
+
+    this.stationKeep.status = 'active';
+
+    // Send Station Keep command to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      const lat = this.stationKeep.position[1];
+      const lon = this.stationKeep.position[0];
+      const message = `STATION_KEEP=true#${lat}#${lon}#${this.stationKeep.innerRadius}#${this.stationKeep.outerRadius}#${this.stationKeep.speed}`;
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log(`Sent ${message} to MOOS-IvP`);
+    }
+
+    this.app.showMessage(`Station Keep Started at ${this.formatPosition(this.stationKeep.position)}`, false, 3000);
+    console.log('Station Keep started:', this.stationKeep);
+  }
+
+  protected stopStationKeep() {
+    this.stationKeep.status = 'standby';
+
+    // Send stop command to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send('STATION_KEEP=false');
+      console.log('Sent STATION_KEEP=false to MOOS-IvP');
+    }
+
+    this.app.showMessage('Station Keep Stopped', false, 3000);
+    console.log('Station Keep stopped');
+  }
+
+  protected setStationKeepPosition(position: [number, number]) {
+    this.stationKeep.position = position;
+    this.app.showMessage(`Station Keep position set to ${this.formatPosition(position)}`, false, 3000);
+  }
+
+  public formatPosition(position: [number, number]): string {
+    if (!position) return 'Not set';
+    const lat = position[1].toFixed(6);
+    const lon = position[0].toFixed(6);
+    return `${lat}, ${lon}`;
+  }
+
+  protected closeStationKeep() {
+    this.display.stationKeepPanelOpen = false;
+    this.stationKeep.status = 'standby';
+    this.app.showMessage('Station Keep Panel Closed', false, 3000);
+    this.focusMap();
+  }
+
   protected toggleToolbarButtons() {
     this.app.uiConfig.update((current) => {
       return Object.assign({}, current, {
@@ -883,7 +967,25 @@ export class AppComponent implements OnDestroy {
       case 'weather_forecast':
         this.showWeather('forecast');
         break;
+      case 'station_keep':
+        this.openStationKeepPanel();
+        break;
     }
+  }
+
+  protected openStationKeepPanel() {
+    // Set the position from the right-click location
+    if (this.app.data.map.stationKeepPosition) {
+      this.stationKeep.position = this.app.data.map.stationKeepPosition;
+    }
+
+    this.display.stationKeepPanelOpen = true;
+    this.display.instrumentPanelOpen = false;
+    this.display.remoteControlPanelOpen = false;
+    this.display.autonomousControlPanelOpen = false;
+
+    this.app.showMessage(`Station Keep position set to ${this.formatPosition(this.stationKeep.position)}`, false, 3000);
+    this.focusMap();
   }
   // ** create route from vessel trail **
   public trailToRoute() {
@@ -1511,6 +1613,7 @@ export class AppComponent implements OnDestroy {
       // Opening instrument panel - close other right-side panels
       this.display.remoteControlPanelOpen = false;
       this.display.autonomousControlPanelOpen = false;
+      this.display.stationKeepPanelOpen = false;
     }
     if (this.app.config.plugins.startOnOpen) {
       this.display.instrumentAppActive = e;

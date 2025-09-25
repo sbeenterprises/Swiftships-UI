@@ -504,6 +504,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
           longitude: pos[0]
         });
         break;
+      case 'station_keep':
+        this.menuItemSelected.emit('station_keep');
+        // Store position for Station Keep
+        this.app.data.map.stationKeepPosition = pos;
+        break;
       case 'measure':
         this.mapInteract.startMeasuring();
         break;

@@ -210,6 +210,7 @@ export interface FBAppData {
       features: any[];
       lonlat: Position;
     };
+    stationKeepPosition?: Position;
   };
   vessels: {
     // received vessel data
