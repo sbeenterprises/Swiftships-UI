@@ -144,6 +144,8 @@ export class AppComponent implements OnDestroy {
     position: null        // Station keep position [lat, lon]
   };
 
+  public hideStationKeepCircles = false;
+
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
 
@@ -794,6 +796,13 @@ export class AppComponent implements OnDestroy {
       console.log('Sent STATION_KEEP=false to MOOS-IvP');
     }
 
+    // Hide station keep circles
+    this.hideStationKeepCircles = true;
+    // Reset the flag to allow showing circles again next time
+    setTimeout(() => {
+      this.hideStationKeepCircles = false;
+    }, 100);
+
     this.app.showMessage('Station Keep Stopped', false, 3000);
     console.log('Station Keep stopped');
   }
@@ -813,6 +822,14 @@ export class AppComponent implements OnDestroy {
   protected closeStationKeep() {
     this.display.stationKeepPanelOpen = false;
     this.stationKeep.status = 'standby';
+
+    // Hide station keep circles
+    this.hideStationKeepCircles = true;
+    // Reset the flag to allow showing circles again next time
+    setTimeout(() => {
+      this.hideStationKeepCircles = false;
+    }, 100);
+
     this.app.showMessage('Station Keep Panel Closed', false, 3000);
     this.focusMap();
   }

@@ -150,6 +150,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Input() activeRoute: string;
   @Input() vesselTrail: Array<Position> = [];
   @Input() dblClickZoom = false;
+  @Input() hideStationKeepCircles = false;
+  @Input() stationKeepInnerRadius = 10;
+  @Input() stationKeepOuterRadius = 25;
+
+  protected showStationKeepCircles = false;
+
   @Output() drawEnded: EventEmitter<DrawFeatureInfo> = new EventEmitter();
   @Output() activate: EventEmitter<string> = new EventEmitter();
   @Output() deactivate: EventEmitter<string> = new EventEmitter();
@@ -331,6 +337,9 @@ export class FBMapComponent implements OnInit, OnDestroy {
     if (changes && changes.northUp) {
       this.rotateMap();
     }
+    if (changes && changes.hideStationKeepCircles && changes.hideStationKeepCircles.currentValue) {
+      this.showStationKeepCircles = false;
+    }
     if (changes && changes.measureMode) {
       this.applyInteractionMode(
         INTERACTION_MODE.MEASURE,
@@ -508,6 +517,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
         this.menuItemSelected.emit('station_keep');
         // Store position for Station Keep
         this.app.data.map.stationKeepPosition = pos;
+        // Show station keep circles
+        this.showStationKeepCircles = true;
         break;
       case 'measure':
         this.mapInteract.startMeasuring();

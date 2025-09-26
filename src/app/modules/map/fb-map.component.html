@@ -575,6 +575,18 @@
   </fb-arrival-circle>
   } }
 
+  <!-- Station Keep Circles -->
+  @if(app.data.map.stationKeepPosition && showStationKeepCircles) {
+  <fb-station-keep-circles
+    [position]="app.data.map.stationKeepPosition"
+    [innerRadius]="stationKeepInnerRadius"
+    [outerRadius]="stationKeepOuterRadius"
+    [zIndex]="336"
+    [visible]="true"
+  >
+  </fb-station-keep-circles>
+  }
+
   <!-- Radar -->
   @if(app.config.selections.radarControl) {
   <fb-radar

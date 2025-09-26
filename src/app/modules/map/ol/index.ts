@@ -32,6 +32,7 @@ import { XTEPathComponent } from './lib/navigation/layer-xte-path.component';
 import { BearingLineComponent } from './lib/navigation/layer-bearing-line.component';
 import { LaylineComponent } from './lib/navigation/layer-layline.component';
 import { DirectionOfTravelComponent } from './lib/navigation/layer-dot.component';
+import { StationKeepCirclesComponent } from './lib/navigation/layer-station-keep-circles.component';
 import { VesselComponent } from './lib/vessel/layer-vessel.component';
 import { VesselTrailComponent } from './lib/vessel/layer-vessel-trail.component';
 import { FBFeatureLayerComponent } from './lib/sk-feature.component';
@@ -78,6 +79,7 @@ export { LaylineComponent } from './lib/navigation/layer-layline.component';
 export { TargetAngleComponent } from './lib/navigation/layer-target-angle.component';
 import { TargetAngleComponent } from './lib/navigation/layer-target-angle.component';
 export { DirectionOfTravelComponent } from './lib/navigation/layer-dot.component';
+export { StationKeepCirclesComponent } from './lib/navigation/layer-station-keep-circles.component';
 export { VesselComponent } from './lib/vessel/layer-vessel.component';
 export { VesselTrailComponent } from './lib/vessel/layer-vessel-trail.component';
 export { FBFeatureLayerComponent } from './lib/sk-feature.component';
@@ -119,6 +121,7 @@ const declarations = [
   VesselComponent,
   VesselTrailComponent,
   DirectionOfTravelComponent,
+  StationKeepCirclesComponent,
   FBFeatureLayerComponent,
   RacingStartLineLayerComponent,
   AISFlagsLayerComponent,
