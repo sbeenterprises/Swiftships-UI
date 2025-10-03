@@ -514,11 +514,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
         });
         break;
       case 'station_keep':
-        this.menuItemSelected.emit('station_keep');
-        // Store position for Station Keep
+        // Store position for Station Keep BEFORE emitting event
         this.app.data.map.stationKeepPosition = pos;
+        console.log('Station Keep position stored in map:', pos);
         // Show station keep circles
         this.showStationKeepCircles = true;
+        // Emit event after position is set
+        this.menuItemSelected.emit('station_keep');
         break;
       case 'measure':
         this.mapInteract.startMeasuring();

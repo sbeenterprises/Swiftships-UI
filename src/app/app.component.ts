@@ -767,6 +767,9 @@ export class AppComponent implements OnDestroy {
   }
 
   protected startStationKeep() {
+    console.log('Starting Station Keep...');
+    console.log('stationKeep.position:', this.stationKeep.position);
+
     if (!this.stationKeep.position) {
       this.app.showMessage('Please set a Station Keep position first by right-clicking on the map', true, 3000);
       return;
@@ -778,7 +781,7 @@ export class AppComponent implements OnDestroy {
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       const lat = this.stationKeep.position[1];
       const lon = this.stationKeep.position[0];
-      const message = `STATION_KEEP=true#${lat}#${lon}#${this.stationKeep.innerRadius}#${this.stationKeep.outerRadius}#${this.stationKeep.speed}`;
+      const message = `STATION_PT=${lat},${lon}#INNER_RADIUS=${this.stationKeep.innerRadius}#OUTER_RADIUS=${this.stationKeep.outerRadius}#SPEED=${this.stationKeep.speed}`;
       this.app.data.moosIvPServer.socket.send(message);
       console.log(`Sent ${message} to MOOS-IvP`);
     }
@@ -822,6 +825,13 @@ export class AppComponent implements OnDestroy {
   protected closeStationKeep() {
     this.display.stationKeepPanelOpen = false;
     this.stationKeep.status = 'standby';
+
+    // Send STATION_PT=false to MOOS-IvP to disable station keep
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      const message = 'STATION_PT=false';
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log(`Sent ${message} to MOOS-IvP`);
+    }
 
     // Hide station keep circles
     this.hideStationKeepCircles = true;
@@ -991,17 +1001,29 @@ export class AppComponent implements OnDestroy {
   }
 
   protected openStationKeepPanel() {
+    console.log('Opening Station Keep panel...');
+    console.log('app.data.map.stationKeepPosition:', this.app.data.map.stationKeepPosition);
+    console.log('Current stationKeep.position:', this.stationKeep.position);
+
     // Set the position from the right-click location
     if (this.app.data.map.stationKeepPosition) {
       this.stationKeep.position = this.app.data.map.stationKeepPosition;
+      console.log('Position set from map:', this.stationKeep.position);
     }
+    // If no new position from right-click, keep the existing position
 
     this.display.stationKeepPanelOpen = true;
     this.display.instrumentPanelOpen = false;
     this.display.remoteControlPanelOpen = false;
     this.display.autonomousControlPanelOpen = false;
 
-    this.app.showMessage(`Station Keep position set to ${this.formatPosition(this.stationKeep.position)}`, false, 3000);
+    console.log('Final stationKeep.position:', this.stationKeep.position);
+
+    if (this.stationKeep.position) {
+      this.app.showMessage(`Station Keep position set to ${this.formatPosition(this.stationKeep.position)}`, false, 3000);
+    } else {
+      this.app.showMessage('Station Keep panel opened. Right-click on map to set position.', false, 3000);
+    }
     this.focusMap();
   }
   // ** create route from vessel trail **
