@@ -192,6 +192,18 @@ id: string - resource id
             POINTS
           </button>
         </div>
+        } @if(ctrl.showStationKeepButton) {
+        <div class="popover-action-button">
+          <button
+            mat-button
+            (click)="emitStationKeep()"
+            matTooltip="Set Station Keep at this point"
+            matTooltipPosition="after"
+          >
+            <mat-icon>adjust</mat-icon>
+            STATION KEEP
+          </button>
+        </div>
         }
       </div>
     </ap-popover>
@@ -216,6 +228,7 @@ export class ResourcePopoverComponent {
   @Output() closed: EventEmitter<void> = new EventEmitter();
   @Output() points: EventEmitter<void> = new EventEmitter();
   @Output() notes: EventEmitter<void> = new EventEmitter();
+  @Output() stationKeep: EventEmitter<void> = new EventEmitter();
 
   properties: Array<unknown>; // ** resource properties
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -227,6 +240,7 @@ export class ResourcePopoverComponent {
     showRelatedButton: false,
     showPointsButton: false,
     showNotesButton: false,
+    showStationKeepButton: false,
     canActivate: false,
     isActive: false,
     activeText: 'ACTIVE',
@@ -334,6 +348,7 @@ export class ResourcePopoverComponent {
       this.ctrl.showAddNoteButton = false;
       this.ctrl.showRelatedButton = false;
       this.ctrl.showDeleteButton = false;
+      this.ctrl.showStationKeepButton = false;
     } else {
       this.ctrl.isActive =
         this.active && this.active === this.resource[0] ? true : false;
@@ -346,6 +361,7 @@ export class ResourcePopoverComponent {
       this.ctrl.showAddNoteButton = false;
       this.ctrl.showRelatedButton = false;
       this.ctrl.showDeleteButton = this.ctrl.isActive ? false : true;
+      this.ctrl.showStationKeepButton = true;
       this.ctrl.isReadOnly = this.resource[1].feature.properties?.readOnly;
     }
 
@@ -439,6 +455,10 @@ export class ResourcePopoverComponent {
 
   emitRelated() {
     this.related.emit(this.resource[1].group);
+  }
+
+  emitStationKeep() {
+    this.stationKeep.emit();
   }
 
   handleClose() {

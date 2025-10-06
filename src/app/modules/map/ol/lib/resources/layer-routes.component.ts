@@ -7,10 +7,10 @@ import {
 } from '@angular/core';
 import { Feature } from 'ol';
 import { Style, Stroke, Fill, Circle, RegularShape } from 'ol/style';
-import { LineString, Point } from 'ol/geom';
-import { toLonLat } from 'ol/proj';
+import { LineString, Point, Circle as CircleGeom } from 'ol/geom';
+import { toLonLat, fromLonLat } from 'ol/proj';
 import { MapComponent } from '../map.component';
-import { fromLonLatArray, mapifyCoords } from '../util';
+import { fromLonLatArray, mapifyCoords, mapifyRadius } from '../util';
 import { getRhumbLineBearing } from 'geolib';
 import { GeolibInputCoordinates } from 'geolib/es/types';
 import { FBFeatureLayerComponent } from '../sk-feature.component';
@@ -86,6 +86,9 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
     const isActive = id === this.activeRoute;
     let ptFill: Fill;
 
+    // Get point metadata for station keep circles
+    const pointMetadata = feature.get('pointMetadata') || [];
+
     if (typeof this.routeStyles === 'undefined') {
       if (this.layerProperties && this.layerProperties.style) {
         return this.layerProperties.style;
@@ -111,6 +114,48 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
     let idx = 0;
     const l = geometry.getCoordinates().length;
     geometry.forEachSegment((start, end) => {
+      // Add station keep circles if this point has station keep config
+      const pointMeta = pointMetadata[idx];
+      if (pointMeta && pointMeta.stationKeep) {
+        const innerRadius = pointMeta.stationKeep.innerRadius || 10;
+        const outerRadius = pointMeta.stationKeep.outerRadius || 25;
+
+        // Get position in lon/lat
+        const position = toLonLat(start) as [number, number];
+
+        // Add outer circle style
+        styles.push(
+          new Style({
+            geometry: new CircleGeom(
+              fromLonLat(position),
+              mapifyRadius(outerRadius, position)
+            ),
+            fill: new Fill({ color: 'rgba(255, 165, 0, 0.1)' }),
+            stroke: new Stroke({
+              color: 'rgba(255, 140, 0, 0.8)',
+              width: 2,
+              lineDash: [12, 6]
+            })
+          })
+        );
+
+        // Add inner circle style
+        styles.push(
+          new Style({
+            geometry: new CircleGeom(
+              fromLonLat(position),
+              mapifyRadius(innerRadius, position)
+            ),
+            fill: new Fill({ color: 'rgba(0, 255, 0, 0.1)' }),
+            stroke: new Stroke({
+              color: 'rgba(0, 200, 0, 0.8)',
+              width: 2,
+              lineDash: [8, 4]
+            })
+          })
+        );
+      }
+
       // start point
       if (idx === 0) {
         styles.push(

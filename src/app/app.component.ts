@@ -13,7 +13,10 @@ import {
   LoginDialog,
   PlaybackDialog,
   GeoJSONImportDialog,
-  Trail2RouteDialog
+  Trail2RouteDialog,
+  StationKeepDialog,
+  StationKeepConfig,
+  SingleSelectListDialog
 } from 'src/app/lib/components/dialogs';
 
 import {
@@ -2076,10 +2079,156 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
+  // ** save station keep configuration to route metadata **
+  private async saveStationKeepToRoute(
+    routeId: string,
+    pointIndex: number,
+    config: StationKeepConfig
+  ) {
+    try {
+      // Fetch the current route
+      const route = await this.skres.fromServer('routes', routeId);
+      if (!route) {
+        return;
+      }
+
+      const routeData = route as any;
+
+      // Initialize coordinatesMeta if it doesn't exist
+      if (!routeData.feature.properties) {
+        routeData.feature.properties = {};
+      }
+      if (!routeData.feature.properties.coordinatesMeta) {
+        routeData.feature.properties.coordinatesMeta = [];
+      }
+
+      const coordsMeta = routeData.feature.properties.coordinatesMeta;
+
+      // Ensure metadata array has entries for all points
+      const coordinates = routeData.feature.geometry.coordinates;
+      while (coordsMeta.length < coordinates.length) {
+        // Add metadata with required 'name' property to satisfy schema
+        coordsMeta.push({
+          name: `Point ${coordsMeta.length + 1}`
+        });
+      }
+
+      // Save station keep configuration to the point metadata
+      if (!coordsMeta[pointIndex]) {
+        coordsMeta[pointIndex] = {
+          name: `Point ${pointIndex + 1}`
+        };
+      }
+
+      // Preserve existing name if it exists
+      if (!coordsMeta[pointIndex].name) {
+        coordsMeta[pointIndex].name = `Point ${pointIndex + 1}`;
+      }
+
+      coordsMeta[pointIndex].stationKeep = {
+        innerRadius: config.innerRadius,
+        outerRadius: config.outerRadius,
+        timeToKeep: config.timeToKeep
+      };
+
+      // Update the route with the new metadata
+      this.skres.updateRouteCoords(
+        routeId,
+        coordinates,
+        coordsMeta
+      );
+
+      // Refresh routes to show updated data
+      this.skres.refreshRoutes();
+    } catch (err) {
+      this.app.parseHttpErrorResponse(err);
+    }
+  }
+
   // ** show feature (vessel/AtoN/Aircraft/Route points) properties **
   public async featureProperties(e: { id: string; type: string }) {
     let v: FBRoute | SKVessel | SKSaR | SKAircraft | SKAtoN;
-    if (e.type === 'route') {
+    if (e.type === 'route-stationkeep') {
+      // Handle station keep for route - show route points selection
+      try {
+        this.app.sIsFetching.set(true);
+        v = await this.skres.fromServer('routes', e.id);
+        this.app.sIsFetching.set(false);
+        if (v) {
+          const route = v as any;
+          const coordinates = route.feature.geometry.coordinates;
+          const coordinatesMeta = route.feature.properties?.coordinatesMeta || [];
+
+          if (coordinates && coordinates.length > 0) {
+            // Create list of route points for selection
+            const pointList = coordinates.map((coord: number[], index: number) => {
+              const meta = coordinatesMeta[index] || {};
+              const name = meta.name || `Point ${index + 1}`;
+              return {
+                id: index.toString(),
+                name: `${name} (${coord[1].toFixed(6)}, ${coord[0].toFixed(6)})`
+              };
+            });
+
+            // Show point selection dialog
+            this.dialog
+              .open(SingleSelectListDialog, {
+                data: {
+                  title: 'Select Route Point for Station Keep',
+                  icon: { name: 'adjust' },
+                  items: pointList
+                }
+              })
+              .afterClosed()
+              .subscribe((selectedPoint) => {
+                if (selectedPoint) {
+                  const pointIndex = parseInt(selectedPoint.id);
+                  const position = coordinates[pointIndex];
+
+                  // Get existing station keep config from route metadata if available
+                  const existingConfig = coordinatesMeta[pointIndex]?.stationKeep;
+
+                  // Show station keep configuration dialog
+                  const config: StationKeepConfig = {
+                    innerRadius: existingConfig?.innerRadius || 10,
+                    outerRadius: existingConfig?.outerRadius || 25,
+                    timeToKeep: existingConfig?.timeToKeep || 300, // Default 5 minutes (300 seconds)
+                    position: position,
+                    pointIndex: pointIndex
+                  };
+
+                  this.dialog
+                    .open(StationKeepDialog, {
+                      data: {
+                        title: 'Configure Station Keep',
+                        config: config
+                      }
+                    })
+                    .afterClosed()
+                    .subscribe(async (result) => {
+                      if (result && result.save) {
+                        // Save the station keep configuration to route metadata
+                        await this.saveStationKeepToRoute(
+                          e.id,
+                          pointIndex,
+                          result.config
+                        );
+                        this.app.showMessage(
+                          'Station Keep configuration saved to route',
+                          false,
+                          3000
+                        );
+                      }
+                    });
+                }
+              });
+          }
+        }
+      } catch (err) {
+        this.app.sIsFetching.set(false);
+        this.app.parseHttpErrorResponse(err);
+      }
+    } else if (e.type === 'route') {
       try {
         this.app.sIsFetching.set(true);
         v = await this.skres.fromServer('routes', e.id);

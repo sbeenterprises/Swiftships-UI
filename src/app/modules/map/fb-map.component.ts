@@ -1568,6 +1568,18 @@ export class FBMapComponent implements OnInit, OnDestroy {
     this.focusVessel.emit(id);
   }
 
+  // ** handle station keep for route **
+  protected setStationKeepForRoute() {
+    if (this.overlay.type === 'route' && this.overlay.resource) {
+      // Emit event to notify parent component to show route points selection
+      // Pass route info so parent can show point selector
+      this.info.emit({
+        id: this.overlay.id,
+        type: 'route-stationkeep'
+      });
+    }
+  }
+
   // ******** Interactions: DRAW / EDIT / MEASURE ************
 
   /** Apply the selected Interaction mode */
