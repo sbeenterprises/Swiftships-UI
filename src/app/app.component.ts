@@ -149,6 +149,17 @@ export class AppComponent implements OnDestroy {
 
   public hideStationKeepCircles = false;
 
+  // Active waypoint station keep tracking
+  public activeWaypointStationKeep = {
+    active: false,
+    innerRadius: 0,
+    outerRadius: 0,
+    timeToKeep: 0,
+    timeRemaining: 0,
+    position: null as [number, number] | null,
+    timer: null as any
+  };
+
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
 
@@ -847,6 +858,180 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
+  // recebe o índice do waypoint ALCANÇADO
+  private async handleWaypointReached(reachedIndex: number) {
+    const activeRouteId = this.autonomousControl.selectedRoute || this.app.data.activeRoute;
+    if (!activeRouteId) {
+      console.log('[STATION KEEP] No active route');
+      return;
+    }
+
+    console.log('[STATION KEEP] =========================');
+    console.log('[STATION KEEP] Reached waypoint index (arrived):', reachedIndex);
+    console.log('[STATION KEEP] Active route ID:', activeRouteId);
+    console.log('[STATION KEEP] From autonomous control:', !!this.autonomousControl.selectedRoute);
+
+    try {
+      const route = await this.skres.fromServer('routes', activeRouteId);
+      if (!route) {
+        console.log('[STATION KEEP] Route not found');
+        return;
+      }
+
+      const routeData = route as any;
+      const coords = routeData.feature?.geometry?.coordinates ?? [];
+      const coordinatesMeta = routeData.feature?.properties?.coordinatesMeta ?? [];
+
+      // Proteções de índice
+      if (reachedIndex < 0 || reachedIndex >= coords.length) {
+        console.log('[STATION KEEP] Reached index out of bounds:', reachedIndex, 'total points:', coords.length);
+        return;
+      }
+
+      console.log('[STATION KEEP] Route data:', {
+        name: routeData.name,
+        totalPoints: coords.length,
+        hasProperties: !!routeData.feature?.properties,
+        hasCoordinatesMeta: !!routeData.feature?.properties?.coordinatesMeta
+      });
+
+      console.log('[STATION KEEP] Total coordinatesMeta entries:', coordinatesMeta.length);
+
+      const pointMeta = coordinatesMeta[reachedIndex];
+      if (!pointMeta) {
+        console.log('[STATION KEEP] No metadata for reached index:', reachedIndex);
+        return;
+      }
+
+      console.log('[STATION KEEP] Point metadata:', JSON.stringify(pointMeta, null, 2));
+
+      if (pointMeta.stationKeep) {
+        const position = coords[reachedIndex];
+        console.log('[STATION KEEP] ✓ Waypoint HAS station keep config:', pointMeta.stationKeep);
+        console.log('[STATION KEEP] Position:', position);
+
+        this.startWaypointStationKeep(
+          position,
+          pointMeta.stationKeep.innerRadius,
+          pointMeta.stationKeep.outerRadius,
+          pointMeta.stationKeep.timeToKeep
+        );
+      } else {
+        console.log('[STATION KEEP] ✗ Waypoint has NO station keep config');
+      }
+    } catch (err) {
+      console.error('[STATION KEEP] Error checking waypoint:', err);
+    }
+  }
+
+
+  // ** Start station keep at waypoint **
+  private startWaypointStationKeep(
+    position: [number, number],
+    innerRadius: number,
+    outerRadius: number,
+    timeToKeep: number
+  ) {
+    // Stop any existing station keep timer
+    if (this.activeWaypointStationKeep.timer) {
+      clearInterval(this.activeWaypointStationKeep.timer);
+    }
+
+    // Set station keep configuration
+    this.activeWaypointStationKeep.active = true;
+    this.activeWaypointStationKeep.innerRadius = innerRadius;
+    this.activeWaypointStationKeep.outerRadius = outerRadius;
+    this.activeWaypointStationKeep.timeToKeep = timeToKeep;
+    this.activeWaypointStationKeep.timeRemaining = timeToKeep;
+    this.activeWaypointStationKeep.position = position;
+
+    // Send command to MOOS-IvP with coordinates (lat,lon)
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      const lat = position[1]; // latitude
+      const lon = position[0]; // longitude
+      const message = `STATION_KEEP_WAYPOINT=TRUE#INNER_RADIUS=${innerRadius}#OUTER_RADIUS=${outerRadius}#COORDS=${lat},${lon}`;
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log(`[STATION KEEP] Sent to MOOS-IvP: ${message}`);
+    }
+
+    // Start countdown timer (update every second)
+    this.activeWaypointStationKeep.timer = setInterval(() => {
+      this.activeWaypointStationKeep.timeRemaining--;
+
+      if (this.activeWaypointStationKeep.timeRemaining <= 0) {
+        this.stopWaypointStationKeep();
+      }
+    }, 1000);
+
+    this.app.showMessage(
+      `Station Keep started at waypoint for ${timeToKeep} seconds`,
+      false,
+      3000
+    );
+  }
+
+  // ** Stop waypoint station keep **
+  private stopWaypointStationKeep() {
+    // Stop timer
+    if (this.activeWaypointStationKeep.timer) {
+      clearInterval(this.activeWaypointStationKeep.timer);
+      this.activeWaypointStationKeep.timer = null;
+    }
+
+    // Send stop command to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      const message = 'STATION_KEEP_WAYPOINT=FALSE';
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log(`[STATION KEEP] Sent to MOOS-IvP: ${message}`);
+    }
+
+    // Reset station keep state
+    this.activeWaypointStationKeep.active = false;
+    this.activeWaypointStationKeep.timeRemaining = 0;
+
+    this.app.showMessage('Station Keep completed', false, 3000);
+  }
+
+  // ** Debug: Inspect route station keep configuration **
+  public async debugInspectRoute(routeId?: string) {
+    const id = routeId || this.autonomousControl.selectedRoute || this.app.data.activeRoute;
+    if (!id) {
+      console.log('[DEBUG] No route ID provided and no active route');
+      return;
+    }
+
+    try {
+      const route = await this.skres.fromServer('routes', id);
+      if (!route) {
+        console.log('[DEBUG] Route not found:', id);
+        return;
+      }
+
+      const routeData = route as any;
+      console.log('[DEBUG] ========== ROUTE INSPECTION ==========');
+      console.log('[DEBUG] Route ID:', id);
+      console.log('[DEBUG] Route Name:', routeData.name);
+      console.log('[DEBUG] Total Points:', routeData.feature.geometry.coordinates.length);
+
+      const coordinatesMeta = routeData.feature.properties?.coordinatesMeta;
+      if (coordinatesMeta) {
+        console.log('[DEBUG] CoordinatesMeta Length:', coordinatesMeta.length);
+        coordinatesMeta.forEach((meta: any, index: number) => {
+          if (meta.stationKeep) {
+            console.log(`[DEBUG] Point ${index} HAS Station Keep:`, meta.stationKeep);
+          } else {
+            console.log(`[DEBUG] Point ${index}: No station keep (name: ${meta.name || 'none'})`);
+          }
+        });
+      } else {
+        console.log('[DEBUG] No coordinatesMeta found');
+      }
+      console.log('[DEBUG] ====================================');
+    } catch (err) {
+      console.error('[DEBUG] Error inspecting route:', err);
+    }
+  }
+
   protected toggleToolbarButtons() {
     this.app.uiConfig.update((current) => {
       return Object.assign({}, current, {
@@ -1211,7 +1396,7 @@ export class AppComponent implements OnDestroy {
       };
 
       socket.onmessage = (event) => {
-        console.log('[MOOS-IvP DEBUG] Raw message received:', event.data);
+        // console.log('[MOOS-IvP DEBUG] Raw message received:', event.data);
         this.handleMoosIvPMessage(event.data);
       };
 
@@ -1250,17 +1435,17 @@ export class AppComponent implements OnDestroy {
   /** handle MOOS-IvP WebSocket message */
   private handleMoosIvPMessage(data: string) {
     try {
-      console.log('[MOOS-IvP DEBUG] Processing message:', data);
+      // console.log('[MOOS-IvP DEBUG] Processing message:', data);
       this.app.data.moosIvPServer.lastMessage = data;
       // this.app.debug('MOOS-IvP message received:', data);
 
       // Parse MOOS variable updates (format: VAR=value)
       const lines = data.split('\n');
-      console.log('[MOOS-IvP DEBUG] Message lines count:', lines.length);
+      // console.log('[MOOS-IvP DEBUG] Message lines count:', lines.length);
       lines.forEach(line => {
         if (line.includes('=')) {
           const [variable, value] = line.split('=', 2);
-          console.log('[MOOS-IvP DEBUG] Variable:', variable.trim(), '=', value.trim());
+          // console.log('[MOOS-IvP DEBUG] Variable:', variable.trim(), '=', value.trim());
           this.processMoosVariable(variable.trim(), value.trim());
         }
       });
@@ -1279,62 +1464,71 @@ export class AppComponent implements OnDestroy {
       case 'IVPHELM_ALLSTOP':
         this.app.data.moosIvPServer.ivpHelmAllstop = value;
         break;
-      case 'WPT_INDEX':
-        this.app.data.moosIvPServer.wptIndex = parseInt(value) || 0;
+      // dentro de processMoosVariable(variable, value)
+      case 'WPT_INDEX': {
+        const newWptIndex = parseInt(value) || 0;
+        const previousWptIndex = this.app.data.moosIvPServer.wptIndex;
+        this.app.data.moosIvPServer.wptIndex = newWptIndex;
+
+        console.log('[WPT_INDEX] Changed from', previousWptIndex, 'to', newWptIndex);
+
+        // Se mudou, o ponto alcançado é o previousWptIndex
+        if (newWptIndex !== previousWptIndex) {
+          console.log('[WPT_INDEX] Waypoint changed! Checking for station keep...');
+          this.handleWaypointReached(previousWptIndex); 
+        }
         break;
+      }
       case 'WPT_DIST':
         this.app.data.moosIvPServer.wptDist = parseFloat(value) || 0;
         break;
       case 'WPT_ETA':
         this.app.data.moosIvPServer.wptEta = parseFloat(value) || 0;
         break;
-      case 'WPT_COMPLETED':
-        this.app.data.moosIvPServer.wptCompleted = value.toLowerCase() === 'true';
-        break;
       // Engine status variables
       case 'ENGINE_ACCELERATOR_PEDAL_POSITION':
         this.engineStatus.acceleratorPedalPosition = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Accelerator Pedal Position updated:', this.engineStatus.acceleratorPedalPosition);
+        // console.log('[ENGINE DEBUG] Accelerator Pedal Position updated:', this.engineStatus.acceleratorPedalPosition);
         break;
       case 'ENGINE_PERCENT_LOAD':
         this.engineStatus.percentLoad = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Engine Load updated:', this.engineStatus.percentLoad);
+        // console.log('[ENGINE DEBUG] Engine Load updated:', this.engineStatus.percentLoad);
         break;
       case 'ENGINE_SPEED':
         this.engineStatus.speed = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Engine Speed updated:', this.engineStatus.speed);
+        // console.log('[ENGINE DEBUG] Engine Speed updated:', this.engineStatus.speed);
         break;
       case 'ENGINE_PERCENT_TORQUE':
         this.engineStatus.percentTorque = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Engine Torque updated:', this.engineStatus.percentTorque);
+        // console.log('[ENGINE DEBUG] Engine Torque updated:', this.engineStatus.percentTorque);
         break;
       case 'ENGINE_ACTIVE_DTCS':
         this.engineStatus.activeDtcs = parseInt(value) || 0;
-        console.log('[ENGINE DEBUG] Active DTCs updated:', this.engineStatus.activeDtcs);
+        // console.log('[ENGINE DEBUG] Active DTCs updated:', this.engineStatus.activeDtcs);
         break;
       case 'ENGINE_COOLANT_TEMP':
         this.engineStatus.coolantTemp = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Coolant Temperature updated:', this.engineStatus.coolantTemp);
+        // console.log('[ENGINE DEBUG] Coolant Temperature updated:', this.engineStatus.coolantTemp);
         break;
       case 'ENGINE_OIL_TEMP':
         this.engineStatus.oilTemp = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Oil Temperature updated:', this.engineStatus.oilTemp);
+        // console.log('[ENGINE DEBUG] Oil Temperature updated:', this.engineStatus.oilTemp);
         break;
       case 'ENGINE_OIL_PRESSURE':
         this.engineStatus.oilPressure = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Oil Pressure updated:', this.engineStatus.oilPressure);
+        // console.log('[ENGINE DEBUG] Oil Pressure updated:', this.engineStatus.oilPressure);
         break;
       case 'ENGINE_FUEL_RATE':
         this.engineStatus.fuelRate = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Fuel Rate updated:', this.engineStatus.fuelRate);
+        // console.log('[ENGINE DEBUG] Fuel Rate updated:', this.engineStatus.fuelRate);
         break;
       case 'ENGINE_INTAKE_MANIFOLD_PRESSURE':
         this.engineStatus.intakeManifoldPressure = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Intake Manifold Pressure updated:', this.engineStatus.intakeManifoldPressure);
+        // console.log('[ENGINE DEBUG] Intake Manifold Pressure updated:', this.engineStatus.intakeManifoldPressure);
         break;
       case 'ENGINE_BATTERY_VOLTAGE':
         this.engineStatus.batteryVoltage = parseFloat(value) || 0;
-        console.log('[ENGINE DEBUG] Battery Voltage updated:', this.engineStatus.batteryVoltage);
+        // console.log('[ENGINE DEBUG] Battery Voltage updated:', this.engineStatus.batteryVoltage);
         break;
       default:
         // Handle other MOOS variables as needed

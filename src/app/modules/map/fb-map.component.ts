@@ -153,6 +153,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Input() hideStationKeepCircles = false;
   @Input() stationKeepInnerRadius = 10;
   @Input() stationKeepOuterRadius = 25;
+  @Input() waypointStationKeep: any = null;
 
   protected showStationKeepCircles = false;
 
@@ -1601,6 +1602,16 @@ export class FBMapComponent implements OnInit, OnDestroy {
   }
 
   // ********************************************************
+
+  // ** Format station keep time for display **
+  protected formatStationKeepTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${secs}s`;
+  }
 
   private isCoordsArray(ca: Array<Position>) {
     if (Array.isArray(ca)) {
