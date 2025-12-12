@@ -692,14 +692,21 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.status = 'active';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
-    
+
+    // Re-send waypoints before starting to ensure they're available
+    const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
+    if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
+      const waypoints = selectedRoute[1].feature.geometry.coordinates;
+      this.sendWaypointsToMOOS(waypoints);
+    }
+
     // Send start command to MOOS-IvP with speed value
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}`;
       this.app.data.moosIvPServer.socket.send(message);
       console.log(`Sent ${message} to MOOS-IvP`);
     }
-    
+
     this.app.showMessage('Mission Started', false, 3000);
     console.log('Mission started:', this.autonomousControl);
   }
