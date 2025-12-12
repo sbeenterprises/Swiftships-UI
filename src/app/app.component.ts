@@ -1537,9 +1537,77 @@ export class AppComponent implements OnDestroy {
         this.engineStatus.batteryVoltage = parseFloat(value) || 0;
         // console.log('[ENGINE DEBUG] Battery Voltage updated:', this.engineStatus.batteryVoltage);
         break;
+      case 'CONTACT_INFO':
+        this.processContactInfo(value);
+        break;
       default:
         // Handle other MOOS variables as needed
         // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
+    }
+  }
+
+  /** process CONTACT_INFO message from MOOS-IvP */
+  private processContactInfo(value: string) {
+    try {
+      // Parse format: NAME:target,LAT:<latitude>,LON:<longitude>,SPD:<speed>,HDG:<heading>
+      const parts = value.split(',');
+      const contact: any = {};
+
+      parts.forEach(part => {
+        const [key, val] = part.split(':');
+        if (key && val) {
+          contact[key.trim()] = val.trim();
+        }
+      });
+
+      if (!contact.NAME) {
+        console.error('[MOOS CONTACT] Missing NAME in contact info:', value);
+        return;
+      }
+
+      const name = contact.NAME;
+      const lat = parseFloat(contact.LAT);
+      const lon = parseFloat(contact.LON);
+      const speed = parseFloat(contact.SPD) || 0;
+      const heading = parseFloat(contact.HDG) || 0;
+
+      if (isNaN(lat) || isNaN(lon)) {
+        console.error('[MOOS CONTACT] Invalid coordinates for contact:', name, value);
+        return;
+      }
+
+      // Create or update contact
+      // Key must include context prefix for the layer component to find it
+      const contactId = `moos-contact.${name}`;
+      const moosContact = {
+        // SKTargetBase properties
+        id: contactId,
+        name: name,
+        mmsi: '', // MOOS contacts don't have MMSI
+        position: [lon, lat] as [number, number], // SignalK format: [longitude, latitude]
+        state: '',
+        type: { id: 30, name: 'MOOS Contact' }, // Use AIS type 30 for generic vessel icon
+        properties: {},
+        lastUpdated: new Date(),
+        callsignVhf: '',
+        callsignHf: '',
+        orientation: heading * (Math.PI / 180), // Convert to radians for map display
+        virtual: false, // Not a virtual target
+        // SKVessel-like properties for rendering
+        sog: speed,
+        heading: heading,
+        cog: heading
+      };
+
+      this.app.data.moosContacts.set(contactId, moosContact);
+
+      // Trigger map update by creating new array reference (Angular change detection)
+      // Always include the updated contact ID
+      this.app.data.moosContactMgr.updateList = [contactId];
+
+      console.log('[MOOS CONTACT] Updated contact:', contactId, moosContact);
+    } catch (error) {
+      console.error('[MOOS CONTACT] Error processing contact info:', value, error);
     }
   }
 

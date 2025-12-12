@@ -544,11 +544,16 @@ export function initData(): FBAppData {
     atons: new Map(), // received AIS AtoN data
     sar: new Map(), // received AIS SaR data
     meteo: new Map(), // received AIS Meteo data
+    moosContacts: new Map(), // MOOS-IvP contact reports
     aisMgr: {
       // manage aisTargets
       updateList: [],
       staleList: [],
       removeList: []
+    },
+    moosContactMgr: {
+      // manage moosContacts
+      updateList: []
     },
     navData: {
       dtg: null,

@@ -63,6 +63,7 @@ import {
   mapControls,
   basestationStyles,
   aircraftStyles,
+  vesselStyles,
   sarStyles,
   regionStyles,
   routeStyles,
@@ -98,6 +99,7 @@ interface IFeatureData {
   atons: Map<string, SKAtoN>;
   sar: Map<string, SKSaR>;
   meteo: Map<string, SKMeteo>;
+  moosContacts: Map<string, any>; // MOOS-IvP contacts
   tracks: Array<Position[]>; // self track(s) from server
   trail: Array<Position>; // self trail (appended to tracks)
   self: SKVessel; //self vessel
@@ -216,6 +218,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     destination: destinationStyles,
     basestation: basestationStyles,
     aircraft: aircraftStyles,
+    vessel: vesselStyles,
     sar: sarStyles,
     layline: laylineStyles,
     targetAngle: targetAngleStyle,
@@ -228,6 +231,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     atons: new Map(),
     sar: new Map(),
     meteo: new Map(),
+    moosContacts: new Map(), // MOOS-IvP contacts
     tracks: [], // self track(s) from server
     trail: [], // self trail (appended to tracks)
     self: new SKVessel(), //self vessel
@@ -242,6 +246,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
     updateList: [],
     staleList: [],
     removeList: []
+  };
+
+  // ** MOOS Contact management
+  protected moosContactMgr = {
+    updateList: []
   };
 
   // ** map layer display
@@ -403,6 +412,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     this.dfeat.aircraft = this.app.data.aircraft;
     this.dfeat.sar = this.app.data.sar;
     this.dfeat.meteo = this.app.data.meteo;
+    this.dfeat.moosContacts = this.app.data.moosContacts;
     this.dfeat.atons = this.app.data.atons;
     this.dfeat.active = this.app.data.vessels.active;
     this.dfeat.navData.position = this.app.data.navData.position;
@@ -423,6 +433,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
     this.dfeat.closest = parseClosest();
     this.aisMgr = this.app.data.aisMgr;
+    this.moosContactMgr = this.app.data.moosContactMgr;
 
     // ** update vessel on map **
     if (this.dfeat.self['positionReceived']) {

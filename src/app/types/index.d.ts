@@ -18,6 +18,26 @@ export * from './stream';
 
 export type ErrorList = Array<{ status: number; message: string }>;
 
+export interface MOOSContact {
+  // SKTargetBase properties
+  id: string;
+  name: string;
+  mmsi: string;
+  position: Position; // [longitude, latitude]
+  state: string;
+  type: { id: number; name: string };
+  properties: { [key: string]: any };
+  lastUpdated: Date;
+  callsignVhf: string;
+  callsignHf: string;
+  orientation: number; // radians
+  virtual: boolean;
+  // SKVessel-like properties
+  sog: number; // speed over ground (knots)
+  heading: number; // degrees
+  cog: number; // course over ground (degrees)
+}
+
 export interface SKApiResponse {
   state: 'FAILED' | 'COMPLETED' | 'PENDING';
   statusCode: number;
@@ -228,11 +248,16 @@ export interface FBAppData {
   atons: Map<string, SKAtoN>; // received AIS AtoN data
   sar: Map<string, SKSaR>; // received AIS SaR data
   meteo: Map<string, SKMeteo>; // received AIS Meteo data
+  moosContacts: Map<string, MOOSContact>; // MOOS-IvP contact reports
   aisMgr: {
     // manage aisTargets
     updateList: string[];
     staleList: string[];
     removeList: string[];
+  };
+  moosContactMgr: {
+    // manage moosContacts
+    updateList: string[];
   };
   navData: {
     dtg: number;

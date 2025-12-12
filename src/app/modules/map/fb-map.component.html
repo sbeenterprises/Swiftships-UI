@@ -350,6 +350,22 @@
   >
   </sk-ais-targets>
   }
+
+  <!-- MOOS-IvP Contacts -->
+  <sk-ais-targets
+    [darkMode]="app.uiConfig().invertColor"
+    [targets]="dfeat.moosContacts"
+    [targetStyles]="featureStyles.vessel"
+    targetContext="moos-contact"
+    [labelMinZoom]="this.app.config.selections.labelsMinZoom"
+    [mapZoom]="fbMap.zoomLevel"
+    [updateIds]="moosContactMgr.updateList"
+    [staleIds]="[]"
+    [removeIds]="[]"
+    [inactiveTime]="300000"
+    [zIndex]="925"
+  >
+  </sk-ais-targets>
   <!-- /Signal K targets -->
 
   <!-- Racing -->

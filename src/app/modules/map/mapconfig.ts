@@ -201,6 +201,38 @@ export const aircraftStyles = {
 };
 
 // ***********
+const vesselActiveIcon = new Icon({
+  src: './assets/img/vessels/ais_active.svg',
+  rotateWithView: true,
+  rotation: 0,
+  scale: 1.0
+});
+
+const vesselInactiveIcon = new Icon({
+  src: './assets/img/vessels/ais_inactive.svg',
+  rotateWithView: true,
+  rotation: 0,
+  scale: 1.0
+});
+
+export const vesselStyles = {
+  default: new Style({
+    image: vesselActiveIcon,
+    text: new Text({
+      text: '',
+      offsetY: -18
+    })
+  }),
+  inactive: new Style({
+    image: vesselInactiveIcon,
+    text: new Text({
+      text: '',
+      offsetY: -18
+    })
+  })
+};
+
+// ***********
 const sarIcon = new Icon({
   src: './assets/img/sar_active.png',
   rotateWithView: false,
