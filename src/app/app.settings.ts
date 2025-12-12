@@ -553,7 +553,8 @@ export function initData(): FBAppData {
     },
     moosContactMgr: {
       // manage moosContacts
-      updateList: []
+      updateList: [],
+      removeList: []
     },
     navData: {
       dtg: null,

@@ -250,7 +250,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ** MOOS Contact management
   protected moosContactMgr = {
-    updateList: []
+    updateList: [],
+    removeList: []
   };
 
   // ** map layer display

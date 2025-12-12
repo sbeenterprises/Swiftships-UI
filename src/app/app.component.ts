@@ -163,6 +163,10 @@ export class AppComponent implements OnDestroy {
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
 
+  // MOOS contact cleanup timer
+  private moosContactCleanupTimer: any = null;
+  private readonly MOOS_CONTACT_TIMEOUT = 5000; // 5 seconds
+
   // Engine status data from MOOS-IvP
   public engineStatus = {
     acceleratorPedalPosition: 0,    // ENGINE_ACCELERATOR_PEDAL_POSITION
@@ -283,6 +287,9 @@ export class AppComponent implements OnDestroy {
     this.app.config.selections.remoteControl = false;
     this.app.config.selections.autonomousControl = false;
 
+    // ** Start MOOS contact cleanup timer
+    this.startMoosContactCleanup();
+
     // ** apply loaded app config
     this.display.map.center = this.app.config.map.center;
     if (this.app.config.plugins.startOnOpen) {
@@ -369,6 +376,7 @@ export class AppComponent implements OnDestroy {
   ngOnDestroy() {
     // ** clean up
     this.stopTimers();
+    this.stopMoosContactCleanup();
     this.stream.terminate();
     this.signalk.disconnect();
     this.disconnectMoosIvPServer();
@@ -1608,6 +1616,45 @@ export class AppComponent implements OnDestroy {
       console.log('[MOOS CONTACT] Updated contact:', contactId, moosContact);
     } catch (error) {
       console.error('[MOOS CONTACT] Error processing contact info:', value, error);
+    }
+  }
+
+  /** Start periodic cleanup of stale MOOS contacts */
+  private startMoosContactCleanup() {
+    // Run cleanup every 2 seconds
+    this.moosContactCleanupTimer = setInterval(() => {
+      this.cleanupStaleContacts();
+    }, 2000);
+  }
+
+  /** Stop MOOS contact cleanup timer */
+  private stopMoosContactCleanup() {
+    if (this.moosContactCleanupTimer) {
+      clearInterval(this.moosContactCleanupTimer);
+      this.moosContactCleanupTimer = null;
+    }
+  }
+
+  /** Remove contacts that haven't been updated in MOOS_CONTACT_TIMEOUT ms */
+  private cleanupStaleContacts() {
+    const now = Date.now();
+    const expiredContacts: string[] = [];
+
+    this.app.data.moosContacts.forEach((contact, contactId) => {
+      const timeSinceUpdate = now - contact.lastUpdated.getTime();
+      if (timeSinceUpdate > this.MOOS_CONTACT_TIMEOUT) {
+        expiredContacts.push(contactId);
+      }
+    });
+
+    if (expiredContacts.length > 0) {
+      expiredContacts.forEach(contactId => {
+        this.app.data.moosContacts.delete(contactId);
+        console.log('[MOOS CONTACT] Removed stale contact:', contactId);
+      });
+
+      // Notify map to remove the expired contacts
+      this.app.data.moosContactMgr.removeList = [...expiredContacts];
     }
   }
 

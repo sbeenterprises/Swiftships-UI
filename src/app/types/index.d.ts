@@ -258,6 +258,7 @@ export interface FBAppData {
   moosContactMgr: {
     // manage moosContacts
     updateList: string[];
+    removeList: string[];
   };
   navData: {
     dtg: number;
