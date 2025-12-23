@@ -701,18 +701,26 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
 
-    // Re-send waypoints before starting to ensure they're available
+    // Re-send waypoints multiple times before starting to ensure they're received
     const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
     if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
       const waypoints = selectedRoute[1].feature.geometry.coordinates;
+
+      // Send waypoints 3 times with small delays to ensure delivery
       this.sendWaypointsToMOOS(waypoints);
+      setTimeout(() => this.sendWaypointsToMOOS(waypoints), 100);
+      setTimeout(() => this.sendWaypointsToMOOS(waypoints), 200);
+
+      console.log(`[START MISSION] Sent route with ${waypoints.length} waypoints (3x reinforced)`);
     }
 
-    // Send start command to MOOS-IvP with speed value
+    // Send start command to MOOS-IvP with speed value after a small delay
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}`;
-      this.app.data.moosIvPServer.socket.send(message);
-      console.log(`Sent ${message} to MOOS-IvP`);
+      setTimeout(() => {
+        const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}`;
+        this.app.data.moosIvPServer.socket.send(message);
+        console.log(`[START MISSION] Sent ${message} to MOOS-IvP`);
+      }, 300);
     }
 
     this.app.showMessage('Mission Started', false, 3000);
