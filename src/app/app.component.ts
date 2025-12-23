@@ -1435,9 +1435,11 @@ export class AppComponent implements OnDestroy {
 
       socket.onerror = (error) => {
         console.error('[MOOS-IvP CONNECTION] WebSocket error:', error);
+        console.error('[MOOS-IvP CONNECTION] Failed to connect to:', wsUrl);
+        console.error('[MOOS-IvP CONNECTION] Socket readyState:', socket.readyState);
         this.app.debug('MOOS-IvP WebSocket error:', error);
         this.app.data.connectionState.moosIvP.connecting = false;
-        this.app.showMessage('MOOS-IvP connection failed', false, 3000);
+        this.app.showMessage(`MOOS-IvP connection failed: ${wsUrl}`, false, 5000);
       };
 
     } catch (error) {
