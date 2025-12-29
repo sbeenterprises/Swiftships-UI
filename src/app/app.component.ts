@@ -135,7 +135,8 @@ export class AppComponent implements OnDestroy {
     speed: 10,            // Speed in knots (0-35)
     status: 'standby',    // standby, active, paused, returning, aborted
     currentWaypoint: 0,   // Current waypoint index
-    progress: 0          // Mission progress percentage
+    progress: 0,          // Mission progress percentage
+    waypointSendTimer: null as any  // Timer for repeatedly sending waypoints
   };
 
   // Station Keep control data
@@ -415,7 +416,7 @@ export class AppComponent implements OnDestroy {
     if (this.app.config.selections.remoteControl) {
       // If already active, toggle the panel and deactivate if closing
       this.display.remoteControlPanelOpen = !this.display.remoteControlPanelOpen;
-      
+
       if (this.display.remoteControlPanelOpen) {
         // Opening panel - close other panels
         this.display.instrumentPanelOpen = false;
@@ -444,7 +445,7 @@ export class AppComponent implements OnDestroy {
     if (this.app.config.selections.autonomousControl) {
       // If already active, toggle the panel and deactivate if closing
       this.display.autonomousControlPanelOpen = !this.display.autonomousControlPanelOpen;
-      
+
       if (this.display.autonomousControlPanelOpen) {
         // Opening panel - close other panels
         this.display.instrumentPanelOpen = false;
@@ -482,7 +483,7 @@ export class AppComponent implements OnDestroy {
       const routes = await this.skres.listFromServer<[string, any, boolean]>('routes');
       console.log('Raw routes from server:', routes);
       // Show all routes that have valid geometry/data (not just visible ones)
-      this.availableRoutes = routes.filter((route: [string, any, boolean]) => 
+      this.availableRoutes = routes.filter((route: [string, any, boolean]) =>
         route[1] && route[1].feature && route[1].feature.geometry
       );
       console.log('Filtered available routes:', this.availableRoutes);
@@ -499,7 +500,7 @@ export class AppComponent implements OnDestroy {
     if (!this.autonomousControl.selectedRoute) {
       return 'None';
     }
-    
+
     const route = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
     return route ? (route[1].name || 'Route ' + route[0]) : this.autonomousControl.selectedRoute;
   }
@@ -507,13 +508,13 @@ export class AppComponent implements OnDestroy {
   protected toggleRadarDisplay() {
     this.app.config.selections.radarControl = !this.app.config.selections.radarControl;
     this.app.saveConfig();
-    
+
     if (this.app.config.selections.radarControl) {
       this.connectToRadar();
     } else {
       this.disconnectFromRadar();
     }
-    
+
     this.app.showMessage(
       this.app.config.selections.radarControl
         ? 'Radar Display Enabled'
@@ -656,6 +657,13 @@ export class AppComponent implements OnDestroy {
     // Hide all currently visible routes when autonomous control selects a route
     this.skres.routeRemove();
 
+    // Stop any existing waypoint send timer
+    if (this.autonomousControl.waypointSendTimer) {
+      clearInterval(this.autonomousControl.waypointSendTimer);
+      this.autonomousControl.waypointSendTimer = null;
+      console.log('[WAYPOINT SENDER] Stopped previous timer');
+    }
+
     this.autonomousControl.selectedRoute = routeId;
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
@@ -672,7 +680,30 @@ export class AppComponent implements OnDestroy {
         // Extract waypoints and send to MOOS-IvP
         if (selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
           const waypoints = selectedRoute[1].feature.geometry.coordinates;
+
+          // Send waypoints immediately
           this.sendWaypointsToMOOS(waypoints);
+
+          // Start timer to send waypoints repeatedly every 2 seconds until MODE is 'clear'
+          console.log('[WAYPOINT SENDER] Starting timer to send waypoints every 2 seconds until MODE is clear');
+          this.autonomousControl.waypointSendTimer = setInterval(() => {
+            // Check if MODE is 'clear'
+            const currentMode = this.app.data.moosIvPServer.ivpHelmAllstop?.toLowerCase();
+            console.log('[WAYPOINT SENDER] Current MODE:', currentMode);
+
+            if (currentMode === 'clear') {
+              // Stop sending waypoints
+              console.log('[WAYPOINT SENDER] MODE is clear, stopping waypoint transmission');
+              if (this.autonomousControl.waypointSendTimer) {
+                clearInterval(this.autonomousControl.waypointSendTimer);
+                this.autonomousControl.waypointSendTimer = null;
+              }
+            } else {
+              // Continue sending waypoints
+              console.log('[WAYPOINT SENDER] Sending waypoints (MODE not clear yet)');
+              this.sendWaypointsToMOOS(waypoints);
+            }
+          }, 2000); // Send every 2 seconds
         }
       }
     } else {
@@ -682,13 +713,13 @@ export class AppComponent implements OnDestroy {
 
   protected updateSpeed(speed: number) {
     this.autonomousControl.speed = Math.max(0, Math.min(50, speed));
-    
+
     // Send speed to MOOS-IvP
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       this.app.data.moosIvPServer.socket.send(`DESIRED_SPEED=${this.autonomousControl.speed}`);
       console.log(`Sent DESIRED_SPEED=${this.autonomousControl.speed} to MOOS-IvP`);
     }
-    
+
     console.log('Speed updated:', this.autonomousControl.speed);
   }
 
@@ -729,18 +760,25 @@ export class AppComponent implements OnDestroy {
 
   protected stopMission() {
     this.autonomousControl.status = 'paused';
-    
+
     // Send stop command to MOOS-IvP
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       this.app.data.moosIvPServer.socket.send('AUTONOMOUS_STOP=true');
       console.log('Sent AUTONOMOUS_STOP=true to MOOS-IvP');
     }
-    
+
     this.app.showMessage('Mission Stopped', false, 3000);
     console.log('Mission stopped');
   }
 
   protected clearPath() {
+    // Stop waypoint send timer
+    if (this.autonomousControl.waypointSendTimer) {
+      clearInterval(this.autonomousControl.waypointSendTimer);
+      this.autonomousControl.waypointSendTimer = null;
+      console.log('[WAYPOINT SENDER] Timer stopped (path cleared)');
+    }
+
     this.autonomousControl.selectedRoute = '';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
@@ -759,18 +797,25 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.status = 'aborted';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
-    
+
     // Send stop command to MOOS-IvP when aborting
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       this.app.data.moosIvPServer.socket.send('AUTONOMOUS_STOP=true');
       console.log('Sent AUTONOMOUS_STOP=true to MOOS-IvP (mission aborted)');
     }
-    
+
     this.app.showMessage('Mission Aborted', true, 3000);
     console.log('Mission aborted');
   }
 
   protected closeAutonomousControl() {
+    // Stop waypoint send timer
+    if (this.autonomousControl.waypointSendTimer) {
+      clearInterval(this.autonomousControl.waypointSendTimer);
+      this.autonomousControl.waypointSendTimer = null;
+      console.log('[WAYPOINT SENDER] Timer stopped (autonomous control closed)');
+    }
+
     // Clear all routes and refresh to restore original visibility when closing autonomous control
     this.skres.routeRemove();
     this.skres.refreshRoutes();
@@ -1180,9 +1225,8 @@ export class AppComponent implements OnDestroy {
     const url =
       this.selFavourite === -1
         ? this.formatInstrumentsUrl()
-        : `${this.app.hostDef.url}${
-            this.app.config.selections.pluginFavourites[this.selFavourite]
-          }`;
+        : `${this.app.hostDef.url}${this.app.config.selections.pluginFavourites[this.selFavourite]
+        }`;
 
     this.instUrl = this.dom.bypassSecurityTrustResourceUrl(url);
   }
@@ -1345,12 +1389,12 @@ export class AppComponent implements OnDestroy {
     this.app.data.selfId = null;
     this.app.data.server = null;
     this.signalk.proxied = this.app.config.selections.signalk.proxied;
-    
+
     // Use SignalK settings if enabled, otherwise fallback to hostDef
     let host = this.app.hostDef.name;
     let port = this.app.hostDef.port;
     let ssl = this.app.hostDef.ssl;
-    
+
     if (this.app.config.signalk?.enabled) {
       // Parse URL to extract host
       const signalkUrl = this.app.config.signalk.url;
@@ -1367,7 +1411,7 @@ export class AppComponent implements OnDestroy {
       }
       port = this.app.config.signalk.port;
     }
-    
+
     this.signalk
       .connect(host, port, ssl)
       .subscribe(
@@ -1429,7 +1473,7 @@ export class AppComponent implements OnDestroy {
         this.app.data.moosIvPServer.connected = false;
         this.app.data.connectionState.moosIvP.connected = false;
         this.app.data.connectionState.moosIvP.connecting = false;
-        
+
         if (!event.wasClean) {
           this.app.showMessage('MOOS-IvP connection lost. Retrying...', false, 3000);
           // Auto-retry connection after 5 seconds
@@ -1500,7 +1544,7 @@ export class AppComponent implements OnDestroy {
         // Se mudou, o ponto alcançado é o previousWptIndex
         if (newWptIndex !== previousWptIndex) {
           console.log('[WPT_INDEX] Waypoint changed! Checking for station keep...');
-          this.handleWaypointReached(previousWptIndex); 
+          this.handleWaypointReached(previousWptIndex);
         }
         break;
       }
@@ -1559,8 +1603,8 @@ export class AppComponent implements OnDestroy {
         this.processContactInfo(value);
         break;
       default:
-        // Handle other MOOS variables as needed
-        // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
+      // Handle other MOOS variables as needed
+      // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
     }
   }
 
@@ -1722,7 +1766,7 @@ export class AppComponent implements OnDestroy {
         const lon = point[0]; // Longitude is at index 0
         return `${lat},${lon}`;
       }).join(':');
-      
+
       // Send the formatted waypoint string
       this.app.data.moosIvPServer.socket.send(`AUTONOMOUS_WAYPOINTS=${waypointString}`);
       console.log('Sent waypoints to MOOS-IvP:', waypointString);
@@ -1866,8 +1910,8 @@ export class AppComponent implements OnDestroy {
         lastseg.length !== 0
           ? lastseg[0].slice(-1)
           : trailData.length > 1
-          ? trailData[trailData.length - 2].slice(-1)
-          : [];
+            ? trailData[trailData.length - 2].slice(-1)
+            : [];
       this.app.data.trail = lastpt;
     }
     const trailId = this.mode === SKSTREAM_MODE.PLAYBACK ? 'history' : 'self';
@@ -1943,7 +1987,7 @@ export class AppComponent implements OnDestroy {
       // ** MOOS-IvP connection settings changed
       const currentUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
       const connectedUrl = this.app.data.moosIvPServer.url;
-      
+
       if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
         // Check if URL/port changed - if so, reconnect
         if (this.app.data.connectionState.moosIvP.connected && connectedUrl !== currentUrl) {
@@ -2652,8 +2696,8 @@ export class AppComponent implements OnDestroy {
         e.type === 'self'
           ? e.type
           : e.id.includes('vessels.')
-          ? e.id.split('.')[1]
-          : e.id;
+            ? e.id.split('.')[1]
+            : e.id;
       try {
         this.app.sIsFetching.set(true);
         v = await this.skres.vesselFromServer(id);
@@ -2853,8 +2897,7 @@ export class AppComponent implements OnDestroy {
         // save changes
         this.app
           .showConfirm(
-            `Do you want to save the changes made to ${
-              this.mapInteract.draw.forSave.id.split('.')[0]
+            `Do you want to save the changes made to ${this.mapInteract.draw.forSave.id.split('.')[0]
             }?`,
             'Save Changes'
           )
@@ -3069,8 +3112,8 @@ export class AppComponent implements OnDestroy {
   private updateNavPanel() {
     this.display.navDataPanel.show =
       this.app.data.activeRoute ||
-      this.app.data.activeWaypoint ||
-      this.app.data.navData.position
+        this.app.data.activeWaypoint ||
+        this.app.data.navData.position
         ? true
         : false;
 
