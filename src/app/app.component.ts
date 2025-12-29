@@ -1539,11 +1539,10 @@ export class AppComponent implements OnDestroy {
         const previousWptIndex = this.app.data.moosIvPServer.wptIndex;
         this.app.data.moosIvPServer.wptIndex = newWptIndex;
 
-        console.log('[WPT_INDEX] Changed from', previousWptIndex, 'to', newWptIndex);
-
         // Se mudou, o ponto alcançado é o previousWptIndex
         if (newWptIndex !== previousWptIndex) {
-          console.log('[WPT_INDEX] Waypoint changed! Checking for station keep...');
+          console.log('[WPT_INDEX] Waypoint changed from', previousWptIndex, 'to', newWptIndex);
+          console.log('[WPT_INDEX] Checking for station keep...');
           this.handleWaypointReached(previousWptIndex);
         }
         break;
@@ -1623,7 +1622,11 @@ export class AppComponent implements OnDestroy {
       });
 
       if (!contact.NAME) {
-        console.error('[MOOS CONTACT] Missing NAME in contact info:', value);
+        // Only log if there's actual contact data (not empty/zero values)
+        const hasData = contact.LAT || contact.LON || contact.SPD || contact.HDG;
+        //if (hasData && contact.LAT !== '0.000000' && contact.LON !== '0.000000') {
+        //  console.error('[MOOS CONTACT] Missing NAME in contact info:', value);
+        //}
         return;
       }
 
