@@ -863,7 +863,7 @@ export class AppComponent implements OnDestroy {
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       const lat = this.stationKeep.position[1];
       const lon = this.stationKeep.position[0];
-      const message = `STATION_PT=${lat},${lon}#INNER_RADIUS=${this.stationKeep.innerRadius}#OUTER_RADIUS=${this.stationKeep.outerRadius}#SPEED=${this.stationKeep.speed}`;
+      const message = `STATION_KEEP=true#STATION_PT=${lat},${lon}#INNER_RADIUS=${this.stationKeep.innerRadius}#OUTER_RADIUS=${this.stationKeep.outerRadius}#SPEED=${this.stationKeep.speed}`;
       this.app.data.moosIvPServer.socket.send(message);
       console.log(`Sent ${message} to MOOS-IvP`);
     }
