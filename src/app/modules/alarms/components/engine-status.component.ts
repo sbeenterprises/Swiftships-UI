@@ -72,19 +72,6 @@ export interface EngineData {
                 <mat-icon>speed</mat-icon> Performance
               </h4>
 
-              <!-- Accelerator Pedal Position -->
-              <div class="gauge-center">
-                <ngx-gauge
-                  [type]="'semi'"
-                  [value]="engineData.acceleratorPedalPosition || 0"
-                  [min]="0" [max]="100"
-                  [label]="'Accelerator %'"
-                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
-                  [foregroundColor]="'#6bb6ff'" [backgroundColor]="'#1e2d3e'"
-                  [thresholds]="percentGenericThresholds">
-                </ngx-gauge>
-              </div>
-
               <!-- Engine Load -->
               <div class="gauge-center">
                 <ngx-gauge
@@ -177,19 +164,6 @@ export interface EngineData {
                 </ngx-gauge>
               </div>
 
-              <!-- Fuel Rate -->
-              <div class="gauge-center">
-                <ngx-gauge
-                  [type]="'semi'"
-                  [value]="engineData.fuelRate || 0"
-                  [min]="0" [max]="60"
-                  [label]="'Fuel L/h'"
-                  [size]="gaugeSizeSm" [thick]="14" [cap]="'round'"
-                  [foregroundColor]="'#a8d4ff'" [backgroundColor]="'#1e2d3e'"
-                  [thresholds]="fuelRateThresholds">
-                </ngx-gauge>
-              </div>
-
               <!-- Manifold Pressure (MAP) -->
               <div class="gauge-center">
                 <ngx-gauge
@@ -269,43 +243,43 @@ export class EngineStatusComponent {
 
   // --- Threshold bands ---
   percentGenericThresholds = [
-    { from: 0,  color: '#4a6b8a' },
+    { from: 0, color: '#4a6b8a' },
     { from: 70, color: '#ffc107' },
     { from: 90, color: '#ff6b6b' }
   ];
 
   rpmThresholds = [
-    { from: 0,    color: '#4a6b8a' },
+    { from: 0, color: '#4a6b8a' },
     { from: 4000, color: '#ffc107' },
     { from: 5200, color: '#ff6b6b' }
   ];
 
   coolantThresholds = [
-    { from: 0,   color: '#4a6b8a' },
-    { from: 95,  color: '#ffc107' },
+    { from: 0, color: '#4a6b8a' },
+    { from: 95, color: '#ffc107' },
     { from: 100, color: '#ff6b6b' }
   ];
 
   oilTempThresholds = [
-    { from: 0,   color: '#4a6b8a' },
+    { from: 0, color: '#4a6b8a' },
     { from: 110, color: '#ffc107' },
     { from: 125, color: '#ff6b6b' }
   ];
 
   oilPressureThresholds = [
-    { from: 0,  color: '#ff6b6b' }, // too low
+    { from: 0, color: '#ff6b6b' }, // too low
     { from: 10, color: '#ffc107' }, // low
     { from: 20, color: '#6bb6ff' }  // ok+
   ];
 
   fuelRateThresholds = [
-    { from: 0,  color: '#4a6b8a' },
+    { from: 0, color: '#4a6b8a' },
     { from: 40, color: '#ffc107' },
     { from: 50, color: '#ff6b6b' }
   ];
 
   mapThresholds = [
-    { from: 0,   color: '#4a6b8a' },
+    { from: 0, color: '#4a6b8a' },
     { from: 180, color: '#ffc107' },
     { from: 220, color: '#ff6b6b' }
   ];
@@ -318,9 +292,9 @@ export class EngineStatusComponent {
   ];
 
   dtcThresholds = [
-    { from: 0,   color: '#4a6b8a' },
-    { from: 25,  color: '#ffc107' },
-    { from: 50,  color: '#ff6b6b' }
+    { from: 0, color: '#4a6b8a' },
+    { from: 25, color: '#ffc107' },
+    { from: 50, color: '#ff6b6b' }
   ];
 
   // Visualize DTCs as percent of a nominal cap (e.g., 8)

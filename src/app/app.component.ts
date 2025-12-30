@@ -1571,7 +1571,7 @@ export class AppComponent implements OnDestroy {
         // console.log('[ENGINE DEBUG] Engine Torque updated:', this.engineStatus.percentTorque);
         break;
       case 'ENGINE_ACTIVE_DTCS':
-        this.engineStatus.activeDtcs = parseInt(value) || 0;
+        this.engineStatus.activeDtcs = 0; //Changed for a video
         // console.log('[ENGINE DEBUG] Active DTCs updated:', this.engineStatus.activeDtcs);
         break;
       case 'ENGINE_COOLANT_TEMP':
