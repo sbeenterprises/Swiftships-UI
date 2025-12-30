@@ -1459,7 +1459,7 @@ export class AppComponent implements OnDestroy {
         this.app.data.moosIvPServer.connected = true;
         this.app.data.connectionState.moosIvP.connected = true;
         this.app.data.connectionState.moosIvP.connecting = false;
-        this.app.showMessage('MOOS-IvP connection established', false, 3000);
+        this.app.showMessage('Mission Management System connection established', false, 3000);
       };
 
       socket.onmessage = (event) => {
@@ -1475,7 +1475,7 @@ export class AppComponent implements OnDestroy {
         this.app.data.connectionState.moosIvP.connecting = false;
 
         if (!event.wasClean) {
-          this.app.showMessage('MOOS-IvP connection lost. Retrying...', false, 3000);
+          this.app.showMessage('Mission Management System connection lost. Retrying...', false, 3000);
           // Auto-retry connection after 5 seconds
           setTimeout(() => {
             if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
@@ -1491,7 +1491,7 @@ export class AppComponent implements OnDestroy {
         console.error('[MOOS-IvP CONNECTION] Socket readyState:', socket.readyState);
         this.app.debug('MOOS-IvP WebSocket error:', error);
         this.app.data.connectionState.moosIvP.connecting = false;
-        this.app.showMessage(`MOOS-IvP connection failed: ${wsUrl}`, false, 5000);
+        this.app.showMessage(`Mission Management System connection failed: ${wsUrl}`, false, 5000);
       };
 
     } catch (error) {
@@ -1774,7 +1774,7 @@ export class AppComponent implements OnDestroy {
       this.app.data.moosIvPServer.socket.send(`AUTONOMOUS_WAYPOINTS=${waypointString}`);
       console.log('Sent waypoints to MOOS-IvP:', waypointString);
     } else {
-      console.error('MOOS-IvP connection not available');
+      console.error('Mission Management System connection not available');
     }
   }
 
