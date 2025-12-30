@@ -1594,10 +1594,18 @@ export class AppComponent implements OnDestroy {
         this.engineStatus.intakeManifoldPressure = parseFloat(value) || 0;
         // console.log('[ENGINE DEBUG] Intake Manifold Pressure updated:', this.engineStatus.intakeManifoldPressure);
         break;
-      case 'ENGINE_BATTERY_VOLTAGE':
-        this.engineStatus.batteryVoltage = parseFloat(value) || 0;
-        // console.log('[ENGINE DEBUG] Battery Voltage updated:', this.engineStatus.batteryVoltage);
+      case 'ENGINE_BATTERY_VOLTAGE': {
+        const voltage =
+          this.app?.data?.vessels?.self?.electrical?.batteries?.House?.voltage;
+
+        this.engineStatus.batteryVoltage =
+          typeof voltage === 'number' ? voltage : 0;
+
+        // Optional debug
+        // console.log('[ENGINE] House battery voltage:', this.engineStatus.batteryVoltage);
+
         break;
+      }
       case 'CONTACT_INFO':
         this.processContactInfo(value);
         break;
@@ -3137,6 +3145,11 @@ export class AppComponent implements OnDestroy {
         this.display.playback.time = null;
         this.setDarkTheme();
       }
+
+      // Sync battery voltage from Signal K to engine status
+      const voltage = this.app?.data?.vessels?.self?.electrical?.batteries?.House?.voltage;
+      this.engineStatus.batteryVoltage = typeof voltage === 'number' ? voltage : 0;
+
       this.updateNavPanel();
     }
   }
