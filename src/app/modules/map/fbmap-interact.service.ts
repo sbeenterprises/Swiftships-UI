@@ -32,8 +32,8 @@ export interface IOverlay {
   content: any[];
   featureCount: number;
   resource?:
-    | [string, SKRoute | SKWaypoint | SKNote | SKRegion]
-    | GeoJSONFeature;
+  | [string, SKRoute | SKWaypoint | SKNote | SKRegion]
+  | GeoJSONFeature;
   vessel?: SKVessel;
   isSelf?: boolean;
   aton?: SKAtoN;
@@ -48,11 +48,11 @@ export interface MeasurementDef {
   index: number;
 }
 
-export type DrawFeatureType = 'waypoint' | 'route' | 'region' | 'note'; // feature type to draw
+export type DrawFeatureType = 'waypoint' | 'route' | 'region' | 'note' | 'circle-route'; // feature type to draw
 
 export interface DrawFeatureInfo {
   resourceType: DrawFeatureType;
-  featureType: 'Point' | 'LineString' | 'Polygon';
+  featureType: 'Point' | 'LineString' | 'Polygon' | 'Circle';
   coordinates: any[];
   features: any;
   forSave: any;
@@ -82,7 +82,7 @@ export class FBMapInteractService {
     properties: {}
   };
 
-  constructor(private app: AppFacade) {}
+  constructor(private app: AppFacade) { }
 
   /** set coordinates array in measurment data */
   set measurementCoords(value: LineString) {
@@ -154,9 +154,11 @@ export class FBMapInteractService {
     this.draw.featureType =
       resType === 'route'
         ? 'LineString'
-        : resType === 'region'
-        ? 'Polygon'
-        : 'Point';
+        : resType === 'circle-route'
+          ? 'Circle'
+          : resType === 'region'
+            ? 'Polygon'
+            : 'Point';
     this.interactionStarted();
   }
 
@@ -176,6 +178,27 @@ export class FBMapInteractService {
           this.draw.coordinates = rc.map((i: Coordinate) => {
             return toLonLat(i);
           });
+          break;
+        case 'Circle': // circle-route
+          const circle = feature.getGeometry() as any;
+          const center = circle.getCenter();
+          const radius = circle.getRadius();
+
+          // Convert circle to waypoints (32 points around the circle)
+          const numPoints = 32;
+          const waypoints: Coordinate[] = [];
+
+          for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * 2 * Math.PI;
+            const dx = radius * Math.cos(angle);
+            const dy = radius * Math.sin(angle);
+            const point: Coordinate = [center[0] + dx, center[1] + dy];
+            waypoints.push(toLonLat(point));
+          }
+
+          // Close the circle by adding the first point at the end
+          waypoints.push(waypoints[0]);
+          this.draw.coordinates = waypoints;
           break;
         case 'Polygon': // region
           const p = (feature.getGeometry() as any).getCoordinates();

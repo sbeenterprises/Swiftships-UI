@@ -39,7 +39,7 @@
   } @if(mapInteract.isDrawing()) {
   <ol-draw
     [type]="mapInteract.draw.featureType"
-    [stopClick]="mapInteract.draw.resourceType === 'route' ? false : true"
+    [stopClick]="mapInteract.draw.resourceType === 'route' || mapInteract.draw.resourceType === 'circle-route' ? false : true"
     [style]="mapInteract.draw.style"
     (drawEnd)="onDrawEnd($event)"
   >

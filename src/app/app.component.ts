@@ -2847,7 +2847,33 @@ export class AppComponent implements OnDestroy {
    * @param f type of feature to draw
    */
   protected drawFeature(f: DrawFeatureType) {
-    this.mapInteract.startDrawing(f);
+    // If drawing a route, ask user to choose polygon or circle
+    if (f === 'route') {
+      console.log('[DRAW FEATURE] Showing route type dialog...');
+      this.app
+        .showConfirm(
+          'Choose route type:',
+          'Draw Route',
+          'Polygon',
+          'Circle'
+        )
+        .subscribe((result) => {
+          console.log('[DRAW FEATURE] Dialog result:', result);
+          if (result?.ok) {
+            // User chose Button 1 (Polygon)
+            console.log('[DRAW FEATURE] Starting polygon route drawing');
+            this.mapInteract.startDrawing('route');
+          } else if (result === null) {
+            // User chose Button 2 (Circle)
+            console.log('[DRAW FEATURE] Starting circle route drawing');
+            this.mapInteract.startDrawing('circle-route');
+          } else {
+            console.log('[DRAW FEATURE] Dialog cancelled or closed');
+          }
+        });
+    } else {
+      this.mapInteract.startDrawing(f);
+    }
   }
 
   /** Handle feature DrawEnded event and prompt to save */
@@ -2865,6 +2891,10 @@ export class AppComponent implements OnDestroy {
         this.skres.newWaypointAt(e.coordinates as Position);
         break;
       case 'route':
+        this.skres.newRouteAt(e.coordinates as LineString);
+        break;
+      case 'circle-route':
+        // Handle circle route the same as a regular route
         this.skres.newRouteAt(e.coordinates as LineString);
         break;
       case 'region':
