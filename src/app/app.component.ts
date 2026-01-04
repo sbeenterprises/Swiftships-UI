@@ -54,6 +54,7 @@ import { SignalKClient } from 'signalk-client-angular';
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
 import * as semver from 'semver';
+import { MoosIvpWebsocketService } from './lib/moos-ivp-websocket.service';
 
 import {
   NotificationMessage,
@@ -213,6 +214,7 @@ export class AppComponent implements OnDestroy {
     protected skresOther: SKOtherResources,
     protected signalk: SignalKClient,
     protected radarService: RadarService,
+    private moosWsService: MoosIvpWebsocketService,
     private dom: DomSanitizer,
     private overlayContainer: OverlayContainer,
     private bottomSheet: MatBottomSheet,
@@ -732,26 +734,25 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
 
-    // Re-send waypoints multiple times before starting to ensure they're received
+    // Get waypoints from selected route
     const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
     if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
       const waypoints = selectedRoute[1].feature.geometry.coordinates;
 
-      // Send waypoints 3 times with small delays to ensure delivery
-      this.sendWaypointsToMOOS(waypoints);
-      setTimeout(() => this.sendWaypointsToMOOS(waypoints), 100);
-      setTimeout(() => this.sendWaypointsToMOOS(waypoints), 200);
+      // Format waypoints as lat1,lon1:lat2,lon2:lat3,lon3...
+      const waypointString = waypoints.map(point => {
+        const lat = point[1]; // Latitude is at index 1
+        const lon = point[0]; // Longitude is at index 0
+        return `${lat},${lon}`;
+      }).join(':');
 
-      console.log(`[START MISSION] Sent route with ${waypoints.length} waypoints (3x reinforced)`);
-    }
-
-    // Send start command to MOOS-IvP with speed value after a small delay
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      setTimeout(() => {
-        const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}`;
+      // Send combined message: AUTONOMOUS_START=true#SPEED#WAYPOINTS
+      if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+        const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}`;
         this.app.data.moosIvPServer.socket.send(message);
-        console.log(`[START MISSION] Sent ${message} to MOOS-IvP`);
-      }, 300);
+        console.log(`[START MISSION] Sent combined message with ${waypoints.length} waypoints and speed ${this.autonomousControl.speed}`);
+        console.log(`[START MISSION] Message: ${message.substring(0, 100)}...`);
+      }
     }
 
     this.app.showMessage('Mission Started', false, 3000);
@@ -1436,69 +1437,61 @@ export class AppComponent implements OnDestroy {
 
   /** establish connection to MOOS-IvP server */
   private connectMoosIvPServer() {
-    if (this.app.data.connectionState.moosIvP.connecting) {
-      console.log('[MOOS-IvP CONNECTION] Already connecting, skipping...');
-      return; // already connecting
-    }
-
-    console.log('[MOOS-IvP CONNECTION] Starting connection attempt...');
-    this.app.data.connectionState.moosIvP.connecting = true;
-    this.app.data.connectionState.moosIvP.lastAttempt = Date.now();
+    console.log('[MOOS-IvP CONNECTION] Starting connection via WebSocket service...');
 
     const wsUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
     console.log('[MOOS-IvP CONNECTION] Connecting to WebSocket URL:', wsUrl);
     this.app.data.moosIvPServer.url = wsUrl;
 
-    try {
-      const socket = new WebSocket(wsUrl);
-      this.app.data.moosIvPServer.socket = socket;
+    // Subscribe to connection state changes
+    this.moosWsService.connectionState$.subscribe((state) => {
+      console.log('[MOOS-IvP CONNECTION] State changed to:', state);
 
-      socket.onopen = () => {
-        console.log('[MOOS-IvP CONNECTION] WebSocket connection opened successfully to:', wsUrl);
-        this.app.debug('MOOS-IvP WebSocket connection opened');
-        this.app.data.moosIvPServer.connected = true;
-        this.app.data.connectionState.moosIvP.connected = true;
-        this.app.data.connectionState.moosIvP.connecting = false;
-        this.app.showMessage('Mission Management System connection established', false, 3000);
-      };
+      switch (state) {
+        case 'connected':
+          this.app.debug('MOOS-IvP WebSocket connection opened');
+          this.app.data.moosIvPServer.connected = true;
+          this.app.data.connectionState.moosIvP.connected = true;
+          this.app.data.connectionState.moosIvP.connecting = false;
+          this.app.showMessage('Mission Management System connection established', false, 3000);
+          break;
 
-      socket.onmessage = (event) => {
-        // console.log('[MOOS-IvP DEBUG] Raw message received:', event.data);
-        this.handleMoosIvPMessage(event.data);
-      };
+        case 'connecting':
+        case 'reconnecting':
+          this.app.data.connectionState.moosIvP.connecting = true;
+          this.app.data.connectionState.moosIvP.connected = false;
+          if (state === 'reconnecting') {
+            this.app.showMessage('Mission Management System connection lost. Reconnecting...', false, 3000);
+          }
+          break;
 
-      socket.onclose = (event) => {
-        console.log('[MOOS-IvP CONNECTION] WebSocket connection closed. Code:', event.code, 'Reason:', event.reason, 'WasClean:', event.wasClean);
-        this.app.debug('MOOS-IvP WebSocket connection closed', event);
-        this.app.data.moosIvPServer.connected = false;
-        this.app.data.connectionState.moosIvP.connected = false;
-        this.app.data.connectionState.moosIvP.connecting = false;
+        case 'disconnected':
+        case 'error':
+          this.app.data.moosIvPServer.connected = false;
+          this.app.data.connectionState.moosIvP.connected = false;
+          this.app.data.connectionState.moosIvP.connecting = false;
+          if (state === 'error') {
+            this.app.showMessage(`Mission Management System connection failed: ${wsUrl}`, false, 5000);
+          }
+          break;
+      }
+    });
 
-        if (!event.wasClean) {
-          this.app.showMessage('Mission Management System connection lost. Retrying...', false, 3000);
-          // Auto-retry connection after 5 seconds
-          setTimeout(() => {
-            if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
-              this.connectMoosIvPServer();
-            }
-          }, 5000);
-        }
-      };
+    // Subscribe to incoming messages
+    this.moosWsService.messages$.subscribe((data) => {
+      this.handleMoosIvPMessage(data);
+    });
 
-      socket.onerror = (error) => {
-        console.error('[MOOS-IvP CONNECTION] WebSocket error:', error);
-        console.error('[MOOS-IvP CONNECTION] Failed to connect to:', wsUrl);
-        console.error('[MOOS-IvP CONNECTION] Socket readyState:', socket.readyState);
-        this.app.debug('MOOS-IvP WebSocket error:', error);
-        this.app.data.connectionState.moosIvP.connecting = false;
-        this.app.showMessage(`Mission Management System connection failed: ${wsUrl}`, false, 5000);
-      };
+    // Deprecated: reference to old socket (kept for compatibility)
+    // Components checking this.app.data.moosIvPServer.socket still work
+    this.app.data.moosIvPServer.socket = {
+      readyState: WebSocket.CONNECTING,
+      send: (msg: string) => this.moosWsService.send(msg),
+      close: () => this.moosWsService.disconnect()
+    } as any;
 
-    } catch (error) {
-      this.app.debug('Failed to create MOOS-IvP WebSocket:', error);
-      this.app.data.connectionState.moosIvP.connecting = false;
-      this.app.showMessage('Failed to connect to MOOS-IvP server', false, 3000);
-    }
+    // Connect using the service
+    this.moosWsService.connect(wsUrl);
   }
 
   /** handle MOOS-IvP WebSocket message */
@@ -1725,23 +1718,18 @@ export class AppComponent implements OnDestroy {
 
   /** disconnect from MOOS-IvP server */
   private disconnectMoosIvPServer() {
-    if (this.app.data.moosIvPServer.socket) {
-      this.app.data.moosIvPServer.socket.close();
-      this.app.data.moosIvPServer.socket = null;
-      this.app.data.moosIvPServer.connected = false;
-      this.app.data.connectionState.moosIvP.connected = false;
-      this.app.data.connectionState.moosIvP.connecting = false;
-    }
+    this.moosWsService.disconnect();
+    this.app.data.moosIvPServer.socket = null;
+    this.app.data.moosIvPServer.connected = false;
+    this.app.data.connectionState.moosIvP.connected = false;
+    this.app.data.connectionState.moosIvP.connecting = false;
   }
 
   /** send command to MOOS-IvP server */
   public sendMoosIvPCommand(command: string) {
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      try {
-        this.app.data.moosIvPServer.socket.send(command);
-        this.app.debug(`Sent MOOS-IvP command: ${command}`);
-      } catch (error) {
-        this.app.debug('Error sending MOOS-IvP command:', error);
+    if (this.moosWsService.isConnected()) {
+      const success = this.moosWsService.send(command);
+      if (!success) {
         this.app.showMessage('Failed to send command to MOOS-IvP', false, 3000);
       }
     } else {
