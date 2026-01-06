@@ -15,6 +15,8 @@ export class MoosIvpWebsocketService {
     private lastMessageTime: number = 0;
     private heartbeatCheckInterval: any = null;
     private heartbeatTimeout = 60000; // 60 seconds - match server timeout
+    private heartbeatSendInterval: any = null;
+    private heartbeatSendFrequency = 30000; // Send heartbeat every 30 seconds
 
     // Observable connection state
     public connectionState$ = new BehaviorSubject<ConnectionState>('disconnected');
@@ -28,6 +30,8 @@ export class MoosIvpWebsocketService {
     constructor() {
         // Start heartbeat checker
         this.startHeartbeatCheck();
+        // Start heartbeat sender
+        this.startHeartbeatSender();
     }
 
     /**
@@ -163,6 +167,18 @@ export class MoosIvpWebsocketService {
     }
 
     /**
+     * Send periodic heartbeat messages to backend to keep connection alive
+     */
+    private startHeartbeatSender(): void {
+        this.heartbeatSendInterval = setInterval(() => {
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                const heartbeatMessage = `HEARTBEAT_PING=${Date.now()}`;
+                this.send(heartbeatMessage);
+            }
+        }, this.heartbeatSendFrequency); // Send every 30 seconds
+    }
+
+    /**
      * Get current connection state
      */
     getConnectionState(): ConnectionState {
@@ -182,6 +198,9 @@ export class MoosIvpWebsocketService {
     ngOnDestroy(): void {
         if (this.heartbeatCheckInterval) {
             clearInterval(this.heartbeatCheckInterval);
+        }
+        if (this.heartbeatSendInterval) {
+            clearInterval(this.heartbeatSendInterval);
         }
         this.disconnect();
     }
