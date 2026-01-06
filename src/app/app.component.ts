@@ -2559,8 +2559,8 @@ export class AppComponent implements OnDestroy {
 
                   // Show station keep configuration dialog
                   const config: StationKeepConfig = {
-                    innerRadius: existingConfig?.innerRadius || 10,
-                    outerRadius: existingConfig?.outerRadius || 25,
+                    innerRadius: existingConfig?.innerRadius || 25,
+                    outerRadius: existingConfig?.outerRadius || 50,
                     timeToKeep: existingConfig?.timeToKeep || 300, // Default 5 minutes (300 seconds)
                     position: position,
                     pointIndex: pointIndex
