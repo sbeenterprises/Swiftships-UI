@@ -137,7 +137,10 @@ export class AppComponent implements OnDestroy {
     status: 'standby',    // standby, active, paused, returning, aborted
     currentWaypoint: 0,   // Current waypoint index
     progress: 0,          // Mission progress percentage
-    waypointSendTimer: null as any  // Timer for repeatedly sending waypoints
+    waypointSendTimer: null as any,  // Timer for repeatedly sending waypoints
+    remainingDistance: 0, // Remaining distance from WPT_STAT (meters)
+    estimatedTimeArrival: 0, // ETA from WPT_STAT (seconds)
+    repeatCount: 1        // Number of times to repeat the route (1 = no repeat)
   };
 
   // Station Keep control data
@@ -723,6 +726,18 @@ export class AppComponent implements OnDestroy {
     }
 
     console.log('Speed updated:', this.autonomousControl.speed);
+  }
+
+  protected updateRepeatCount(count: number) {
+    this.autonomousControl.repeatCount = Math.max(1, Math.min(10, count));
+
+    // Send repeat count to MOOS-IvP
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      this.app.data.moosIvPServer.socket.send(`REPEAT=${this.autonomousControl.repeatCount}`);
+      console.log(`Sent REPEAT=${this.autonomousControl.repeatCount} to MOOS-IvP`);
+    }
+
+    console.log('Repeat count updated:', this.autonomousControl.repeatCount);
   }
 
   protected startMission() {
@@ -1506,9 +1521,16 @@ export class AppComponent implements OnDestroy {
       // console.log('[MOOS-IvP DEBUG] Message lines count:', lines.length);
       lines.forEach(line => {
         if (line.includes('=')) {
-          const [variable, value] = line.split('=', 2);
-          // console.log('[MOOS-IvP DEBUG] Variable:', variable.trim(), '=', value.trim());
-          this.processMoosVariable(variable.trim(), value.trim());
+          // Debug: Uncomment to see raw WPT_STAT line
+          // if (line.startsWith('WPT_STAT')) {
+          //   console.log('[MOOS DEBUG] Raw WPT_STAT line:', line);
+          // }
+          // Use indexOf and substring instead of split to handle values with multiple = signs
+          const eqIndex = line.indexOf('=');
+          const variable = line.substring(0, eqIndex).trim();
+          const value = line.substring(eqIndex + 1).trim();
+          // console.log('[MOOS-IvP DEBUG] Variable:', variable, '=', value);
+          this.processMoosVariable(variable, value);
         }
       });
     } catch (error) {
@@ -1602,6 +1624,37 @@ export class AppComponent implements OnDestroy {
       case 'CONTACT_INFO':
         this.processContactInfo(value);
         break;
+      case 'WPT_STAT': {
+        // Parse WPT_STAT format: vname=alpha,behavior-name=waypt_survey,index=0,hits=0/0,cycles=0,dist=2565,eta=513
+        // console.log('[WPT_STAT] Received WPT_STAT message:', value);
+        try {
+          const parts = value.split(',');
+          const stats: { [key: string]: string } = {};
+
+          parts.forEach(part => {
+            const [key, val] = part.split('=', 2);
+            if (key && val) {
+              stats[key.trim()] = val.trim();
+            }
+          });
+
+          // console.log('[WPT_STAT] Parsed stats object:', stats);
+          // console.log('[WPT_STAT] dist value:', stats['dist'], 'eta value:', stats['eta']);
+
+          // Extract dist and eta
+          if (stats['dist']) {
+            this.autonomousControl.remainingDistance = parseFloat(stats['dist']) || 0;
+          }
+          if (stats['eta']) {
+            this.autonomousControl.estimatedTimeArrival = parseFloat(stats['eta']) || 0;
+          }
+
+          // console.log('[WPT_STAT] Distance:', this.autonomousControl.remainingDistance, 'ETA:', this.autonomousControl.estimatedTimeArrival);
+        } catch (error) {
+          console.error('[WPT_STAT] Error parsing WPT_STAT:', error, 'value:', value);
+        }
+        break;
+      }
       default:
       // Handle other MOOS variables as needed
       // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
@@ -2559,8 +2612,8 @@ export class AppComponent implements OnDestroy {
 
                   // Show station keep configuration dialog
                   const config: StationKeepConfig = {
-                    innerRadius: existingConfig?.innerRadius || 25,
-                    outerRadius: existingConfig?.outerRadius || 50,
+                    innerRadius: existingConfig?.innerRadius || 10,
+                    outerRadius: existingConfig?.outerRadius || 25,
                     timeToKeep: existingConfig?.timeToKeep || 300, // Default 5 minutes (300 seconds)
                     position: position,
                     pointIndex: pointIndex
