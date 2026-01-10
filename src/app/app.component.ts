@@ -585,13 +585,14 @@ export class AppComponent implements OnDestroy {
   }
 
   protected updateThrust(value: number) {
-    this.remoteControl.thrust = Math.max(-100, Math.min(100, value));
+    this.remoteControl.thrust = Math.max(0, Math.min(100, value));
     this.sendThrustData();
   }
 
   protected updateGear(gear: 'forward' | 'neutral' | 'reverse') {
     this.remoteControl.gear = gear;
-    this.sendRemoteControlData();
+    // Re-send thrust data with the new gear setting
+    this.sendThrustData();
   }
 
   private sendRudderData() {
@@ -607,10 +608,27 @@ export class AppComponent implements OnDestroy {
   }
 
   private sendThrustData() {
-    // Send only thrust data to MOOS-IvP
+    // Send thrust data to MOOS-IvP based on gear setting
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      this.app.data.moosIvPServer.socket.send(`DESIRED_THRUST=${this.remoteControl.thrust}`);
-      console.log(`Sent DESIRED_THRUST=${this.remoteControl.thrust} to MOOS-IvP`);
+      let actualThrust: number;
+
+      // Apply gear-based thrust calculation
+      switch (this.remoteControl.gear) {
+        case 'neutral':
+          actualThrust = 0; // Always 0 in neutral, regardless of slider
+          break;
+        case 'forward':
+          actualThrust = this.remoteControl.thrust; // Positive thrust (0 to 100)
+          break;
+        case 'reverse':
+          actualThrust = -this.remoteControl.thrust; // Negative thrust (0 to -100)
+          break;
+        default:
+          actualThrust = 0;
+      }
+
+      this.app.data.moosIvPServer.socket.send(`DESIRED_THRUST=${actualThrust}`);
+      console.log(`Sent DESIRED_THRUST=${actualThrust} to MOOS-IvP (slider: ${this.remoteControl.thrust}%, gear: ${this.remoteControl.gear})`);
     } else {
       console.log('MOOS-IvP not connected, cannot send thrust data');
     }
