@@ -631,23 +631,17 @@
                 </div>
               </div>
 
-              <!-- Repeat Count Control -->
+              <!-- Repeat Route Control -->
               <div class="autonomous-control-section">
-                <h3>Repeat Count</h3>
+                <h3>Repeat Route</h3>
                 <div class="control-group">
-                  <mat-slider min="1" max="10" step="1" class="speed-slider">
-                    <input matSliderThumb [value]="autonomousControl.repeatCount"
-                      (input)="updateRepeatCount($any($event.target).value)">
-                  </mat-slider>
-                  <div class="control-display">
-                    <span class="control-label">Repeat:</span>
-                    <span class="control-value">{{ autonomousControl.repeatCount }} {{ autonomousControl.repeatCount ==
-                      1 ? 'time' : 'times' }}</span>
-                  </div>
-                  <div class="control-buttons">
-                    <button mat-raised-button (click)="updateRepeatCount(1)" class="control-btn">Once</button>
-                    <button mat-raised-button (click)="updateRepeatCount(3)" class="control-btn">3x</button>
-                    <button mat-raised-button (click)="updateRepeatCount(5)" class="control-btn">5x</button>
+                  <mat-checkbox [checked]="autonomousControl.repeatRoute" (change)="updateRepeatRoute($event.checked)">
+                    <span class="control-label">Repeat route continuously</span>
+                  </mat-checkbox>
+                  <div class="control-display" style="margin-top: 8px;">
+                    <span class="control-value" style="font-size: 0.9em; color: #888;">
+                      {{ autonomousControl.repeatRoute ? 'Route repeat activated' : 'Route repeat deactivated' }}
+                    </span>
                   </div>
                 </div>
               </div>

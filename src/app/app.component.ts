@@ -140,7 +140,7 @@ export class AppComponent implements OnDestroy {
     waypointSendTimer: null as any,  // Timer for repeatedly sending waypoints
     remainingDistance: 0, // Remaining distance from WPT_STAT (meters)
     estimatedTimeArrival: 0, // ETA from WPT_STAT (seconds)
-    repeatCount: 1        // Number of times to repeat the route (1 = no repeat)
+    repeatRoute: false    // Whether to repeat the route continuously (false = once, true = 1000 times)
   };
 
   // Station Keep control data
@@ -746,16 +746,17 @@ export class AppComponent implements OnDestroy {
     console.log('Speed updated:', this.autonomousControl.speed);
   }
 
-  protected updateRepeatCount(count: number) {
-    this.autonomousControl.repeatCount = Math.max(1, Math.min(10, count));
+  protected updateRepeatRoute(repeat: boolean) {
+    this.autonomousControl.repeatRoute = repeat;
 
-    // Send repeat count to MOOS-IvP
+    // Send repeat count to MOOS-IvP: 1000 for continuous, 1 for single run
+    const repeatValue = repeat ? 1000 : 1;
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      this.app.data.moosIvPServer.socket.send(`REPEAT=${this.autonomousControl.repeatCount}`);
-      console.log(`Sent REPEAT=${this.autonomousControl.repeatCount} to MOOS-IvP`);
+      this.app.data.moosIvPServer.socket.send(`REPEAT=${repeatValue}`);
+      console.log(`Sent REPEAT=${repeatValue} to MOOS-IvP (continuous: ${repeat})`);
     }
 
-    console.log('Repeat count updated:', this.autonomousControl.repeatCount);
+    console.log('Repeat route updated:', repeat ? 'continuous (1000x)' : 'once');
   }
 
   protected startMission() {
