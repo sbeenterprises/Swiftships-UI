@@ -2,11 +2,13 @@
 
 /** Material style overrides **/
 mat-sidenav-container {
-    height:100%;
+    height: 100%;
 }
+
 mat-sidenav {
     width: 200px;
 }
+
 mat-nav-list {
     padding-top: 0;
 }
@@ -16,19 +18,19 @@ mat-nav-list {
     width: 100vw;
     height: 100vh;
     background-color: black;
-    color: white;  
-    overflow: hidden;  
+    color: white;
+    overflow: hidden;
 }
 
 .view {
     top: 0;
-	bottom: 0;
+    bottom: 0;
     right: 0;
-	left: 0px;
+    left: 0px;
     overflow: auto;
     scrollbar-width: none;
     position: fixed;
-	border-top: silver 0px solid;
+    border-top: silver 0px solid;
 }
 
 .leftMenuPanel {
@@ -37,13 +39,13 @@ mat-nav-list {
     left: 0;
     bottom: 0;
     padding-left: 0px;
-    z-index: 5000; 
-    background-color: rgba(200,200,200,.4);
+    z-index: 5000;
+    background-color: rgba(200, 200, 200, .4);
     width: 315px;
 }
 
-.buttonPanel { 
-    width:50px; 
+.buttonPanel {
+    width: 50px;
     z-index: 4800;
     position: absolute;
     padding: 5px 2px 2px 2px;
@@ -51,25 +53,25 @@ mat-nav-list {
     scrollbar-width: none;
 }
 
-.buttonPanel.rightTop { 
+.buttonPanel.rightTop {
     right: 0px;
     top: 0px;
     padding: 9px 2px 10px 2px;
 }
 
-.buttonPanel.leftTop { 
+.buttonPanel.leftTop {
     left: 0px;
     top: 0px;
     padding: 9px 2px 10px 2px;
 }
 
-.buttonPanel.left { 
+.buttonPanel.left {
     top: 60px;
     left: 0px;
     bottom: 0px;
 }
 
-.buttonPanel.right { 
+.buttonPanel.right {
     top: 60px;
     right: 0px;
     bottom: 0px;
@@ -107,14 +109,14 @@ mat-nav-list {
 .playbackPanel {
     position: absolute;
     z-index: 4900;
-    bottom: 150px; 
-    left: 50px; 
-    top: auto; 
-    width:100px; 
+    bottom: 150px;
+    left: 50px;
+    top: auto;
+    width: 100px;
     border: gray 1px solid;
     border-radius: 5px;
     font-family: roboto;
-    text-align:center;
+    text-align: center;
 }
 
 .navdataPanel {
@@ -156,45 +158,45 @@ mat-nav-list {
     align-items: center;
     justify-content: flex-start;
     margin: 20px;
-  }
+}
 
-  .ol-mouse-position {
-    position: fixed; 
-    bottom:10px; 
-    right:45%; 
-    color: rgb(30,30,30);
-    font-family:roboto; 
-    background-color: rgba(250,250,250,.7);    
+.ol-mouse-position {
+    position: fixed;
+    bottom: 10px;
+    right: 45%;
+    color: rgb(30, 30, 30);
+    font-family: roboto;
+    background-color: rgba(250, 250, 250, .7);
 }
 
 .ol-zoom {
-    position: fixed; 
-    top:10px;
-    left:100px; 
-    color: rgb(30,30,30);
-    font-family:roboto; 
-    background-color: transparent;  
+    position: fixed;
+    top: 10px;
+    left: 100px;
+    color: rgb(30, 30, 30);
+    font-family: roboto;
+    background-color: transparent;
     height: 45px;
 }
 
 .instrumentPanelToggle {
     display: block;
-} 
+}
 
-@media only screen and (max-width: 650px) {  
+@media only screen and (max-width: 650px) {
     .bottomSheet {
         left: 0;
         min-width: 100%;
-    }       
+    }
 }
 
-@media only screen and (max-width: 800px) { 
+@media only screen and (max-width: 800px) {
     .instrumentPanelToggle {
         display: none;
-    }     
+    }
 }
 
-@media only screen and (max-height: 600px) { 
+@media only screen and (max-height: 600px) {
     .navdataPanel {
         left: 50px;
     }
@@ -275,20 +277,20 @@ mat-nav-list {
         max-width: calc(100vw - 20px);
         overflow-x: auto;
     }
-    
+
     .navItem {
         margin: 0 8px;
         min-width: 45px;
     }
-    
+
     .navLabel {
         font-size: 9px;
     }
-    
+
     .navValue {
         font-size: 11px;
     }
-    
+
     .navIcon {
         font-size: 20px !important;
         width: 20px !important;
@@ -300,18 +302,64 @@ mat-nav-list {
     .floatingNavBar {
         padding: 4px 8px;
     }
-    
+
     .navItem {
         margin: 0 6px;
         min-width: 40px;
     }
-    
+
     .navLabel {
         font-size: 8px;
     }
-    
+
     .navValue {
         font-size: 10px;
+    }
+}
+
+/* Brand section styles */
+.floatingNavBar .navBrand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 12px;
+    flex: 0 0 auto;
+}
+
+.floatingNavBar .navLogo {
+    height: 26px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.floatingNavBar .navTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.92);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+/* Container for navItem blocks */
+.floatingNavBar .navItems {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    overflow: hidden;
+}
+
+/* Optional: when it gets tight, allow horizontal scroll on items */
+@media only screen and (max-width: 768px) {
+    .floatingNavBar .navItems {
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: none;
+    }
+
+    .floatingNavBar .navItems::-webkit-scrollbar {
+        display: none;
     }
 }
 
@@ -382,6 +430,7 @@ mat-nav-list {
         opacity: 0;
         transform: translateX(20px);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -394,7 +443,7 @@ mat-nav-list {
     background: linear-gradient(135deg, #345270 0%, #2e4660 100%);
     border-radius: 12px;
     border: 1px solid rgba(52, 82, 112, 0.8);
-    box-shadow: 
+    box-shadow:
         0 4px 12px rgba(30, 45, 62, 0.4),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
     position: relative;
@@ -405,14 +454,25 @@ mat-nav-list {
     transform: translateY(20px);
 }
 
-.remote-control-section:nth-child(1) { animation-delay: 0.1s; }
-.remote-control-section:nth-child(2) { animation-delay: 0.2s; }
-.remote-control-section:nth-child(3) { animation-delay: 0.3s; }
-.remote-control-section:nth-child(4) { animation-delay: 0.4s; }
+.remote-control-section:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.remote-control-section:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.remote-control-section:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.remote-control-section:nth-child(4) {
+    animation-delay: 0.4s;
+}
 
 .remote-control-section:hover {
     transform: translateY(-2px);
-    box-shadow: 
+    box-shadow:
         0 6px 16px rgba(30, 45, 62, 0.5),
         inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
@@ -475,7 +535,7 @@ mat-nav-list {
     background: linear-gradient(135deg, rgba(30, 45, 62, 0.9) 0%, rgba(26, 41, 56, 0.9) 100%);
     border-radius: 8px;
     border: 1px solid rgba(52, 82, 112, 0.5);
-    box-shadow: 
+    box-shadow:
         inset 0 1px 2px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(30, 45, 62, 0.3);
     transition: all 0.2s ease;
@@ -483,7 +543,7 @@ mat-nav-list {
 
 .control-display:hover {
     border-color: rgba(52, 82, 112, 0.7);
-    box-shadow: 
+    box-shadow:
         inset 0 1px 2px rgba(0, 0, 0, 0.2),
         0 3px 6px rgba(30, 45, 62, 0.4);
 }
@@ -552,7 +612,8 @@ mat-nav-list {
 }
 
 /* Slider Styles */
-.rudder-slider, .thrust-slider {
+.rudder-slider,
+.thrust-slider {
     width: 100%;
 }
 
@@ -612,7 +673,7 @@ mat-nav-list {
 .reverse-btn.mat-button-toggle-checked {
     background: linear-gradient(135deg, #1e2d3e 0%, #243242 100%) !important;
     color: white !important;
-    box-shadow: 
+    box-shadow:
         inset 0 2px 4px rgba(0, 0, 0, 0.3),
         0 0 12px rgba(30, 45, 62, 0.6) !important;
 }
@@ -626,7 +687,7 @@ mat-nav-list {
 .neutral-btn.mat-button-toggle-checked {
     background: linear-gradient(135deg, #345270 0%, #3e5a7a 100%) !important;
     color: white !important;
-    box-shadow: 
+    box-shadow:
         inset 0 2px 4px rgba(0, 0, 0, 0.3),
         0 0 12px rgba(52, 82, 112, 0.6) !important;
 }
@@ -640,7 +701,7 @@ mat-nav-list {
 .forward-btn.mat-button-toggle-checked {
     background: linear-gradient(135deg, #2a3f55 0%, #34495f 100%) !important;
     color: white !important;
-    box-shadow: 
+    box-shadow:
         inset 0 2px 4px rgba(0, 0, 0, 0.3),
         0 0 12px rgba(42, 63, 85, 0.6) !important;
 }
@@ -671,16 +732,16 @@ mat-nav-list {
         margin-bottom: 20px;
         padding: 12px;
     }
-    
+
     .control-btn {
         font-size: 10px !important;
         padding: 6px 2px !important;
     }
-    
+
     .gear-btn {
         padding: 8px 4px !important;
     }
-    
+
     .gear-btn span {
         font-size: 9px;
     }
@@ -764,10 +825,21 @@ mat-nav-list {
     transform: translateY(20px);
 }
 
-.station-keep-section:nth-child(1) { animation-delay: 0.1s; }
-.station-keep-section:nth-child(2) { animation-delay: 0.2s; }
-.station-keep-section:nth-child(3) { animation-delay: 0.3s; }
-.station-keep-section:nth-child(4) { animation-delay: 0.4s; }
+.station-keep-section:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.station-keep-section:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.station-keep-section:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.station-keep-section:nth-child(4) {
+    animation-delay: 0.4s;
+}
 
 .station-keep-section:hover {
     transform: translateY(-2px);
@@ -823,8 +895,15 @@ mat-nav-list {
 }
 
 @keyframes statusPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
 }
 
 /* Dark theme adjustments for station keep */
@@ -914,7 +993,7 @@ mat-nav-list {
     background: linear-gradient(135deg, #345270 0%, #2e4660 100%);
     border-radius: 12px;
     border: 1px solid rgba(52, 82, 112, 0.8);
-    box-shadow: 
+    box-shadow:
         0 4px 12px rgba(30, 45, 62, 0.4),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
     position: relative;
@@ -925,14 +1004,25 @@ mat-nav-list {
     transform: translateY(20px);
 }
 
-.autonomous-control-section:nth-child(1) { animation-delay: 0.1s; }
-.autonomous-control-section:nth-child(2) { animation-delay: 0.2s; }
-.autonomous-control-section:nth-child(3) { animation-delay: 0.3s; }
-.autonomous-control-section:nth-child(4) { animation-delay: 0.4s; }
+.autonomous-control-section:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.autonomous-control-section:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.autonomous-control-section:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.autonomous-control-section:nth-child(4) {
+    animation-delay: 0.4s;
+}
 
 .autonomous-control-section:hover {
     transform: translateY(-2px);
-    box-shadow: 
+    box-shadow:
         0 6px 16px rgba(30, 45, 62, 0.5),
         inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
@@ -1115,7 +1205,7 @@ mat-nav-list {
     color: white !important;
     border: 2px solid #dc2626 !important;
     border-radius: 8px !important;
-    box-shadow: 
+    box-shadow:
         0 4px 12px rgba(220, 38, 38, 0.4),
         inset 0 1px 2px rgba(255, 255, 255, 0.2) !important;
     transition: all 0.2s ease !important;
@@ -1126,7 +1216,7 @@ mat-nav-list {
 .abort-btn:hover:not(:disabled) {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%) !important;
     transform: translateY(-2px) !important;
-    box-shadow: 
+    box-shadow:
         0 6px 16px rgba(220, 38, 38, 0.5),
         inset 0 1px 2px rgba(255, 255, 255, 0.3) !important;
     border-color: #ef4444 !important;
@@ -1158,4 +1248,3 @@ mat-nav-list {
 .dark-theme .route-select-field .mat-mdc-form-field-infix {
     background-color: rgba(30, 45, 62, 0.9) !important;
 }
-

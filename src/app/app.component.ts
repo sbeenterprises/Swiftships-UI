@@ -140,7 +140,9 @@ export class AppComponent implements OnDestroy {
     waypointSendTimer: null as any,  // Timer for repeatedly sending waypoints
     remainingDistance: 0, // Remaining distance from WPT_STAT (meters)
     estimatedTimeArrival: 0, // ETA from WPT_STAT (seconds)
-    repeatRoute: false    // Whether to repeat the route continuously (false = once, true = 1000 times)
+    repeatRoute: false,    // Whether to repeat the route continuously (false = once, true = 1000 times)
+    totalDistance: 0,     // Total route distance (meters)
+    totalTimeOfArrival: 0 // Total time of arrival for entire route (seconds)
   };
 
   // Station Keep control data
@@ -164,6 +166,9 @@ export class AppComponent implements OnDestroy {
     position: null as [number, number] | null,
     timer: null as any
   };
+
+  // Timer for updating Total TOA periodically
+  private toaUpdateTimer: any = null;
 
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
@@ -364,6 +369,18 @@ export class AppComponent implements OnDestroy {
       )
     );
 
+    // ** Start TOA update timer - updates every 2 seconds when route is selected
+    this.toaUpdateTimer = setInterval(() => {
+      // Only update if a route is selected
+      if (this.autonomousControl.selectedRoute) {
+        const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
+        if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
+          const waypoints = selectedRoute[1].feature.geometry.coordinates;
+          this.calculateDynamicTOA(waypoints);
+        }
+      }
+    }, 2000); // Update every 2 seconds
+
     // fullscreen event handlers
     document.addEventListener('fullscreenchange', () => {
       //console.log(document.fullscreenElement)
@@ -383,6 +400,13 @@ export class AppComponent implements OnDestroy {
     // ** clean up
     this.stopTimers();
     this.stopMoosContactCleanup();
+
+    // Clean up TOA update timer
+    if (this.toaUpdateTimer) {
+      clearInterval(this.toaUpdateTimer);
+      this.toaUpdateTimer = null;
+    }
+
     this.stream.terminate();
     this.signalk.disconnect();
     this.disconnectMoosIvPServer();
@@ -704,6 +728,10 @@ export class AppComponent implements OnDestroy {
         if (selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
           const waypoints = selectedRoute[1].feature.geometry.coordinates;
 
+          // Calculate total route distance (fixed) and initial TOA
+          this.calculateTotalRouteDistance(waypoints);
+          this.calculateDynamicTOA(waypoints);
+
           // Send waypoints immediately
           this.sendWaypointsToMOOS(waypoints);
 
@@ -741,6 +769,15 @@ export class AppComponent implements OnDestroy {
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       this.app.data.moosIvPServer.socket.send(`DESIRED_SPEED=${this.autonomousControl.speed}`);
       console.log(`Sent DESIRED_SPEED=${this.autonomousControl.speed} to MOOS-IvP`);
+    }
+
+    // Recalculate total time of arrival if we have a route selected (distance stays the same)
+    if (this.autonomousControl.selectedRoute) {
+      const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
+      if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
+        const waypoints = selectedRoute[1].feature.geometry.coordinates;
+        this.calculateDynamicTOA(waypoints);
+      }
     }
 
     console.log('Speed updated:', this.autonomousControl.speed);
@@ -937,6 +974,96 @@ export class AppComponent implements OnDestroy {
     const lat = position[1].toFixed(6);
     const lon = position[0].toFixed(6);
     return `${lat}, ${lon}`;
+  }
+
+  // Format time in seconds to readable format (HH:MM:SS or MM:SS)
+  public formatTime(seconds: number): string {
+    if (!seconds || seconds <= 0) {
+      return '0s';
+    }
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  }
+
+  // Calculate total distance of the route (fixed, between waypoints only)
+  private calculateTotalRouteDistance(waypoints: [number, number][]) {
+    if (!waypoints || waypoints.length === 0) {
+      this.autonomousControl.totalDistance = 0;
+      return;
+    }
+
+    let totalDistance = 0;
+
+    // Calculate distances between consecutive waypoints only
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const distance = GeoUtils.distanceTo(
+        waypoints[i],           // [lon, lat]
+        waypoints[i + 1]        // [lon, lat]
+      );
+      totalDistance += distance;
+    }
+
+    this.autonomousControl.totalDistance = totalDistance;
+    console.log(`[ROUTE CALC] Total route distance (fixed): ${totalDistance.toFixed(0)}m`);
+  }
+
+  // Calculate dynamic time of arrival based on current vessel position
+  private calculateDynamicTOA(waypoints: [number, number][]) {
+    if (!waypoints || waypoints.length === 0) {
+      this.autonomousControl.totalTimeOfArrival = 0;
+      return;
+    }
+
+    let totalDistance = 0;
+
+    // During active mission, use the remaining distance from WPT_STAT if available
+    // This already includes distance to current waypoint + all remaining waypoints
+    if (this.autonomousControl.status === 'active' && this.autonomousControl.remainingDistance > 0) {
+      totalDistance = this.autonomousControl.remainingDistance;
+      console.log(`[ROUTE CALC] Using remaining distance from WPT_STAT: ${totalDistance.toFixed(0)}m`);
+    } else {
+      // When mission is not active or no WPT_STAT data, calculate from vessel position
+      const vesselPosition = this.app.data.vessels.self.position;
+      if (vesselPosition && vesselPosition.length >= 2) {
+        // Calculate distance from vessel to first waypoint
+        const distToFirst = GeoUtils.distanceTo(
+          vesselPosition,         // [lon, lat]
+          waypoints[0]            // [lon, lat]
+        );
+        totalDistance += distToFirst;
+      }
+
+      // Calculate distances between consecutive waypoints
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const distance = GeoUtils.distanceTo(
+          waypoints[i],           // [lon, lat]
+          waypoints[i + 1]        // [lon, lat]
+        );
+        totalDistance += distance;
+      }
+      console.log(`[ROUTE CALC] Calculated total distance from vessel position: ${totalDistance.toFixed(0)}m`);
+    }
+
+    // Calculate time of arrival using SOG (Speed Over Ground) from topbar
+    // SOG is in m/s
+    const sog = this.app.data.vessels.self.sog;
+    if (sog && sog > 0) {
+      this.autonomousControl.totalTimeOfArrival = totalDistance / sog;
+      console.log(`[ROUTE CALC] Total TOA: ${this.autonomousControl.totalTimeOfArrival.toFixed(0)}s (${this.formatTime(this.autonomousControl.totalTimeOfArrival)}) at ${(sog / 0.514444).toFixed(2)} knots SOG for ${totalDistance.toFixed(0)}m`);
+    } else {
+      this.autonomousControl.totalTimeOfArrival = 0;
+      console.log(`[ROUTE CALC] Total TOA: 0s (SOG is ${sog || 0} m/s - vessel not moving)`);
+    }
   }
 
   protected closeStationKeep() {
@@ -1660,10 +1787,46 @@ export class AppComponent implements OnDestroy {
           // console.log('[WPT_STAT] Parsed stats object:', stats);
           // console.log('[WPT_STAT] dist value:', stats['dist'], 'eta value:', stats['eta']);
 
-          // Extract dist and eta
-          if (stats['dist']) {
-            this.autonomousControl.remainingDistance = parseFloat(stats['dist']) || 0;
+          // Extract current waypoint index
+          if (stats['index']) {
+            this.autonomousControl.currentWaypoint = parseInt(stats['index']) || 0;
           }
+
+          // Extract dist to current waypoint and calculate TOTAL remaining distance to END of route
+          if (stats['dist']) {
+            const distToCurrentWaypoint = parseFloat(stats['dist']) || 0;
+
+            // Calculate total remaining distance to the LAST waypoint in route
+            if (this.autonomousControl.selectedRoute) {
+              const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
+              if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
+                const waypoints = selectedRoute[1].feature.geometry.coordinates as [number, number][];
+                const currentWptIndex = this.autonomousControl.currentWaypoint;
+
+                // Start with distance to current waypoint from MOOS
+                let totalRemainingDistance = distToCurrentWaypoint;
+
+                // Add distances between all remaining waypoints (from current to end)
+                for (let i = currentWptIndex; i < waypoints.length - 1; i++) {
+                  const distance = GeoUtils.distanceTo(
+                    waypoints[i],     // [lon, lat]
+                    waypoints[i + 1]  // [lon, lat]
+                  );
+                  totalRemainingDistance += distance;
+                }
+
+                this.autonomousControl.remainingDistance = totalRemainingDistance;
+                console.log(`[WPT_STAT] Total remaining distance to LAST waypoint: ${totalRemainingDistance.toFixed(0)}m (to current waypoint #${currentWptIndex}: ${distToCurrentWaypoint.toFixed(0)}m + remaining route: ${(totalRemainingDistance - distToCurrentWaypoint).toFixed(0)}m)`);
+              } else {
+                // Fallback if route not found
+                this.autonomousControl.remainingDistance = distToCurrentWaypoint;
+              }
+            } else {
+              // Fallback if no route selected
+              this.autonomousControl.remainingDistance = distToCurrentWaypoint;
+            }
+          }
+
           if (stats['eta']) {
             this.autonomousControl.estimatedTimeArrival = parseFloat(stats['eta']) || 0;
           }

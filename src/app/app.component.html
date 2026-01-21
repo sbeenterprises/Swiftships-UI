@@ -211,48 +211,76 @@
 
     <!-- Floating Navigation Bar -->
     <div class="floatingNavBar">
-      <div class="navItem">
-        <mat-icon class="navIcon northIcon" [style.transform]="getOrientation()">navigation</mat-icon>
+      <!-- Left: logo + title -->
+      <div class="navBrand">
+        <img class="navLogo" src="assets/img/SS_Logo_W.png" alt="SwiftShips" />
+
       </div>
-      <div class="navItem">
-        <div class="navLabel">HDG</div>
-        <div class="navValue">{{ app.data.vessels.self.heading ? (app.data.vessels.self.heading *
-          180/3.14159).toFixed(0) + '°' : '--°' }}</div>
-      </div>
-      <div class="navItem">
-        <div class="navLabel">SOG</div>
-        <div class="navValue">{{ app.data.vessels.self.sog ? app.formatSpeed(app.data.vessels.self.sog, true) : '--' }}
+
+      <!-- Right: existing nav items -->
+      <div class="navItems">
+        <div class="navItem">
+          <mat-icon class="navIcon northIcon" [style.transform]="getOrientation()">navigation</mat-icon>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">HDG</div>
+          <div class="navValue">
+            {{ app.data.vessels.self.heading ? (app.data.vessels.self.heading * 180/3.14159).toFixed(0) + '°' : '--°' }}
+          </div>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">SOG</div>
+          <div class="navValue">
+            {{ app.data.vessels.self.sog ? app.formatSpeed(app.data.vessels.self.sog, true) : '--' }}
+          </div>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">LAT</div>
+          <div class="navValue">
+            {{ app.data.vessels.self.position && app.data.vessels.self.position[1] ?
+            app.data.vessels.self.position[1].toFixed(6) : '--' }}
+          </div>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">LON</div>
+          <div class="navValue">
+            {{ app.data.vessels.self.position && app.data.vessels.self.position[0] ?
+            app.data.vessels.self.position[0].toFixed(6) : '--' }}
+          </div>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">Voltage</div>
+          <div class="navValue">
+            {{ app.data.vessels.self.electrical.batteries.House.voltage ?
+            app.data.vessels.self.electrical.batteries.House.voltage.toFixed(1) + 'V' : '--' }}
+          </div>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">Fuel Level</div>
+          <div class="navValue">
+            {{ app.data.vessels.self.tanks?.fuel?.[0]?.currentLevel ?
+            (app.data.vessels.self.tanks.fuel[0].currentLevel * 100).toFixed(0) + '%' : '--' }}
+          </div>
+        </div>
+
+        <div class="navItem" *ngIf="!app.config.selections.remoteControl">
+          <div class="navLabel">STATUS</div>
+          <div class="navValue">{{ app.data.moosIvPServer.ivpHelmState || 'UNKNOWN' }}</div>
+        </div>
+
+        <div class="navItem">
+          <div class="navLabel">MODE</div>
+          <div class="navValue">{{ app.data.moosIvPServer.ivpHelmAllstop || 'UNKNOWN' }}</div>
         </div>
       </div>
-      <div class="navItem">
-        <div class="navLabel">LAT</div>
-        <div class="navValue">{{ app.data.vessels.self.position && app.data.vessels.self.position[1] ?
-          app.data.vessels.self.position[1].toFixed(6) : '--' }}</div>
-      </div>
-      <div class="navItem">
-        <div class="navLabel">LON</div>
-        <div class="navValue">{{ app.data.vessels.self.position && app.data.vessels.self.position[0] ?
-          app.data.vessels.self.position[0].toFixed(6) : '--' }}</div>
-      </div>
-      <div class="navItem">
-        <div class="navLabel">Voltage</div>
-        <div class="navValue">{{ app.data.vessels.self.electrical.batteries.House.voltage ?
-          app.data.vessels.self.electrical.batteries.House.voltage.toFixed(1) + 'V' : '--' }}</div>
-      </div>
-      <div class="navItem">
-        <div class="navLabel">Fuel Level</div>
-        <div class="navValue">{{ app.data.vessels.self.tanks?.fuel?.[0]?.currentLevel ?
-          (app.data.vessels.self.tanks.fuel[0].currentLevel * 100).toFixed(0) + '%' : '--' }}</div>
-      </div>
-      <div class="navItem" *ngIf="!app.config.selections.remoteControl">
-        <div class="navLabel">STATUS</div>
-        <div class="navValue">{{ app.data.moosIvPServer.ivpHelmState || 'UNKNOWN' }}</div>
-      </div>
-      <div class="navItem">
-        <div class="navLabel">MODE</div>
-        <div class="navValue">{{ app.data.moosIvPServer.ivpHelmAllstop || 'UNKNOWN' }}</div>
-      </div>
     </div>
+
 
     <!-- content -->
     <div class="view" theme-main>
@@ -604,6 +632,10 @@
                       </mat-option>
                     </mat-select>
                   </mat-form-field>
+                  <mat-checkbox [checked]="autonomousControl.repeatRoute" (change)="updateRepeatRoute($event.checked)"
+                    style="margin-top: -16px; margin-bottom: 8px;">
+                    <span class="control-label">Repeat route continuously</span>
+                  </mat-checkbox>
                   <div class="control-display">
                     <span class="control-label">Selected Route:</span>
                     <span class="control-value">{{ getSelectedRouteName() }}</span>
@@ -631,21 +663,6 @@
                 </div>
               </div>
 
-              <!-- Repeat Route Control -->
-              <div class="autonomous-control-section">
-                <h3>Repeat Route</h3>
-                <div class="control-group">
-                  <mat-checkbox [checked]="autonomousControl.repeatRoute" (change)="updateRepeatRoute($event.checked)">
-                    <span class="control-label">Repeat route continuously</span>
-                  </mat-checkbox>
-                  <div class="control-display" style="margin-top: 8px;">
-                    <span class="control-value" style="font-size: 0.9em; color: #888;">
-                      {{ autonomousControl.repeatRoute ? 'Route repeat activated' : 'Route repeat deactivated' }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               <!-- Mission Status -->
               <div class="autonomous-control-section">
                 <h3>Mission Status</h3>
@@ -667,12 +684,17 @@
                   <div class="control-display"
                     *ngIf="autonomousControl.status === 'active' && autonomousControl.remainingDistance > 0">
                     <span class="control-label">Remaining Distance:</span>
-                    <span class="control-value">{{ autonomousControl.remainingDistance.toFixed(0) }} m</span>
+                    <span class="control-value">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }} NM</span>
                   </div>
                   <div class="control-display"
-                    *ngIf="autonomousControl.status === 'active' && autonomousControl.estimatedTimeArrival > 0">
-                    <span class="control-label">ETA:</span>
-                    <span class="control-value">{{ autonomousControl.estimatedTimeArrival.toFixed(0) }} s</span>
+                    *ngIf="autonomousControl.selectedRoute && autonomousControl.totalDistance > 0">
+                    <span class="control-label">Total Distance:</span>
+                    <span class="control-value">{{ (autonomousControl.totalDistance / 1852).toFixed(2) }} NM</span>
+                  </div>
+                  <div class="control-display" *ngIf="autonomousControl.selectedRoute">
+                    <span class="control-label">Total TOA:</span>
+                    <span class="control-value">{{ autonomousControl.totalTimeOfArrival > 0 ?
+                      formatTime(autonomousControl.totalTimeOfArrival) : 'N/A (no SOG)' }}</span>
                   </div>
                 </div>
               </div>
