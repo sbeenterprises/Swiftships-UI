@@ -249,14 +249,15 @@ export class ResourcePopoverComponent {
 
   protected icon: AppIconDef;
 
-  constructor(public app: AppFacade) {}
+  constructor(public app: AppFacade) { }
 
   ngOnChanges() {
     this.parse();
     this.ctrl.showModifyButton =
       this.type !== 'destination' &&
-      this.resource[0] !== 'n2k' &&
-      this.featureCount > 0
+        this.type !== 'route' &&
+        this.resource[0] !== 'n2k' &&
+        this.featureCount > 0
         ? true
         : false;
   }
@@ -355,7 +356,7 @@ export class ResourcePopoverComponent {
       this.ctrl.activeText = 'ACTIVATE';
       this.ctrl.canActivate = true;
       this.ctrl.showInfoButton = true;
-      this.ctrl.showModifyButton = true;
+      this.ctrl.showModifyButton = false;
       this.ctrl.showPointsButton = true;
       this.ctrl.showNotesButton = true;
       this.ctrl.showAddNoteButton = false;
@@ -372,11 +373,11 @@ export class ResourcePopoverComponent {
       this.units === 'm'
         ? [(this.resource[1].distance / 1000).toFixed(1), 'km']
         : [
-            Convert.kmToNauticalMiles(this.resource[1].distance / 1000).toFixed(
-              1
-            ),
-            'NM'
-          ];
+          Convert.kmToNauticalMiles(this.resource[1].distance / 1000).toFixed(
+            1
+          ),
+          'NM'
+        ];
     this.properties.push(['Distance', `${d[0]} ${d[1]}`]);
   }
 
@@ -527,7 +528,7 @@ export class ResourceSetPopoverComponent {
 
   properties: Array<unknown>; // ** resource properties
 
-  constructor(public app: AppFacade) {}
+  constructor(public app: AppFacade) { }
 
   ngOnChanges() {
     this.parse();
