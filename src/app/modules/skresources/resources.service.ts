@@ -524,8 +524,8 @@ export class SKResourceService {
         !this.app
           ? true
           : !this.selectionIsFiltered('charts')
-          ? true
-          : this.app.config.selections.charts.includes('openstreetmap')
+            ? true
+            : this.app.config.selections.charts.includes('openstreetmap')
       ],
       [
         'openseamap',
@@ -541,8 +541,8 @@ export class SKResourceService {
         !this.app
           ? true
           : !this.selectionIsFiltered('charts')
-          ? true
-          : this.app.config.selections.charts.includes('openseamap')
+            ? true
+            : this.app.config.selections.charts.includes('openseamap')
       ]
     ];
     chtList.push(OSM[1]);
@@ -851,7 +851,7 @@ export class SKResourceService {
     if (
       rte.feature.properties.coordinatesMeta &&
       rte.feature.properties.coordinatesMeta.length !==
-        rte.feature.geometry.coordinates.length
+      rte.feature.geometry.coordinates.length
     ) {
       delete rte.feature.properties.coordinatesMeta;
     }
@@ -1228,7 +1228,7 @@ export class SKResourceService {
         if (r.save) {
           try {
             const w = await this.postToServer('waypoints', r.waypoint);
-            this.selectionAdd('routes', w.id);
+            this.selectionAdd('waypoints', w.id);
           } catch (err) {
             this.app.parseHttpErrorResponse(err);
           }
@@ -1296,6 +1296,7 @@ export class SKResourceService {
         if (result && result.ok) {
           try {
             await this.deleteFromServer('waypoints', id);
+            this.waypointRemove([id]);
             if (result.checked) {
               notes.forEach((note: FBNote) => {
                 this.deleteFromServer('notes', note[0]);
@@ -1817,8 +1818,8 @@ export class SKResourceService {
       data.createRegion = e.href.exists
         ? false
         : e.type === 'region'
-        ? true
-        : false;
+          ? true
+          : false;
       this.openNoteForEdit(data);
     } else {
       // edit selected note details
@@ -2119,9 +2120,9 @@ export class SKResourceService {
     v.name = vessel.name ?? '';
     v.position = vessel.navigation?.position?.value
       ? [
-          vessel.navigation?.position.value.longitude,
-          vessel.navigation?.position.value.latitude
-        ]
+        vessel.navigation?.position.value.longitude,
+        vessel.navigation?.position.value.latitude
+      ]
       : [0, 0];
     v.flag = vessel.flag?.value ?? undefined;
     v.port = vessel.port?.value ?? undefined;
