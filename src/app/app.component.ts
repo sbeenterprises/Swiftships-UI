@@ -817,12 +817,14 @@ export class AppComponent implements OnDestroy {
         return `${lat},${lon}`;
       }).join(':');
 
-      // Send combined message: AUTONOMOUS_START=true#SPEED#WAYPOINTS
+      // Send combined message: AUTONOMOUS_START=true#SPEED#WAYPOINTS#REPEAT=true/false#ID_ROUTE=route-id
       if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-        const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}`;
+        const repeatValue = this.autonomousControl.repeatRoute ? 'true' : 'false';
+        const routeId = this.autonomousControl.selectedRoute;
+        const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}#REPEAT=${repeatValue}#ID_ROUTE=${routeId}`;
         this.app.data.moosIvPServer.socket.send(message);
-        console.log(`[START MISSION] Sent combined message with ${waypoints.length} waypoints and speed ${this.autonomousControl.speed}`);
-        console.log(`[START MISSION] Message: ${message.substring(0, 100)}...`);
+        console.log(`[START MISSION] Sent combined message with ${waypoints.length} waypoints, speed ${this.autonomousControl.speed}, repeat ${repeatValue}, route ID ${routeId}`);
+        console.log(`[START MISSION] Message: ${message.substring(0, 150)}...`);
       }
     }
 
