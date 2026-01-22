@@ -480,7 +480,7 @@ export class AppComponent implements OnDestroy {
         this.display.instrumentPanelOpen = false;
         this.display.remoteControlPanelOpen = false;
         this.display.stationKeepPanelOpen = false;
-        // Load routes for the dropdown
+        // Load routes for the dropdown (sync will be called after routes are loaded)
         this.loadAvailableRoutes();
       } else {
         // Closing panel - deactivate autonomous control
@@ -496,13 +496,41 @@ export class AppComponent implements OnDestroy {
       this.display.instrumentPanelOpen = false;
       this.display.remoteControlPanelOpen = false;
       this.display.stationKeepPanelOpen = false;
-      this.autonomousControl.status = 'standby';
       this.app.saveConfig();
-      // Load routes for the dropdown
+      // Load routes for the dropdown (sync will be called after routes are loaded)
       this.loadAvailableRoutes();
       this.app.showMessage('Autonomous Control Activated', false, 3000);
     }
     this.focusMap();
+  }
+
+  // Sync autonomous control status from MOOS-IvP STATUS variable
+  private syncAutonomousStatusFromMOOS() {
+    const status = this.app.data.moosIvPServer.ivpHelmState;
+    if (status === 'DRIVE') {
+      // Mission is running
+      this.autonomousControl.status = 'active';
+      console.log('[AUTONOMOUS CONTROL] STATUS is DRIVE - setting mission status to active');
+    } else {
+      // Mission is not running (PARK or unknown)
+      this.autonomousControl.status = 'standby';
+      console.log(`[AUTONOMOUS CONTROL] STATUS is ${status || 'unknown'} - setting mission status to standby`);
+    }
+
+    // Check if ID_ROUTE is available and select the corresponding route
+    const routeId = this.app.data.moosIvPServer.idRoute;
+    if (routeId) {
+      console.log('[AUTONOMOUS CONTROL] ID_ROUTE received:', routeId);
+      // Check if this route exists in available routes
+      const routeExists = this.availableRoutes.some(r => r[0] === routeId);
+      if (routeExists) {
+        // Select the route (this will trigger the selectRoute method)
+        this.selectRoute(routeId);
+        console.log('[AUTONOMOUS CONTROL] Automatically selected route:', routeId);
+      } else {
+        console.warn('[AUTONOMOUS CONTROL] Route ID from MOOS-IvP not found in available routes:', routeId);
+      }
+    }
   }
 
   // Load available routes for autonomous control
@@ -517,6 +545,9 @@ export class AppComponent implements OnDestroy {
       );
       console.log('Filtered available routes:', this.availableRoutes);
       console.log('Total routes loaded:', this.availableRoutes.length);
+
+      // After routes are loaded, sync status and route selection from MOOS-IvP
+      this.syncAutonomousStatusFromMOOS();
     } catch (error) {
       console.error('Failed to load routes:', error);
       this.availableRoutes = [];
@@ -1839,6 +1870,10 @@ export class AppComponent implements OnDestroy {
         }
         break;
       }
+      case 'ID_ROUTE':
+        this.app.data.moosIvPServer.idRoute = value;
+        console.log('[ID_ROUTE] Received route ID from MOOS-IvP:', value);
+        break;
       default:
       // Handle other MOOS variables as needed
       // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);

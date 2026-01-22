@@ -297,6 +297,7 @@ export interface FBAppData {
     wptDist?: number;
     wptEta?: number;
     wptCompleted?: boolean;
+    idRoute?: string;
   };
   connectionState?: {
     signalK: {
