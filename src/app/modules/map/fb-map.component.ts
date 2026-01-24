@@ -285,7 +285,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     protected notiMgr: NotificationManager,
     private course: CourseService,
     protected mapInteract: FBMapInteractService
-  ) {}
+  ) { }
 
   ngAfterViewInit() {
     // ** trigger map focus **
@@ -348,8 +348,15 @@ export class FBMapComponent implements OnInit, OnDestroy {
     if (changes && changes.northUp) {
       this.rotateMap();
     }
-    if (changes && changes.hideStationKeepCircles && changes.hideStationKeepCircles.currentValue) {
-      this.showStationKeepCircles = false;
+    if (changes && changes.hideStationKeepCircles) {
+      if (changes.hideStationKeepCircles.currentValue) {
+        // Hide the circles
+        this.showStationKeepCircles = false;
+      } else if (changes.hideStationKeepCircles.currentValue === false &&
+        changes.hideStationKeepCircles.previousValue === true) {
+        // Show the circles when explicitly set to false after being true
+        this.showStationKeepCircles = true;
+      }
     }
     if (changes && changes.measureMode) {
       this.applyInteractionMode(
@@ -850,7 +857,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     }
     const lastPt =
       this.mapInteract.measurement().coords[
-        this.mapInteract.measurement().coords.length - 1
+      this.mapInteract.measurement().coords.length - 1
       ];
     if (pt[0] === lastPt[0] && pt[1] === lastPt[1]) {
       return;
@@ -999,8 +1006,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
       endCoords.length > startCoords.length
         ? 'ADD'
         : endCoords.length < startCoords.length
-        ? 'DELETE'
-        : 'MOVE';
+          ? 'DELETE'
+          : 'MOVE';
 
     function stringifyCoords(coords: Coordinate[]): string[] {
       return coords.map((c: Coordinate) => {
@@ -1121,7 +1128,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     // bearing line (active)
     const bpos =
       this.dfeat.navData.position &&
-      typeof this.dfeat.navData.position[0] === 'number'
+        typeof this.dfeat.navData.position[0] === 'number'
         ? this.dfeat.navData.position
         : this.dfeat.active.position;
     vl.bearing = [this.dfeat.active.position, bpos];
@@ -1176,11 +1183,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
       const destInTarget = destUpwind
         ? Math.abs(
-            Angle.difference(this.app.data.navData.bearing.value, twd_deg)
-          ) < ba_deg
+          Angle.difference(this.app.data.navData.bearing.value, twd_deg)
+        ) < ba_deg
         : Math.abs(
-            Angle.difference(this.app.data.navData.bearing.value, twd_inv)
-          ) < (ga_diff ?? 0);
+          Angle.difference(this.app.data.navData.bearing.value, twd_inv)
+        ) < (ga_diff ?? 0);
 
       const dtg =
         this.app.config.units.distance === 'm'
@@ -1608,8 +1615,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
         this.mapInteract.draw.resourceType === 'route'
           ? drawStyles.route
           : this.mapInteract.draw.resourceType === 'region'
-          ? drawStyles.region
-          : drawStyles.default;
+            ? drawStyles.region
+            : drawStyles.default;
     }
   }
 

@@ -2854,6 +2854,18 @@ export class AppComponent implements OnDestroy {
                           pointIndex,
                           result.config
                         );
+
+                        // Set the position to show the station keep circles on the map
+                        this.app.data.map.stationKeepPosition = result.config.position;
+                        // Update the station keep radii for display
+                        this.stationKeep.innerRadius = result.config.innerRadius;
+                        this.stationKeep.outerRadius = result.config.outerRadius;
+                        // Toggle hideStationKeepCircles to trigger change detection and show circles
+                        this.hideStationKeepCircles = true;
+                        setTimeout(() => {
+                          this.hideStationKeepCircles = false;
+                        }, 0);
+
                         this.app.showMessage(
                           'Station Keep configuration saved to route',
                           false,
