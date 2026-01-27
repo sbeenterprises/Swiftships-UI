@@ -1710,24 +1710,27 @@ export class AppComponent implements OnDestroy {
   /** handle MOOS-IvP WebSocket message */
   private handleMoosIvPMessage(data: string) {
     try {
-      // console.log('[MOOS-IvP DEBUG] Processing message:', data);
       this.app.data.moosIvPServer.lastMessage = data;
-      // this.app.debug('MOOS-IvP message received:', data);
 
-      // Parse MOOS variable updates (format: VAR=value)
+      // Try to parse as JSON first (new consolidated format)
+      if (data.startsWith('{')) {
+        try {
+          const jsonData = JSON.parse(data);
+          this.processMoosJsonMessage(jsonData);
+          return;
+        } catch (parseError) {
+          // Not valid JSON, fall through to legacy parsing
+          console.warn('[MOOS-IvP] Failed to parse as JSON, falling back to legacy format');
+        }
+      }
+
+      // Legacy format: KEY=value lines
       const lines = data.split('\n');
-      // console.log('[MOOS-IvP DEBUG] Message lines count:', lines.length);
       lines.forEach(line => {
         if (line.includes('=')) {
-          // Debug: Uncomment to see raw WPT_STAT line
-          // if (line.startsWith('WPT_STAT')) {
-          //   console.log('[MOOS DEBUG] Raw WPT_STAT line:', line);
-          // }
-          // Use indexOf and substring instead of split to handle values with multiple = signs
           const eqIndex = line.indexOf('=');
           const variable = line.substring(0, eqIndex).trim();
           const value = line.substring(eqIndex + 1).trim();
-          // console.log('[MOOS-IvP DEBUG] Variable:', variable, '=', value);
           this.processMoosVariable(variable, value);
         }
       });
@@ -1900,6 +1903,118 @@ export class AppComponent implements OnDestroy {
       default:
       // Handle other MOOS variables as needed
       // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
+    }
+  }
+
+  /** Process consolidated JSON message from MOOS-IvP */
+  private processMoosJsonMessage(data: any) {
+    // String variables
+    if (data.IVPHELM_STATE !== undefined) {
+      this.app.data.moosIvPServer.ivpHelmState = data.IVPHELM_STATE;
+    }
+    if (data.IVPHELM_ALLSTOP !== undefined) {
+      this.app.data.moosIvPServer.ivpHelmAllstop = data.IVPHELM_ALLSTOP;
+    }
+    if (data.WPT_STAT !== undefined) {
+      // Reuse existing WPT_STAT parser
+      this.processMoosVariable('WPT_STAT', data.WPT_STAT);
+    }
+    if (data.ID_ROUTE !== undefined) {
+      this.app.data.moosIvPServer.idRoute = data.ID_ROUTE;
+    }
+
+    // Numeric variables
+    if (data.WPT_INDEX !== undefined) {
+      const newWptIndex = data.WPT_INDEX;
+      const previousWptIndex = this.app.data.moosIvPServer.wptIndex;
+      this.app.data.moosIvPServer.wptIndex = newWptIndex;
+      if (newWptIndex !== previousWptIndex) {
+        console.log('[WPT_INDEX] Waypoint changed from', previousWptIndex, 'to', newWptIndex);
+        this.handleWaypointReached(previousWptIndex);
+      }
+    }
+    if (data.DESIRED_SPEED !== undefined) {
+      this.app.data.moosIvPServer.desiredSpeed = data.DESIRED_SPEED;
+    }
+
+    // Engine status (all numeric)
+    if (data.ENGINE_ACCELERATOR_PEDAL_POSITION !== undefined) {
+      this.engineStatus.acceleratorPedalPosition = data.ENGINE_ACCELERATOR_PEDAL_POSITION;
+    }
+    if (data.ENGINE_PERCENT_LOAD !== undefined) {
+      this.engineStatus.percentLoad = data.ENGINE_PERCENT_LOAD;
+    }
+    if (data.ENGINE_SPEED !== undefined) {
+      this.engineStatus.speed = data.ENGINE_SPEED;
+    }
+    if (data.ENGINE_PERCENT_TORQUE !== undefined) {
+      this.engineStatus.percentTorque = data.ENGINE_PERCENT_TORQUE;
+    }
+    if (data.ENGINE_ACTIVE_DTCS !== undefined) {
+      this.engineStatus.activeDtcs = 0; // Kept as 0 per existing code
+    }
+    if (data.ENGINE_COOLANT_TEMP !== undefined) {
+      this.engineStatus.coolantTemp = data.ENGINE_COOLANT_TEMP;
+    }
+    if (data.ENGINE_OIL_TEMP !== undefined) {
+      this.engineStatus.oilTemp = data.ENGINE_OIL_TEMP;
+    }
+    if (data.ENGINE_OIL_PRESSURE !== undefined) {
+      this.engineStatus.oilPressure = data.ENGINE_OIL_PRESSURE;
+    }
+    if (data.ENGINE_FUEL_RATE !== undefined) {
+      this.engineStatus.fuelRate = data.ENGINE_FUEL_RATE;
+    }
+    if (data.ENGINE_INTAKE_MANIFOLD_PRESSURE !== undefined) {
+      this.engineStatus.intakeManifoldPressure = data.ENGINE_INTAKE_MANIFOLD_PRESSURE;
+    }
+    if (data.ENGINE_BATTERY_VOLTAGE !== undefined) {
+      const voltage = this.app?.data?.vessels?.self?.electrical?.batteries?.House?.voltage;
+      this.engineStatus.batteryVoltage = typeof voltage === 'number' ? voltage : 0;
+    }
+
+    // Contact info (nested object)
+    if (data.CONTACT_INFO && data.CONTACT_INFO.NAME) {
+      this.processContactInfoFromJson(
+        data.CONTACT_INFO.NAME,
+        data.CONTACT_INFO.LAT,
+        data.CONTACT_INFO.LON,
+        data.CONTACT_INFO.SPD,
+        data.CONTACT_INFO.HDG
+      );
+    }
+  }
+
+  /** Process contact info from JSON format */
+  private processContactInfoFromJson(name: string, lat: number, lon: number, speed: number, heading: number) {
+    try {
+      if (!name || isNaN(lat) || isNaN(lon)) {
+        return;
+      }
+
+      const contactId = `moos-contact.${name}`;
+      const moosContact = {
+        id: contactId,
+        name: name,
+        mmsi: '',
+        position: [lon, lat] as [number, number],
+        state: '',
+        type: { id: 30, name: 'MOOS Contact' },
+        properties: {},
+        lastUpdated: new Date(),
+        callsignVhf: '',
+        callsignHf: '',
+        orientation: heading * (Math.PI / 180),
+        virtual: false,
+        sog: speed,
+        heading: heading,
+        cog: heading
+      };
+
+      this.app.data.moosContacts.set(contactId, moosContact);
+      this.app.data.moosContactMgr.updateList = [contactId];
+    } catch (error) {
+      console.error('[MOOS CONTACT] Error processing JSON contact info:', error);
     }
   }
 
