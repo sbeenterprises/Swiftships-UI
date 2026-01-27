@@ -298,6 +298,7 @@ export interface FBAppData {
     wptEta?: number;
     wptCompleted?: boolean;
     idRoute?: string;
+    desiredSpeed?: number;
   };
   connectionState?: {
     signalK: {

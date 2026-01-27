@@ -592,7 +592,8 @@ export function initData(): FBAppData {
       wptIndex: 0,
       wptDist: 0,
       wptEta: 0,
-      wptCompleted: false
+      wptCompleted: false,
+      desiredSpeed: 10
     },
     connectionState: {
       signalK: {
@@ -630,16 +631,16 @@ export const processUrlTokens = (s: string, config: IAppConfig): string => {
           config.units.distance === 'm'
             ? config.resources.notes.getRadius
             : Math.floor(
-                Convert.nauticalMilesToKm(config.resources.notes.getRadius)
-              );
+              Convert.nauticalMilesToKm(config.resources.notes.getRadius)
+            );
         return dist * 1000;
       } else if (i === 'fetch:radius') {
         const dist =
           config.units.distance === 'm'
             ? config.resources.notes.getRadius
             : Math.floor(
-                Convert.nauticalMilesToKm(config.resources.fetchRadius)
-              );
+              Convert.nauticalMilesToKm(config.resources.fetchRadius)
+            );
         return dist * 1000;
       } else {
         return i;

@@ -529,6 +529,13 @@ export class AppComponent implements OnDestroy {
       console.log(`[AUTONOMOUS CONTROL] STATUS is ${status || 'unknown'} - setting mission status to standby`);
     }
 
+    // Sync speed control from DESIRED_SPEED received from MOOS-IvP (just once when opening)
+    const desiredSpeed = this.app.data.moosIvPServer.desiredSpeed;
+    if (desiredSpeed !== undefined && desiredSpeed > 0) {
+      this.autonomousControl.speed = Math.max(0, Math.min(50, desiredSpeed));
+      console.log('[AUTONOMOUS CONTROL] Synced speed from MOOS-IvP DESIRED_SPEED:', this.autonomousControl.speed);
+    }
+
     // Check if ID_ROUTE is available and select the corresponding route
     const routeId = this.app.data.moosIvPServer.idRoute;
     if (routeId) {
@@ -1882,6 +1889,10 @@ export class AppComponent implements OnDestroy {
         }
         break;
       }
+      case 'DESIRED_SPEED':
+        this.app.data.moosIvPServer.desiredSpeed = parseFloat(value) || 0;
+        console.log('[DESIRED_SPEED] Received from MOOS-IvP:', this.app.data.moosIvPServer.desiredSpeed);
+        break;
       case 'ID_ROUTE':
         this.app.data.moosIvPServer.idRoute = value;
         console.log('[ID_ROUTE] Received route ID from MOOS-IvP:', value);
