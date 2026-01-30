@@ -545,6 +545,25 @@ export class FBMapComponent implements OnInit, OnDestroy {
       case 'measure':
         this.mapInteract.startMeasuring();
         break;
+      case 'define_base':
+        // Store position for Return to Base feature (only one base allowed)
+        this.app.data.map.basePosition = pos;
+        console.log('Base position defined at:', pos);
+
+        // Send BASE_COORDS message to MOOS-IvP
+        if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+          const lat = pos[1].toFixed(6);
+          const lon = pos[0].toFixed(6);
+          const message = `BASE_COORDS=${lat},${lon}`;
+          this.app.data.moosIvPServer.socket.send(message);
+          console.log('Sent to MOOS-IvP:', message);
+        } else {
+          console.log('MOOS-IvP not connected, cannot send BASE_COORDS');
+        }
+
+        // Emit event to show confirmation message
+        this.menuItemSelected.emit('define_base');
+        break;
       default:
         this.menuItemSelected.emit(action);
         break;

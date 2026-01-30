@@ -1894,11 +1894,11 @@ export class AppComponent implements OnDestroy {
       }
       case 'DESIRED_SPEED':
         this.app.data.moosIvPServer.desiredSpeed = parseFloat(value) || 0;
-        console.log('[DESIRED_SPEED] Received from MOOS-IvP:', this.app.data.moosIvPServer.desiredSpeed);
+        //console.log('[DESIRED_SPEED] Received from MOOS-IvP:', this.app.data.moosIvPServer.desiredSpeed);
         break;
       case 'ID_ROUTE':
         this.app.data.moosIvPServer.idRoute = value;
-        console.log('[ID_ROUTE] Received route ID from MOOS-IvP:', value);
+        //console.log('[ID_ROUTE] Received route ID from MOOS-IvP:', value);
         break;
       default:
       // Handle other MOOS variables as needed

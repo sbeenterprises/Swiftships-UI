@@ -231,6 +231,7 @@ export interface FBAppData {
       lonlat: Position;
     };
     stationKeepPosition?: Position;
+    basePosition?: Position;
   };
   vessels: {
     // received vessel data
@@ -299,6 +300,7 @@ export interface FBAppData {
     wptCompleted?: boolean;
     idRoute?: string;
     desiredSpeed?: number;
+    baseCoords?: string;
   };
   connectionState?: {
     signalK: {

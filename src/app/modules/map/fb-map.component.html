@@ -377,6 +377,12 @@
   </ol-overlay>
   }
 
+  <!-- Base Marker (Return to Base position) -->
+  @if(app.data.map.basePosition) {
+  <fb-base-marker [position]="app.data.map.basePosition" [zIndex]="338" [visible]="true">
+  </fb-base-marker>
+  }
+
   <!-- Radar -->
   @if(app.config.selections.radarControl) {
   <fb-radar [position]="dfeat.self.position" [heading]="dfeat.self.orientation" [zIndex]="800" [visible]="true">
@@ -414,6 +420,10 @@
     <button mat-menu-item (contextmenu)="$event.preventDefault()" (click)="onContextMenuAction('station_keep', item)">
       <mat-icon>anchor</mat-icon>
       Station Keep
+    </button>
+    <button mat-menu-item (contextmenu)="$event.preventDefault()" (click)="onContextMenuAction('define_base', item)">
+      <mat-icon>home</mat-icon>
+      Define Base
     </button>
     @if(app.data.navData.position){
     <button mat-menu-item (click)="onContextMenuAction('cleardestination', item)">
