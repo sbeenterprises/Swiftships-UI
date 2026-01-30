@@ -550,6 +550,21 @@ export class AppComponent implements OnDestroy {
         console.warn('[AUTONOMOUS CONTROL] Route ID from MOOS-IvP not found in available routes:', routeId);
       }
     }
+
+    // Restore base position from BASE_COORDS received from MOOS-IvP (just once when opening)
+    const baseCoords = this.app.data.moosIvPServer.baseCoords;
+    if (baseCoords) {
+      console.log('[AUTONOMOUS CONTROL] BASE_COORDS received:', baseCoords);
+      // Parse BASE_COORDS format: "lat,lon"
+      const coords = baseCoords.split(',').map(c => parseFloat(c.trim()));
+      if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+        // Convert from "lat,lon" to Position format [lon, lat]
+        this.app.data.map.basePosition = [coords[1], coords[0]];
+        console.log('[AUTONOMOUS CONTROL] Restored base position from MOOS-IvP:', this.app.data.map.basePosition);
+      } else {
+        console.warn('[AUTONOMOUS CONTROL] Invalid BASE_COORDS format:', baseCoords);
+      }
+    }
   }
 
   // Load available routes for autonomous control
@@ -1900,6 +1915,10 @@ export class AppComponent implements OnDestroy {
         this.app.data.moosIvPServer.idRoute = value;
         //console.log('[ID_ROUTE] Received route ID from MOOS-IvP:', value);
         break;
+      case 'BASE_COORDS':
+        this.app.data.moosIvPServer.baseCoords = value;
+        //console.log('[BASE_COORDS] Received from MOOS-IvP:', value);
+        break;
       default:
       // Handle other MOOS variables as needed
       // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
@@ -1935,6 +1954,10 @@ export class AppComponent implements OnDestroy {
     }
     if (data.DESIRED_SPEED !== undefined) {
       this.app.data.moosIvPServer.desiredSpeed = data.DESIRED_SPEED;
+    }
+    if (data.BASE_COORDS !== undefined) {
+      this.app.data.moosIvPServer.baseCoords = data.BASE_COORDS;
+      console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
     }
 
     // Engine status (all numeric)
