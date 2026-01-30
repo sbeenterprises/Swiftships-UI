@@ -927,9 +927,35 @@ export class AppComponent implements OnDestroy {
   }
 
   protected returnToBase() {
+    // Check if base position is defined
+    if (!this.app.data.map.basePosition) {
+      this.app.showMessage('Please define a base position first by right-clicking on the map', true, 3000);
+      console.log('[RETURN TO BASE] No base position defined');
+      return;
+    }
+
     this.autonomousControl.status = 'returning';
+    this.autonomousControl.currentWaypoint = 0;
+    this.autonomousControl.progress = 0;
+
+    // Format base position as waypoint (lat,lon)
+    const basePos = this.app.data.map.basePosition;
+    const lat = basePos[1]; // Latitude is at index 1
+    const lon = basePos[0]; // Longitude is at index 0
+    const waypointString = `${lat},${lon}`;
+
+    // Send AUTONOMOUS_START message with base position as the only waypoint
+    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
+      const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}#REPEAT=false#ID_ROUTE=return_to_base`;
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log(`[RETURN TO BASE] Sent AUTONOMOUS_START with base waypoint at ${waypointString}`);
+      console.log(`[RETURN TO BASE] Message: ${message}`);
+    } else {
+      console.log('[RETURN TO BASE] MOOS-IvP not connected, cannot send command');
+    }
+
     this.app.showMessage('Returning to Base', false, 3000);
-    console.log('Returning to base');
+    console.log('[RETURN TO BASE] Initiated return to base');
   }
 
   protected abortMission() {
