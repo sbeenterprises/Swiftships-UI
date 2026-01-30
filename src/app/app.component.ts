@@ -614,12 +614,14 @@ export class AppComponent implements OnDestroy {
     }
 
     if (upperStatus === 'PARK') {
-      // Mission is complete - reset to standby
+      // Mission is complete - reset to standby and clear metrics
       if (this.autonomousControl.status !== 'standby') {
         console.log('[STATUS CHANGE] PARK detected - Mission complete, resetting to standby');
         this.autonomousControl.status = 'standby';
         this.autonomousControl.currentWaypoint = 0;
         this.autonomousControl.progress = 0;
+        this.autonomousControl.totalDistance = 0;
+        this.autonomousControl.totalTimeOfArrival = 0;
       }
     } else if (upperStatus === 'DRIVE') {
       // Mission is running
@@ -1165,15 +1167,33 @@ export class AppComponent implements OnDestroy {
   private calculateDynamicTOA(waypoints: [number, number][]) {
     if (!waypoints || waypoints.length === 0) {
       this.autonomousControl.totalTimeOfArrival = 0;
+      this.autonomousControl.progress = 0;
       return;
     }
 
     let totalDistance = 0;
+    let remainingDistance = 0;
 
     // During active mission, use the remaining distance from WPT_STAT if available
     // This already includes distance to current waypoint + all remaining waypoints
     if (this.autonomousControl.status === 'active' && this.autonomousControl.remainingDistance > 0) {
-      totalDistance = this.autonomousControl.remainingDistance;
+      remainingDistance = this.autonomousControl.remainingDistance;
+
+      // Calculate total route distance from first to last waypoint
+      let totalRouteDistance = 0;
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        totalRouteDistance += GeoUtils.distanceTo(waypoints[i], waypoints[i + 1]);
+      }
+
+      totalDistance = remainingDistance;
+
+      // Calculate progress: (distance traveled / total route distance) * 100
+      const distanceTraveled = totalRouteDistance - remainingDistance;
+      this.autonomousControl.progress = totalRouteDistance > 0
+        ? Math.round(Math.max(0, Math.min(100, (distanceTraveled / totalRouteDistance) * 100)))
+        : 0;
+
+      console.log(`[ROUTE CALC] Progress: ${this.autonomousControl.progress}% (traveled: ${distanceTraveled.toFixed(0)}m / total: ${totalRouteDistance.toFixed(0)}m)`);
       console.log(`[ROUTE CALC] Using remaining distance from WPT_STAT: ${totalDistance.toFixed(0)}m`);
     } else {
       // When mission is not active or no WPT_STAT data, calculate from vessel position
@@ -1195,6 +1215,10 @@ export class AppComponent implements OnDestroy {
         );
         totalDistance += distance;
       }
+
+      // Progress is 0 when not active
+      this.autonomousControl.progress = 0;
+
       console.log(`[ROUTE CALC] Calculated total distance from vessel position: ${totalDistance.toFixed(0)}m`);
     }
 
