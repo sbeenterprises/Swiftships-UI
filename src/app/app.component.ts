@@ -142,7 +142,9 @@ export class AppComponent implements OnDestroy {
     estimatedTimeArrival: 0, // ETA from WPT_STAT (seconds)
     repeatRoute: false,    // Whether to repeat the route continuously (false = once, true = 1000 times)
     totalDistance: 0,     // Total route distance (meters)
-    totalTimeOfArrival: 0 // Total time of arrival for entire route (seconds)
+    totalTimeOfArrival: 0, // Total time of arrival for entire route (seconds)
+    ignoreStatusUpdates: false, // Flag to ignore STATUS updates until DRIVE→PARK transition
+    lastStatus: ''        // Track last STATUS to detect transitions
   };
 
   // Station Keep control data
@@ -589,6 +591,45 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  // Handle STATUS changes from MOOS-IvP in real-time
+  private handleStatusChange(status: string) {
+    if (!status) return;
+
+    const upperStatus = status.toUpperCase();
+
+    // Track status transitions
+    const previousStatus = this.autonomousControl.lastStatus;
+    this.autonomousControl.lastStatus = upperStatus;
+
+    // If ignoring status updates, only process DRIVE→PARK transition
+    if (this.autonomousControl.ignoreStatusUpdates) {
+      if (previousStatus === 'DRIVE' && upperStatus === 'PARK') {
+        console.log('[STATUS CHANGE] DRIVE→PARK transition detected - Resuming STATUS monitoring');
+        this.autonomousControl.ignoreStatusUpdates = false;
+        // Process the PARK status normally below
+      } else {
+        // Ignore this status change
+        return;
+      }
+    }
+
+    if (upperStatus === 'PARK') {
+      // Mission is complete - reset to standby
+      if (this.autonomousControl.status !== 'standby') {
+        console.log('[STATUS CHANGE] PARK detected - Mission complete, resetting to standby');
+        this.autonomousControl.status = 'standby';
+        this.autonomousControl.currentWaypoint = 0;
+        this.autonomousControl.progress = 0;
+      }
+    } else if (upperStatus === 'DRIVE') {
+      // Mission is running
+      if (this.autonomousControl.status === 'standby') {
+        console.log('[STATUS CHANGE] DRIVE detected - Mission is running');
+        this.autonomousControl.status = 'active';
+      }
+    }
+  }
+
   // Get route name by ID for display
   public getSelectedRouteName(): string {
     if (!this.autonomousControl.selectedRoute) {
@@ -870,6 +911,11 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
 
+    // Ignore STATUS updates until we see DRIVE→PARK transition (mission complete)
+    this.autonomousControl.ignoreStatusUpdates = true;
+    this.autonomousControl.lastStatus = '';
+    console.log('[START MISSION] Ignoring STATUS updates until DRIVE→PARK transition');
+
     // Get waypoints from selected route
     const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
     if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
@@ -937,6 +983,11 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.status = 'returning';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
+
+    // Ignore STATUS updates until we see DRIVE→PARK transition (mission complete)
+    this.autonomousControl.ignoreStatusUpdates = true;
+    this.autonomousControl.lastStatus = '';
+    console.log('[RETURN TO BASE] Ignoring STATUS updates until DRIVE→PARK transition');
 
     // Format base position as waypoint (lat,lon)
     const basePos = this.app.data.map.basePosition;
@@ -1786,6 +1837,8 @@ export class AppComponent implements OnDestroy {
     switch (variable) {
       case 'IVPHELM_STATE':
         this.app.data.moosIvPServer.ivpHelmState = value;
+        // Update mission status based on IVPHELM_STATE changes
+        this.handleStatusChange(value);
         break;
       case 'IVPHELM_ALLSTOP':
         this.app.data.moosIvPServer.ivpHelmAllstop = value;
@@ -1956,6 +2009,8 @@ export class AppComponent implements OnDestroy {
     // String variables
     if (data.IVPHELM_STATE !== undefined) {
       this.app.data.moosIvPServer.ivpHelmState = data.IVPHELM_STATE;
+      // Update mission status based on IVPHELM_STATE changes
+      this.handleStatusChange(data.IVPHELM_STATE);
     }
     if (data.IVPHELM_ALLSTOP !== undefined) {
       this.app.data.moosIvPServer.ivpHelmAllstop = data.IVPHELM_ALLSTOP;
