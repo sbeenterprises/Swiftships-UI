@@ -9,6 +9,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { PipesModule } from 'src/app/lib/pipes';
 import { PopoverComponent } from './popover.component';
 
@@ -30,6 +31,7 @@ id: string - resource id
     MatButtonModule,
     MatTooltipModule,
     MatIconModule,
+    MatMenuModule,
     PipesModule,
     PopoverComponent
   ],
@@ -204,6 +206,28 @@ id: string - resource id
             STATION KEEP
           </button>
         </div>
+        } @if(ctrl.showAddPointButton) {
+        <div class="popover-action-button">
+          <button
+            mat-button
+            [matMenuTriggerFor]="addPointMenu"
+            matTooltip="Add waypoint to route"
+            matTooltipPosition="after"
+          >
+            <mat-icon>add_location</mat-icon>
+            ADD POINT
+          </button>
+          <mat-menu #addPointMenu="matMenu">
+            <button mat-menu-item (click)="emitAddPointStart()">
+              <mat-icon>arrow_upward</mat-icon>
+              <span>At Beginning</span>
+            </button>
+            <button mat-menu-item (click)="emitAddPointEnd()">
+              <mat-icon>arrow_downward</mat-icon>
+              <span>At End</span>
+            </button>
+          </mat-menu>
+        </div>
         }
       </div>
     </ap-popover>
@@ -229,6 +253,8 @@ export class ResourcePopoverComponent {
   @Output() points: EventEmitter<void> = new EventEmitter();
   @Output() notes: EventEmitter<void> = new EventEmitter();
   @Output() stationKeep: EventEmitter<void> = new EventEmitter();
+  @Output() addPointStart: EventEmitter<void> = new EventEmitter();
+  @Output() addPointEnd: EventEmitter<void> = new EventEmitter();
 
   properties: Array<unknown>; // ** resource properties
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -241,6 +267,7 @@ export class ResourcePopoverComponent {
     showPointsButton: false,
     showNotesButton: false,
     showStationKeepButton: false,
+    showAddPointButton: false,
     canActivate: false,
     isActive: false,
     activeText: 'ACTIVE',
@@ -363,6 +390,7 @@ export class ResourcePopoverComponent {
       this.ctrl.showRelatedButton = false;
       this.ctrl.showDeleteButton = this.ctrl.isActive ? false : true;
       this.ctrl.showStationKeepButton = true;
+      this.ctrl.showAddPointButton = true;
       this.ctrl.isReadOnly = this.resource[1].feature.properties?.readOnly;
     }
 
@@ -460,6 +488,14 @@ export class ResourcePopoverComponent {
 
   emitStationKeep() {
     this.stationKeep.emit();
+  }
+
+  emitAddPointStart() {
+    this.addPointStart.emit();
+  }
+
+  emitAddPointEnd() {
+    this.addPointEnd.emit();
   }
 
   handleClose() {

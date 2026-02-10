@@ -273,7 +273,9 @@
         popoverClosed()
       " (info)="skres.resourceProperties(overlay); popoverClosed()"
       (points)="itemInfo(overlay.id, overlay.type); popoverClosed()"
-      (stationKeep)="setStationKeepForRoute(); popoverClosed()" (closed)="popoverClosed()">
+      (stationKeep)="setStationKeepForRoute(); popoverClosed()"
+      (addPointStart)="addWaypointToRouteStart(overlay.id); popoverClosed()"
+      (addPointEnd)="addWaypointToRouteEnd(overlay.id); popoverClosed()" (closed)="popoverClosed()">
     </resource-popover>
     } @if(overlay.type === 'rset') {
     <resourceset-popover [canClose]="app.config.popoverMulti" [title]="overlay.title" [resource]="overlay.resource"

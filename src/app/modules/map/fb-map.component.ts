@@ -273,6 +273,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
   };
   contextMenuPosition = { x: '0px', y: '0px' };
 
+  // ** pending waypoint for route insertion
+  protected pendingRouteWaypoint: {
+    routeId: string;
+    position: 'start' | 'end';
+  } | null = null;
+
   private obsList = [];
 
   constructor(
@@ -629,6 +635,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
       features: e.features,
       lonlat: e.lonlat
     };
+
+    // Handle pending waypoint placement for route
+    if (this.pendingRouteWaypoint) {
+      this.placeRouteWaypoint(e.lonlat);
+      return;
+    }
+
     if (
       this.mapInteract.isMeasuring() &&
       this.mapInteract.measurement().coords.length !== 0
@@ -1618,6 +1631,99 @@ export class FBMapComponent implements OnInit, OnDestroy {
       });
     }
   }
+
+  // ** Add waypoint to route beginning **
+  protected addWaypointToRouteStart(routeId: string) {
+    const route = this.skres.fromCache('routes', routeId);
+    if (!route || !route[1]) {
+      console.error('[ADD POINT] Route not found:', routeId);
+      this.app.showMessage('Route not found', true, 3000);
+      return;
+    }
+
+    const coords = route[1].feature.geometry.coordinates;
+    if (!coords || coords.length === 0) {
+      console.error('[ADD POINT] Route has no coordinates');
+      this.app.showMessage('Route has no waypoints', true, 3000);
+      return;
+    }
+
+    // Enter placement mode
+    this.pendingRouteWaypoint = {
+      routeId: routeId,
+      position: 'start'
+    };
+
+    console.log('[ADD POINT] Click on map to place waypoint at beginning of route:', routeId);
+    this.app.showMessage('Click on map to place new waypoint', false, 3000);
+  }
+
+  // ** Add waypoint to route end **
+  protected addWaypointToRouteEnd(routeId: string) {
+    const route = this.skres.fromCache('routes', routeId);
+    if (!route || !route[1]) {
+      console.error('[ADD POINT] Route not found:', routeId);
+      this.app.showMessage('Route not found', true, 3000);
+      return;
+    }
+
+    const coords = route[1].feature.geometry.coordinates;
+    if (!coords || coords.length === 0) {
+      console.error('[ADD POINT] Route has no waypoints');
+      this.app.showMessage('Route has no waypoints', true, 3000);
+      return;
+    }
+
+    // Enter placement mode
+    this.pendingRouteWaypoint = {
+      routeId: routeId,
+      position: 'end'
+    };
+
+    console.log('[ADD POINT] Click on map to place waypoint at end of route:', routeId);
+    this.app.showMessage('Click on map to place new waypoint', false, 3000);
+  }
+
+  // ** Place waypoint at clicked location **
+  private placeRouteWaypoint(position: Position) {
+    if (!this.pendingRouteWaypoint) {
+      return;
+    }
+
+    const { routeId, position: insertPosition } = this.pendingRouteWaypoint;
+    const route = this.skres.fromCache('routes', routeId);
+
+    if (!route || !route[1]) {
+      console.error('[ADD POINT] Route not found during placement:', routeId);
+      this.app.showMessage('Route not found', true, 3000);
+      this.pendingRouteWaypoint = null;
+      return;
+    }
+
+    const coords = route[1].feature.geometry.coordinates;
+    let newCoords: Position[];
+
+    if (insertPosition === 'start') {
+      // Insert at the beginning
+      newCoords = [position, ...coords];
+      console.log('[ADD POINT] Placing waypoint at beginning of route:', routeId, position);
+    } else {
+      // Append to the end
+      newCoords = [...coords, position];
+      console.log('[ADD POINT] Placing waypoint at end of route:', routeId, position);
+    }
+
+    this.skres.updateRouteCoords(routeId, newCoords);
+    this.app.showMessage(
+      `Waypoint added to route ${insertPosition === 'start' ? 'start' : 'end'}`,
+      false,
+      2000
+    );
+
+    // Clear placement mode
+    this.pendingRouteWaypoint = null;
+  }
+
 
   // ******** Interactions: DRAW / EDIT / MEASURE ************
 
