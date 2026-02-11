@@ -1714,6 +1714,10 @@ export class FBMapComponent implements OnInit, OnDestroy {
     }
 
     this.skres.updateRouteCoords(routeId, newCoords);
+
+    // Send updated waypoints to MOOS-IvP backend
+    this.sendWaypointsToMOOS(newCoords);
+
     this.app.showMessage(
       `Waypoint added to route ${insertPosition === 'start' ? 'start' : 'end'}`,
       false,
@@ -1722,6 +1726,28 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
     // Clear placement mode
     this.pendingRouteWaypoint = null;
+  }
+
+  // ** Send waypoints to MOOS-IvP as AUTONOMOUS_WAYPOINTS **
+  private sendWaypointsToMOOS(waypoints: Position[]) {
+    if (
+      this.app.data.moosIvPServer &&
+      this.app.data.moosIvPServer.connected &&
+      this.app.data.moosIvPServer.socket
+    ) {
+      // Format: lat1,lon1:lat2,lon2:lat3,lon3...
+      // SignalK stores as [longitude, latitude], send as latitude,longitude
+      const waypointString = waypoints.map(point => {
+        const lat = point[1]; // Latitude
+        const lon = point[0]; // Longitude
+        return `${lat},${lon}`;
+      }).join(':');
+
+      this.app.data.moosIvPServer.socket.send(`AUTONOMOUS_WAYPOINTS=${waypointString}`);
+      console.log('[ADD POINT] Sent updated waypoints to MOOS-IvP:', waypointString);
+    } else {
+      console.warn('[ADD POINT] MOOS-IvP not connected, waypoints not sent to backend');
+    }
   }
 
 
