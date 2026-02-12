@@ -2334,8 +2334,8 @@ export class AppComponent implements OnDestroy {
   private sendWaypointsToMOOS(waypoints: any[]) {
     if (
       this.app.data.moosIvPServer &&
-      this.app.data.moosIvPServer.socket &&
-      this.app.data.moosIvPServer.socket.readyState === WebSocket.OPEN
+      this.app.data.moosIvPServer.connected &&
+      this.app.data.moosIvPServer.socket
     ) {
       // Format waypoints as lat1,lon1:lat2,lon2:lat3,lon3...
       // Note that waypoints in SignalK are stored as [longitude, latitude]
@@ -2348,10 +2348,11 @@ export class AppComponent implements OnDestroy {
       }).join(':');
 
       // Send the formatted waypoint string
-      this.app.data.moosIvPServer.socket.send(`AUTONOMOUS_WAYPOINTS=${waypointString}`);
-      console.log('Sent waypoints to MOOS-IvP:', waypointString);
+      const message = `AUTONOMOUS_WAYPOINTS=${waypointString}`;
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log('[ROUTE SAVE] Sent AUTONOMOUS_WAYPOINTS to MOOS-IvP:', message);
     } else {
-      console.error('Mission Management System connection not available');
+      console.error('[ROUTE SAVE] Mission Management System connection not available');
     }
   }
 
@@ -3533,6 +3534,9 @@ export class AppComponent implements OnDestroy {
                   this.mapInteract.draw.forSave.coords,
                   this.mapInteract.draw.forSave.coordsMetadata
                 );
+                // Send updated waypoints to MOOS-IvP
+                console.log('[ROUTE SAVE] Sending updated waypoints to MOOS-IvP:', this.mapInteract.draw.forSave.coords);
+                this.sendWaypointsToMOOS(this.mapInteract.draw.forSave.coords);
               }
               if (r[0] === 'waypoint') {
                 this.skres.updateWaypointPosition(

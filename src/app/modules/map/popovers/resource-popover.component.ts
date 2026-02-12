@@ -282,7 +282,6 @@ export class ResourcePopoverComponent {
     this.parse();
     this.ctrl.showModifyButton =
       this.type !== 'destination' &&
-        this.type !== 'route' &&
         this.resource[0] !== 'n2k' &&
         this.featureCount > 0
         ? true
@@ -383,7 +382,7 @@ export class ResourcePopoverComponent {
       this.ctrl.activeText = 'ACTIVATE';
       this.ctrl.canActivate = true;
       this.ctrl.showInfoButton = true;
-      this.ctrl.showModifyButton = false;
+      this.ctrl.showModifyButton = true;
       this.ctrl.showPointsButton = true;
       this.ctrl.showNotesButton = true;
       this.ctrl.showAddNoteButton = false;
