@@ -300,6 +300,8 @@ export interface FBAppData {
     wptCompleted?: boolean;
     idRoute?: string;
     desiredSpeed?: number;
+    desiredRudder?: number;
+    desiredThrust?: number;
     baseCoords?: string;
   };
   connectionState?: {

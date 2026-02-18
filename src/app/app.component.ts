@@ -467,6 +467,8 @@ export class AppComponent implements OnDestroy {
         this.display.instrumentPanelOpen = false;
         this.display.autonomousControlPanelOpen = false;
         this.display.stationKeepPanelOpen = false;
+        // Sync sliders from backend values
+        this.syncRemoteControlFromMOOS();
       } else {
         // Closing panel - deactivate remote control
         this.app.config.selections.remoteControl = false;
@@ -481,6 +483,8 @@ export class AppComponent implements OnDestroy {
       this.display.autonomousControlPanelOpen = false;
       this.display.stationKeepPanelOpen = false;
       this.app.saveConfig();
+      // Sync sliders from backend values
+      this.syncRemoteControlFromMOOS();
       this.app.showMessage('Remote Control Activated', false, 3000);
     }
     this.focusMap();
@@ -774,6 +778,30 @@ export class AppComponent implements OnDestroy {
       console.log('MOOS-IvP not connected, cannot send remote control data:', this.remoteControl);
     } else {
       console.log('MOOS-IvP not connected, cannot send remote control data:', this.remoteControl);
+    }
+  }
+
+  /** Sync remote control sliders from backend DESIRED_RUDDER/DESIRED_THRUST values (one-time on panel open) */
+  private syncRemoteControlFromMOOS() {
+    // Sync rudder: MOOS range (-100..100) → UI range (-50..50)
+    const desiredRudder = this.app.data.moosIvPServer?.desiredRudder;
+    if (desiredRudder !== undefined) {
+      this.remoteControl.rudder = Math.max(-50, Math.min(50, desiredRudder / 2));
+      console.log('[Remote Control] Synced rudder from MOOS-IvP:', desiredRudder, '→ UI:', this.remoteControl.rudder);
+    }
+
+    // Sync thrust and gear from DESIRED_THRUST
+    const desiredThrust = this.app.data.moosIvPServer?.desiredThrust;
+    if (desiredThrust !== undefined) {
+      this.remoteControl.thrust = Math.abs(desiredThrust);
+      if (desiredThrust > 0) {
+        this.remoteControl.gear = 'forward';
+      } else if (desiredThrust < 0) {
+        this.remoteControl.gear = 'reverse';
+      } else {
+        this.remoteControl.gear = 'neutral';
+      }
+      console.log('[Remote Control] Synced thrust from MOOS-IvP:', desiredThrust, '→ UI thrust:', this.remoteControl.thrust, ', gear:', this.remoteControl.gear);
     }
   }
 
@@ -2102,6 +2130,12 @@ export class AppComponent implements OnDestroy {
     }
     if (data.DESIRED_SPEED !== undefined) {
       this.app.data.moosIvPServer.desiredSpeed = data.DESIRED_SPEED;
+    }
+    if (data.DESIRED_RUDDER !== undefined) {
+      this.app.data.moosIvPServer.desiredRudder = data.DESIRED_RUDDER;
+    }
+    if (data.DESIRED_THRUST !== undefined) {
+      this.app.data.moosIvPServer.desiredThrust = data.DESIRED_THRUST;
     }
     if (data.BASE_COORDS !== undefined) {
       this.app.data.moosIvPServer.baseCoords = data.BASE_COORDS;
