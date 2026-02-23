@@ -1403,14 +1403,15 @@ export class SKResourceService {
     if (!region) {
       return;
     }
-    this.dialog
+    const dialogRef = this.dialog
       .open(RegionDialog, {
         disableClose: true,
         data: {
           region: region
         }
-      })
-      .afterClosed()
+      });
+
+    dialogRef.afterClosed()
       .subscribe(async (r: { save: boolean; region: SKRegion }) => {
         if (r.save) {
           this.postToServer('regions', r.region).catch((err) =>
@@ -1418,6 +1419,8 @@ export class SKResourceService {
           );
         }
       });
+
+    return dialogRef.afterClosed();
   }
 
   /**

@@ -2139,7 +2139,7 @@ export class AppComponent implements OnDestroy {
     }
     if (data.BASE_COORDS !== undefined) {
       this.app.data.moosIvPServer.baseCoords = data.BASE_COORDS;
-      console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
+      //console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
     }
 
     // Engine status (all numeric)
@@ -2387,6 +2387,30 @@ export class AppComponent implements OnDestroy {
       console.log('[ROUTE SAVE] Sent AUTONOMOUS_WAYPOINTS to MOOS-IvP:', message);
     } else {
       console.error('[ROUTE SAVE] Mission Management System connection not available');
+    }
+  }
+
+  /** send region polygon points to MOOS-IvP server */
+  private sendRegionToMOOS(coordinates: any[]) {
+    if (
+      this.app.data.moosIvPServer &&
+      this.app.data.moosIvPServer.connected &&
+      this.app.data.moosIvPServer.socket
+    ) {
+      // Region coordinates: outer ring is coordinates[0]
+      // SignalK stores as [longitude, latitude], send as lat,lon
+      const ring = coordinates[0];
+      const ptsString = ring.map(point => {
+        const lat = point[1];
+        const lon = point[0];
+        return `${lat},${lon}`;
+      }).join(':');
+
+      const message = `REGION_UPDATES=core_poly=pts={${ptsString}}`;
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log('[REGION] Sent REGION_UPDATES to MOOS-IvP:', message);
+    } else {
+      console.warn('[REGION] MOOS-IvP not connected, region not sent to backend');
     }
   }
 
@@ -3526,7 +3550,14 @@ export class AppComponent implements OnDestroy {
         region.feature.geometry.coordinates = [
           GeoUtils.normaliseCoords(e.coordinates as Polygon)
         ];
-        this.skres.newRegion(region);
+        const regionObs = this.skres.newRegion(region);
+        if (regionObs) {
+          regionObs.subscribe((r: { save: boolean; region: any }) => {
+            if (r.save) {
+              this.sendRegionToMOOS(r.region.feature.geometry.coordinates);
+            }
+          });
+        }
         break;
     }
   }
@@ -3596,6 +3627,8 @@ export class AppComponent implements OnDestroy {
                   r[1],
                   this.mapInteract.draw.forSave.coords
                 );
+                // Send updated region to MOOS-IvP
+                this.sendRegionToMOOS(this.mapInteract.draw.forSave.coords);
               }
             } else {
               // do not save
