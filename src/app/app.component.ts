@@ -3082,6 +3082,33 @@ export class AppComponent implements OnDestroy {
     this.course.activateRoute(id);
   }
 
+  // ** handle region activation from map **
+  public onRegionActivated(event: { id: string, coordinates: any[] }) {
+    console.log('[REGION] Region activated:', event.id);
+    if (this.app.data.moosIvPServer?.connected && this.app.data.moosIvPServer?.socket) {
+      // Build REGION_UPDATES string from coordinates
+      const ring = event.coordinates[0];
+      const ptsString = ring.map(point => {
+        const lat = point[1];
+        const lon = point[0];
+        return `${lat},${lon}`;
+      }).join(':');
+
+      const message = `REGION=true#REGION_UPDATES=core_poly=pts={${ptsString}}`;
+      this.app.data.moosIvPServer.socket.send(message);
+      console.log('[REGION] Sent to MOOS-IvP:', message);
+    }
+  }
+
+  // ** handle region deactivation from map **
+  public onRegionDeactivated() {
+    console.log('[REGION] Region deactivated');
+    if (this.app.data.moosIvPServer?.connected && this.app.data.moosIvPServer?.socket) {
+      this.app.data.moosIvPServer.socket.send('REGION=false');
+      console.log('[REGION] Sent REGION=false to MOOS-IvP');
+    }
+  }
+
   // ** Increment / decrement next active route point **
   public routeNextPoint(pointIndex: number) {
     this.course.coursePointIndex(pointIndex);

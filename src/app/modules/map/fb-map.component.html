@@ -231,7 +231,8 @@
 
   <!-- Regions -->
   <fb-regions [regions]="skres.regions()" [regionStyles]="featureStyles.region" [darkMode]="app.uiConfig().invertColor"
-    [labelMinZoom]="this.app.config.selections.labelsMinZoom" [mapZoom]="fbMap.zoomLevel" [zIndex]="400">
+    [activeRegion]="activeRegionId" [labelMinZoom]="this.app.config.selections.labelsMinZoom"
+    [mapZoom]="fbMap.zoomLevel" [zIndex]="400">
   </fb-regions>
 
   <!-- Notes -->
@@ -258,6 +259,7 @@
     'region') {
     <resource-popover [canClose]="app.config.popoverMulti" [title]="overlay.title" [type]="overlay.type"
       [resource]="overlay.resource" [active]="
+        overlay.type === 'region' ? activeRegionId :
         app.data.activeWaypoint ? app.data.activeWaypoint : app.data.activeRoute
       " [featureCount]="overlay.featureCount" [units]="this.app.config.units.distance"
       (modify)="modifyFeature(); popoverClosed()" (delete)="deleteFeature(overlay.id, overlay.type); popoverClosed()"
@@ -275,7 +277,9 @@
       (points)="itemInfo(overlay.id, overlay.type); popoverClosed()"
       (stationKeep)="setStationKeepForRoute(); popoverClosed()"
       (addPointStart)="addWaypointToRouteStart(overlay.id); popoverClosed()"
-      (addPointEnd)="addWaypointToRouteEnd(overlay.id); popoverClosed()" (closed)="popoverClosed()">
+      (addPointEnd)="addWaypointToRouteEnd(overlay.id); popoverClosed()"
+      (regionActivated)="activateRegion(); popoverClosed()" (regionDeactivated)="deactivateRegion(); popoverClosed()"
+      (closed)="popoverClosed()">
     </resource-popover>
     } @if(overlay.type === 'rset') {
     <resourceset-popover [canClose]="app.config.popoverMulti" [title]="overlay.title" [resource]="overlay.resource"

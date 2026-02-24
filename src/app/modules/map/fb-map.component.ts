@@ -162,10 +162,14 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Output() drawEnded: EventEmitter<DrawFeatureInfo> = new EventEmitter();
   @Output() activate: EventEmitter<string> = new EventEmitter();
   @Output() deactivate: EventEmitter<string> = new EventEmitter();
+  @Output() regionActivated: EventEmitter<{ id: string, coordinates: any[] }> = new EventEmitter();
+  @Output() regionDeactivated: EventEmitter<void> = new EventEmitter();
   @Output() info: EventEmitter<IResource> = new EventEmitter();
   @Output() exitMovingMap: EventEmitter<boolean> = new EventEmitter();
   @Output() focusVessel: EventEmitter<string> = new EventEmitter();
   @Output() menuItemSelected: EventEmitter<string> = new EventEmitter();
+
+  protected activeRegionId: string = null;
 
   @ViewChild(MatMenuTrigger, { static: true }) contextMenu: MatMenuTrigger;
 
@@ -1605,6 +1609,26 @@ export class FBMapComponent implements OnInit, OnDestroy {
   // ** deactivate route / waypoint
   protected clearActiveFeature() {
     this.deactivate.emit(this.overlay.id);
+  }
+
+  // ** activate region
+  protected activateRegion() {
+    if (this.overlay.type === 'region' && this.overlay.id) {
+      this.activeRegionId = this.overlay.id;
+      const region = this.skres.fromCache('regions', this.overlay.id);
+      if (region && region[1]) {
+        this.regionActivated.emit({
+          id: this.overlay.id,
+          coordinates: region[1].feature.geometry.coordinates
+        });
+      }
+    }
+  }
+
+  // ** deactivate region
+  protected deactivateRegion() {
+    this.activeRegionId = null;
+    this.regionDeactivated.emit();
   }
 
   // ** emit info event **

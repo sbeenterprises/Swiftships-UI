@@ -22,6 +22,7 @@ import { FBRegions } from 'src/app/types';
 export class FreeboardRegionLayerComponent extends FBFeatureLayerComponent {
   @Input() regions: FBRegions = [];
   @Input() regionStyles: { [key: string]: Style };
+  @Input() activeRegion: string = null;
 
   constructor(
     protected mapComponent: MapComponent,
@@ -38,9 +39,9 @@ export class FreeboardRegionLayerComponent extends FBFeatureLayerComponent {
 
   ngOnChanges(changes: SimpleChanges) {
     super.ngOnChanges(changes);
-    if (this.source && 'regions' in changes) {
+    if (this.source && ('regions' in changes || 'activeRegion' in changes)) {
       this.source.clear();
-      this.parseRegions(changes['regions'].currentValue);
+      this.parseRegions(this.regions);
     }
   }
 
@@ -68,7 +69,13 @@ export class FreeboardRegionLayerComponent extends FBFeatureLayerComponent {
   }
 
   // build region feature style
-  buildStyle(id: string, reg: any): Style {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  buildStyle(id: string, reg: any): Style | Style[] {
+    // Check if this region is the active one
+    if (this.activeRegion && this.activeRegion === id) {
+      return this.buildGlowingStyle(reg.name);
+    }
+
     // default style
     let theStyle = this.setTextLabel(
       new Style({
@@ -104,6 +111,48 @@ export class FreeboardRegionLayerComponent extends FBFeatureLayerComponent {
     }
 
     return theStyle;
+  }
+
+  // Build glowing style for the active region (stacked styles for glow effect)
+  private buildGlowingStyle(name: string): Style[] {
+    // Outer glow stroke (wide, semi-transparent)
+    const outerGlow = new Style({
+      stroke: new Stroke({
+        color: 'rgba(0, 255, 255, 0.3)',
+        width: 12
+      }),
+      fill: new Fill({
+        color: 'rgba(0, 255, 255, 0.08)'
+      })
+    });
+
+    // Middle glow stroke
+    const middleGlow = new Style({
+      stroke: new Stroke({
+        color: 'rgba(0, 255, 255, 0.5)',
+        width: 6
+      })
+    });
+
+    // Inner bright stroke + label
+    const innerStroke = this.setTextLabel(
+      new Style({
+        stroke: new Stroke({
+          color: 'rgba(0, 255, 255, 1)',
+          width: 2
+        }),
+        fill: new Fill({
+          color: 'rgba(0, 255, 255, 0.12)'
+        }),
+        text: new Text({
+          text: '',
+          offsetY: 0
+        })
+      }),
+      name
+    );
+
+    return [outerGlow, middleGlow, innerStroke];
   }
 
   // mapify and transform MultiLineString coordinates

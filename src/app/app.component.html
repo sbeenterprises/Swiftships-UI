@@ -460,10 +460,8 @@
                       {{ remoteControl.canSend ? 'Enabled' : 'Disabled' }}
                     </span>
                   </div>
-                  <button mat-raised-button 
-                    (click)="toggleCanSendRemote()" 
-                    [color]="remoteControl.canSend ? 'warn' : 'primary'"
-                    class="control-btn can-toggle-btn">
+                  <button mat-raised-button (click)="toggleCanSendRemote()"
+                    [color]="remoteControl.canSend ? 'warn' : 'primary'" class="control-btn can-toggle-btn">
                     <mat-icon>{{ remoteControl.canSend ? 'stop' : 'play_arrow' }}</mat-icon>
                     {{ remoteControl.canSend ? 'Disable CAN' : 'Enable CAN' }}
                   </button>
@@ -765,10 +763,8 @@
                       {{ autonomousControl.canSend ? 'Enabled' : 'Disabled' }}
                     </span>
                   </div>
-                  <button mat-raised-button 
-                    (click)="toggleCanSendAutonomous()" 
-                    [color]="autonomousControl.canSend ? 'warn' : 'primary'"
-                    class="control-btn can-toggle-btn">
+                  <button mat-raised-button (click)="toggleCanSendAutonomous()"
+                    [color]="autonomousControl.canSend ? 'warn' : 'primary'" class="control-btn can-toggle-btn">
                     <mat-icon>{{ autonomousControl.canSend ? 'stop' : 'play_arrow' }}</mat-icon>
                     {{ autonomousControl.canSend ? 'Disable CAN' : 'Enable CAN' }}
                   </button>
@@ -1128,6 +1124,7 @@
               [stationKeepOuterRadius]="stationKeep.outerRadius" [waypointStationKeep]="activeWaypointStationKeep"
               [measureMode]="mapInteract.isMeasuring()" [drawMode]="mapInteract.isDrawing()"
               (drawEnded)="handleDrawEnded($event)" (activate)="activateRoute($event)" (deactivate)="clearDestination()"
+              (regionActivated)="onRegionActivated($event)" (regionDeactivated)="onRegionDeactivated()"
               (exitMovingMap)="toggleMoveMap($event)" (focusVessel)="switchActiveVessel($event)"
               (info)="featureProperties($event)" (menuItemSelected)="handleContextMenuSelection($event)">
             </fb-map>

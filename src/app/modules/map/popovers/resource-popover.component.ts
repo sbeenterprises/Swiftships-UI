@@ -118,6 +118,30 @@ id: string - resource id
             DELETE
           </button>
         </div>
+        } @if(ctrl.showRegionActivateButton && !ctrl.isRegionActive) {
+        <div class="popover-action-button">
+          <button
+            mat-button
+            (click)="emitRegionActivate()"
+            matTooltip="Activate this Region"
+            matTooltipPosition="after"
+          >
+            <mat-icon>gps_fixed</mat-icon>
+            ACTIVATE
+          </button>
+        </div>
+        } @else if (ctrl.showRegionActivateButton && ctrl.isRegionActive) {
+        <div class="popover-action-button">
+          <button
+            mat-button
+            (click)="emitRegionDeactivate()"
+            matTooltip="Deactivate this Region"
+            matTooltipPosition="after"
+          >
+            <mat-icon>gps_off</mat-icon>
+            DEACTIVATE
+          </button>
+        </div>
         } @if(ctrl.canActivate && !ctrl.isActive) {
         <div class="popover-action-button">
           <button
@@ -247,6 +271,8 @@ export class ResourcePopoverComponent {
   @Output() addNote: EventEmitter<void> = new EventEmitter();
   @Output() activated: EventEmitter<void> = new EventEmitter();
   @Output() deactivated: EventEmitter<void> = new EventEmitter();
+  @Output() regionActivated: EventEmitter<void> = new EventEmitter();
+  @Output() regionDeactivated: EventEmitter<void> = new EventEmitter();
   @Output() related: EventEmitter<string> = new EventEmitter();
   @Output() info: EventEmitter<string> = new EventEmitter();
   @Output() closed: EventEmitter<void> = new EventEmitter();
@@ -271,7 +297,9 @@ export class ResourcePopoverComponent {
     canActivate: false,
     isActive: false,
     activeText: 'ACTIVE',
-    isReadOnly: false
+    isReadOnly: false,
+    showRegionActivateButton: false,
+    isRegionActive: false
   };
 
   protected icon: AppIconDef;
@@ -442,6 +470,8 @@ export class ResourcePopoverComponent {
     this.ctrl.showPointsButton = false;
     this.ctrl.showRelatedButton = false;
     this.ctrl.isReadOnly = this.resource[1].feature.properties?.readOnly;
+    this.ctrl.showRegionActivateButton = true;
+    this.ctrl.isRegionActive = this.active === this.resource[0];
     this.properties = [];
     this.icon = getResourceIcon('regions', this.resource[1]);
     this.title = this.resource[1].name ?? '';
@@ -495,6 +525,14 @@ export class ResourcePopoverComponent {
 
   emitAddPointEnd() {
     this.addPointEnd.emit();
+  }
+
+  emitRegionActivate() {
+    this.regionActivated.emit();
+  }
+
+  emitRegionDeactivate() {
+    this.regionDeactivated.emit();
   }
 
   handleClose() {
