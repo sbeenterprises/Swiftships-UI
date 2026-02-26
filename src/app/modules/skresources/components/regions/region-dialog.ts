@@ -15,7 +15,7 @@ import {
 import { SKRegion } from '../../resource-classes';
 
 /********* RegionDialog **********
-	data: {
+  data: {
     region: SKRegion
   }
 ***********************************/
@@ -56,6 +56,11 @@ import { SKRegion } from '../../resource-classes';
                 @if(inpname.invalid && (inpname.dirty || inpname.touched)) {
                 <mat-error> Please enter a name.</mat-error>
                 }
+                @if(isDuplicate) {
+                <div style="color: #f44336; font-size: 12px; margin-top: 4px;">
+                  ⚠ This name already exists.
+                </div>
+                }
               </mat-form-field>
             </div>
             <div>
@@ -79,7 +84,7 @@ import { SKRegion } from '../../resource-classes';
           @if(!readOnly) {
           <button
             mat-raised-button
-            [disabled]="inpname.invalid || readOnly"
+            [disabled]="inpname.invalid || readOnly || isDuplicate"
             (click)="handleClose(true)"
           >
             SAVE
@@ -102,20 +107,28 @@ export class RegionDialog implements OnInit {
   protected name: string;
   protected description: string;
   protected readOnly = false;
+  private existingNames: string[] = [];
 
   constructor(
     private dialogRef: MatDialogRef<RegionDialog>,
     @Inject(MAT_DIALOG_DATA)
     protected data: {
       region: SKRegion;
+      existingNames?: string[];
     }
-  ) {}
+  ) { }
 
   ngOnInit() {
     this.name = this.data.region.name ?? '';
     this.description = this.data.region.description ?? '';
     this.readOnly =
       (this.data.region.feature as any)?.properties?.readOnly ?? false;
+    this.existingNames = (this.data.existingNames ?? []).map(n => n.toLowerCase());
+  }
+
+  get isDuplicate(): boolean {
+    return this.name?.trim().length > 0 &&
+      this.existingNames.includes(this.name.trim().toLowerCase());
   }
 
   handleClose(save: boolean) {

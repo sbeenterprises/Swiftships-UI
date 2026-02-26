@@ -1403,11 +1403,13 @@ export class SKResourceService {
     if (!region) {
       return;
     }
+    const existingNames = this.regions().map(r => r[1].name).filter(n => !!n);
     const dialogRef = this.dialog
       .open(RegionDialog, {
         disableClose: true,
         data: {
-          region: region
+          region: region,
+          existingNames: existingNames
         }
       });
 
@@ -1441,11 +1443,16 @@ export class SKResourceService {
       this.app.parseHttpErrorResponse(err as HttpErrorResponse);
       return;
     }
+    const existingNames = this.regions()
+      .filter(r => r[0] !== id)
+      .map(r => r[1].name)
+      .filter(n => !!n);
     this.dialog
       .open(RegionDialog, {
         disableClose: true,
         data: {
-          region: region
+          region: region,
+          existingNames: existingNames
         }
       })
       .afterClosed()
