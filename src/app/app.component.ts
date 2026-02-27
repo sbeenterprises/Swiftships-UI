@@ -264,8 +264,8 @@ export class AppComponent implements OnDestroy {
     effect(() => {
       const routes = this.skres.routes();
       if (this.display.autonomousControlPanelOpen && routes) {
-        // Routes have changed, reload all routes from server
-        this.loadAvailableRoutes();
+        // Routes have changed, reload list from server (without sync to avoid loops)
+        this.refreshAvailableRoutes();
       }
     });
   }
@@ -591,6 +591,18 @@ export class AppComponent implements OnDestroy {
       console.error('Failed to load routes:', error);
       this.availableRoutes = [];
       this.app.showMessage('Failed to load routes', true, 3000);
+    }
+  }
+
+  // Refresh available routes list without sync side effects (used by the effect watcher)
+  private async refreshAvailableRoutes() {
+    try {
+      const routes = await this.skres.listFromServer<[string, any, boolean]>('routes');
+      this.availableRoutes = routes.filter((route: [string, any, boolean]) =>
+        route[1] && route[1].feature && route[1].feature.geometry
+      );
+    } catch (error) {
+      console.error('Failed to refresh routes:', error);
     }
   }
 

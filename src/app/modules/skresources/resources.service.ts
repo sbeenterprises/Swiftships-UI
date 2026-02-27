@@ -959,6 +959,7 @@ export class SKResourceService {
           try {
             const rte = await this.postToServer('routes', r.route);
             this.selectionAdd('routes', rte.id);
+            this.refreshRoutes();
           } catch (err) {
             this.app.parseHttpErrorResponse(err);
           }
