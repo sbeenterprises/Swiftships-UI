@@ -264,11 +264,8 @@ export class AppComponent implements OnDestroy {
     effect(() => {
       const routes = this.skres.routes();
       if (this.display.autonomousControlPanelOpen && routes) {
-        // Routes have changed, update the availableRoutes list
-        this.availableRoutes = routes.filter((route) =>
-          route[1] && route[1].feature && route[1].feature.geometry
-        ) as [string, any, boolean][];
-        console.log('Routes updated in autonomous control:', this.availableRoutes.length);
+        // Routes have changed, reload all routes from server
+        this.loadAvailableRoutes();
       }
     });
   }
