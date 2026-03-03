@@ -128,7 +128,8 @@ export class AppComponent implements OnDestroy {
     rudder: 0,    // -50 to 50
     thrust: 0,    // -100 to 100%
     gear: 'neutral',  // forward, neutral, reverse
-    canSend: false   // CAN messages enabled/disabled
+    canSend: false,   // CAN messages enabled/disabled
+    ignoreCanSendUpdates: false  // Temporarily ignore incoming CAN_SEND to avoid race conditions
   };
 
   // Autonomous control data
@@ -146,7 +147,8 @@ export class AppComponent implements OnDestroy {
     totalTimeOfArrival: 0, // Total time of arrival for entire route (seconds)
     ignoreStatusUpdates: false, // Flag to ignore STATUS updates until DRIVE→PARK transition
     lastStatus: '',        // Track last STATUS to detect transitions
-    canSend: false        // CAN messages enabled/disabled
+    canSend: false,        // CAN messages enabled/disabled
+    ignoreCanSendUpdates: false  // Temporarily ignore incoming CAN_SEND to avoid race conditions
   };
 
   // Station Keep control data
@@ -570,6 +572,13 @@ export class AppComponent implements OnDestroy {
         console.warn('[AUTONOMOUS CONTROL] Invalid BASE_COORDS format:', baseCoords);
       }
     }
+
+    // Sync CAN_SEND state from MOOS-IvP (just once when opening)
+    const canSend = this.app.data.moosIvPServer.canSend;
+    if (canSend !== undefined) {
+      this.autonomousControl.canSend = canSend;
+      console.log('[AUTONOMOUS CONTROL] Synced CAN_SEND from MOOS-IvP:', canSend);
+    }
   }
 
   // Load available routes for autonomous control
@@ -948,6 +957,14 @@ export class AppComponent implements OnDestroy {
     this.remoteControl.canSend = !this.remoteControl.canSend;
     const canValue = this.remoteControl.canSend ? 'true' : 'false';
 
+    // Ignore incoming CAN_SEND updates for 3 seconds to avoid race conditions
+    this.remoteControl.ignoreCanSendUpdates = true;
+    this.autonomousControl.ignoreCanSendUpdates = true;
+    setTimeout(() => {
+      this.remoteControl.ignoreCanSendUpdates = false;
+      this.autonomousControl.ignoreCanSendUpdates = false;
+    }, 3000);
+
     // Send CAN_SEND to MOOS-IvP
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       this.app.data.moosIvPServer.socket.send(`CAN_SEND=${canValue}`);
@@ -963,6 +980,14 @@ export class AppComponent implements OnDestroy {
   protected toggleCanSendAutonomous() {
     this.autonomousControl.canSend = !this.autonomousControl.canSend;
     const canValue = this.autonomousControl.canSend ? 'true' : 'false';
+
+    // Ignore incoming CAN_SEND updates for 3 seconds to avoid race conditions
+    this.remoteControl.ignoreCanSendUpdates = true;
+    this.autonomousControl.ignoreCanSendUpdates = true;
+    setTimeout(() => {
+      this.remoteControl.ignoreCanSendUpdates = false;
+      this.autonomousControl.ignoreCanSendUpdates = false;
+    }, 3000);
 
     // Send CAN_SEND to MOOS-IvP
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
@@ -2096,10 +2121,15 @@ export class AppComponent implements OnDestroy {
         //console.log('[BASE_COORDS] Received from MOOS-IvP:', value);
         break;
       case 'CAN_SEND':
-        // Update CAN send status for both control panels
+        // Store on moosIvPServer and update UI controls (unless recently toggled by user)
         const canEnabled = value === 'true' || value === '1';
-        this.remoteControl.canSend = canEnabled;
-        this.autonomousControl.canSend = canEnabled;
+        this.app.data.moosIvPServer.canSend = canEnabled;
+        if (!this.remoteControl.ignoreCanSendUpdates) {
+          this.remoteControl.canSend = canEnabled;
+        }
+        if (!this.autonomousControl.ignoreCanSendUpdates) {
+          this.autonomousControl.canSend = canEnabled;
+        }
         console.log('[CAN_SEND] Received from MOOS-IvP:', value, '- Enabled:', canEnabled);
         break;
       default:
@@ -2149,6 +2179,17 @@ export class AppComponent implements OnDestroy {
     if (data.BASE_COORDS !== undefined) {
       this.app.data.moosIvPServer.baseCoords = data.BASE_COORDS;
       //console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
+    }
+    if (data.CAN_SEND !== undefined) {
+      console.log('[CAN_SEND JSON] Raw value:', data.CAN_SEND, '- Type:', typeof data.CAN_SEND);
+      const canSendEnabled = data.CAN_SEND === 'true' || data.CAN_SEND === '1' || data.CAN_SEND === true;
+      this.app.data.moosIvPServer.canSend = canSendEnabled;
+      if (!this.remoteControl.ignoreCanSendUpdates) {
+        this.remoteControl.canSend = canSendEnabled;
+      }
+      if (!this.autonomousControl.ignoreCanSendUpdates) {
+        this.autonomousControl.canSend = canSendEnabled;
+      }
     }
 
     // Engine status (all numeric)

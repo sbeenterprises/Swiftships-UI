@@ -303,6 +303,7 @@ export interface FBAppData {
     desiredRudder?: number;
     desiredThrust?: number;
     baseCoords?: string;
+    canSend?: boolean;
   };
   connectionState?: {
     signalK: {
