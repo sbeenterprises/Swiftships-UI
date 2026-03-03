@@ -169,7 +169,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Output() focusVessel: EventEmitter<string> = new EventEmitter();
   @Output() menuItemSelected: EventEmitter<string> = new EventEmitter();
 
-  protected activeRegionId: string = null;
+  public activeRegionId: string = null;
 
   @ViewChild(MatMenuTrigger, { static: true }) contextMenu: MatMenuTrigger;
 

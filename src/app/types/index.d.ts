@@ -304,6 +304,7 @@ export interface FBAppData {
     desiredThrust?: number;
     baseCoords?: string;
     canSend?: boolean;
+    regionActive?: boolean;
   };
   connectionState?: {
     signalK: {

@@ -1117,13 +1117,14 @@
           <div style="display: relative; width: 100%; height: 100%" (dragover)="mapDragOver($event)"
             (drop)="mapDrop($event)">
             <!-- MAP -->
-            <fb-map [setFocus]="mapSetFocus()" [mapCenter]="display.map.center" [mapZoom]="app.config.map.zoomLevel"
-              [northUp]="app.uiConfig().mapNorthUp" [movingMap]="app.uiConfig().mapMove" [vesselTrail]="app.data.trail"
-              [activeRoute]="app.data.activeRoute" [dblClickZoom]="app.config.mapDoubleClick"
-              [hideStationKeepCircles]="hideStationKeepCircles" [stationKeepInnerRadius]="stationKeep.innerRadius"
-              [stationKeepOuterRadius]="stationKeep.outerRadius" [waypointStationKeep]="activeWaypointStationKeep"
-              [measureMode]="mapInteract.isMeasuring()" [drawMode]="mapInteract.isDrawing()"
-              (drawEnded)="handleDrawEnded($event)" (activate)="activateRoute($event)" (deactivate)="clearDestination()"
+            <fb-map #fbMapRef [setFocus]="mapSetFocus()" [mapCenter]="display.map.center"
+              [mapZoom]="app.config.map.zoomLevel" [northUp]="app.uiConfig().mapNorthUp"
+              [movingMap]="app.uiConfig().mapMove" [vesselTrail]="app.data.trail" [activeRoute]="app.data.activeRoute"
+              [dblClickZoom]="app.config.mapDoubleClick" [hideStationKeepCircles]="hideStationKeepCircles"
+              [stationKeepInnerRadius]="stationKeep.innerRadius" [stationKeepOuterRadius]="stationKeep.outerRadius"
+              [waypointStationKeep]="activeWaypointStationKeep" [measureMode]="mapInteract.isMeasuring()"
+              [drawMode]="mapInteract.isDrawing()" (drawEnded)="handleDrawEnded($event)"
+              (activate)="activateRoute($event)" (deactivate)="clearDestination()"
               (regionActivated)="onRegionActivated($event)" (regionDeactivated)="onRegionDeactivated()"
               (exitMovingMap)="toggleMoveMap($event)" (focusVessel)="switchActiveVessel($event)"
               (info)="featureProperties($event)" (menuItemSelected)="handleContextMenuSelection($event)">

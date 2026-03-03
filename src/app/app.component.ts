@@ -91,6 +91,7 @@ interface DrawEndEvent {
 })
 export class AppComponent implements OnDestroy {
   @ViewChild('sideright', { static: false }) sideright;
+  @ViewChild('fbMapRef', { static: false }) fbMapRef;
 
   public display = {
     fullscreen: { active: false, enabled: document.fullscreenEnabled },
@@ -1881,6 +1882,8 @@ export class AppComponent implements OnDestroy {
           this.app.data.connectionState.moosIvP.connected = true;
           this.app.data.connectionState.moosIvP.connecting = false;
           this.app.showMessage('Mission Management System connection established', false, 3000);
+          // Sync region state after a delay to ensure regions are loaded from Signal K
+          setTimeout(() => this.syncRegionFromMOOS(), 5000);
           break;
 
         case 'connecting':
@@ -2132,6 +2135,11 @@ export class AppComponent implements OnDestroy {
         }
         console.log('[CAN_SEND] Received from MOOS-IvP:', value, '- Enabled:', canEnabled);
         break;
+      case 'REGION':
+        const regionEnabled = value === 'true' || value === '1';
+        this.app.data.moosIvPServer.regionActive = regionEnabled;
+        console.log('[REGION] Received from MOOS-IvP:', value, '- Active:', regionEnabled);
+        break;
       default:
       // Handle other MOOS variables as needed
       // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
@@ -2190,6 +2198,10 @@ export class AppComponent implements OnDestroy {
       if (!this.autonomousControl.ignoreCanSendUpdates) {
         this.autonomousControl.canSend = canSendEnabled;
       }
+    }
+    if (data.REGION !== undefined) {
+      const regionEnabled = data.REGION === 'true' || data.REGION === '1' || data.REGION === true;
+      this.app.data.moosIvPServer.regionActive = regionEnabled;
     }
 
     // Engine status (all numeric)
@@ -3156,6 +3168,45 @@ export class AppComponent implements OnDestroy {
     if (this.app.data.moosIvPServer?.connected && this.app.data.moosIvPServer?.socket) {
       this.app.data.moosIvPServer.socket.send('REGION=false');
       console.log('[REGION] Sent REGION=false to MOOS-IvP');
+    }
+  }
+
+  // ** Sync region activation state from MOOS-IvP (on page refresh) **
+  private syncRegionFromMOOS() {
+    if (!this.app.data.moosIvPServer?.regionActive) {
+      console.log('[REGION SYNC] REGION is false on backend, no re-activation needed');
+      return;
+    }
+
+    console.log('[REGION SYNC] REGION is true on backend, attempting re-activation...');
+
+    // Get the first available region from the cache
+    const regions = this.skres.regions();
+    if (!regions || regions.length === 0) {
+      console.warn('[REGION SYNC] No regions available to activate');
+      return;
+    }
+
+    // Activate the first region
+    const firstRegion = regions[0];
+    const regionId = firstRegion[0];
+    const regionData = firstRegion[1];
+
+    if (regionData?.feature?.geometry?.coordinates) {
+      // Set activeRegionId on the map component for visual highlighting
+      if (this.fbMapRef) {
+        this.fbMapRef.activeRegionId = regionId;
+        console.log('[REGION SYNC] Set activeRegionId on map:', regionId);
+      }
+
+      // Call the same handler as clicking Activate to send data to MOOS-IvP
+      this.onRegionActivated({
+        id: regionId,
+        coordinates: regionData.feature.geometry.coordinates
+      });
+      console.log('[REGION SYNC] Re-activated region:', regionId, regionData.name);
+    } else {
+      console.warn('[REGION SYNC] First region has no valid geometry:', regionId);
     }
   }
 
