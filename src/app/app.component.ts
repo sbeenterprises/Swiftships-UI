@@ -3282,6 +3282,54 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  // ** delete station keep configuration from route metadata **
+  private async deleteStationKeepFromRoute(
+    routeId: string,
+    pointIndex: number
+  ) {
+    try {
+      // Fetch the current route
+      const route = await this.skres.fromServer('routes', routeId);
+      if (!route) {
+        return;
+      }
+
+      const routeData = route as any;
+      const coordsMeta = routeData.feature.properties?.coordinatesMeta;
+
+      if (!coordsMeta || !coordsMeta[pointIndex] || !coordsMeta[pointIndex].stationKeep) {
+        this.app.showMessage('No Station Keep configuration found at this point', true, 3000);
+        return;
+      }
+
+      // Remove station keep configuration from the point metadata
+      delete coordsMeta[pointIndex].stationKeep;
+
+      // Update the route with the modified metadata
+      const coordinates = routeData.feature.geometry.coordinates;
+      this.skres.updateRouteCoords(
+        routeId,
+        coordinates,
+        coordsMeta
+      );
+
+      // Clear station keep circles from the map
+      this.app.data.map.stationKeepPosition = null;
+      this.hideStationKeepCircles = true;
+
+      // Refresh routes to show updated data
+      this.skres.refreshRoutes();
+
+      this.app.showMessage(
+        'Station Keep configuration deleted from route point',
+        false,
+        3000
+      );
+    } catch (err) {
+      this.app.parseHttpErrorResponse(err);
+    }
+  }
+
   // ** show feature (vessel/AtoN/Aircraft/Route points) properties **
   public async featureProperties(e: { id: string; type: string }) {
     let v: FBRoute | SKVessel | SKSaR | SKAircraft | SKAtoN;
@@ -3301,9 +3349,10 @@ export class AppComponent implements OnDestroy {
             const pointList = coordinates.map((coord: number[], index: number) => {
               const meta = coordinatesMeta[index] || {};
               const name = meta.name || `Point ${index + 1}`;
+              const skMarker = meta.stationKeep ? ' [SK]' : '';
               return {
                 id: index.toString(),
-                name: `${name} (${coord[1].toFixed(6)}, ${coord[0].toFixed(6)})`
+                name: `${name}${skMarker} (${coord[1].toFixed(6)}, ${coord[0].toFixed(6)})`
               };
             });
 
@@ -3338,7 +3387,8 @@ export class AppComponent implements OnDestroy {
                     .open(StationKeepDialog, {
                       data: {
                         title: 'Configure Station Keep',
-                        config: config
+                        config: config,
+                        hasExisting: !!existingConfig
                       }
                     })
                     .afterClosed()
@@ -3366,6 +3416,12 @@ export class AppComponent implements OnDestroy {
                           'Station Keep configuration saved to route',
                           false,
                           3000
+                        );
+                      } else if (result && result.delete) {
+                        // Delete the station keep configuration from route metadata
+                        await this.deleteStationKeepFromRoute(
+                          e.id,
+                          pointIndex
                         );
                       }
                     });

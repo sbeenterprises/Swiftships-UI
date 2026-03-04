@@ -32,7 +32,7 @@ export interface StationKeepConfig {
 }
 
 /********* StationKeepDialog **********
-	data: {
+  data: {
     title: <string> title text,
     config: <StationKeepConfig> Station keep configuration
   }
@@ -190,10 +190,16 @@ export interface StationKeepConfig {
         </div>
       </mat-dialog-content>
       <mat-dialog-actions>
-        <div style="text-align:center;width:100%;">
+        <div style="display:flex;justify-content:center;align-items:center;width:100%;gap:8px;">
           <button mat-raised-button color="primary" (click)="handleClose(true)">
             SAVE
           </button>
+          @if(hasExisting) {
+          <button mat-raised-button color="warn" (click)="handleDelete()">
+            <mat-icon>delete</mat-icon>
+            DELETE
+          </button>
+          }
           <button mat-raised-button (click)="handleClose(false)">CANCEL</button>
         </div>
       </mat-dialog-actions>
@@ -209,6 +215,7 @@ export interface StationKeepConfig {
 })
 export class StationKeepDialog implements OnInit {
   protected config: StationKeepConfig;
+  protected hasExisting = false;
 
   constructor(
     protected app: AppFacade,
@@ -217,12 +224,14 @@ export class StationKeepDialog implements OnInit {
     protected data: {
       title: string;
       config: StationKeepConfig;
+      hasExisting?: boolean;
     }
-  ) {}
+  ) { }
 
   ngOnInit() {
     // Create a copy of the config to work with
     this.config = { ...this.data.config };
+    this.hasExisting = !!this.data.hasExisting;
   }
 
   updateInnerRadius(value: number) {
@@ -257,5 +266,9 @@ export class StationKeepDialog implements OnInit {
     } else {
       this.dialogRef.close({ save: false });
     }
+  }
+
+  handleDelete() {
+    this.dialogRef.close({ save: false, delete: true });
   }
 }
