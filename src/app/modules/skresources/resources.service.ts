@@ -945,12 +945,14 @@ export class SKResourceService {
     if (!route) {
       return;
     }
+    const existingNames = this.routes().map(r => r[1].name).filter(n => !!n);
     this.dialog
       .open(RouteDialog, {
         disableClose: true,
         data: {
           title: 'New Route',
-          route: route
+          route: route,
+          existingNames: existingNames
         }
       })
       .afterClosed()
@@ -985,13 +987,18 @@ export class SKResourceService {
       this.app.parseHttpErrorResponse(err as HttpErrorResponse);
       return;
     }
+    const existingNames = this.routes()
+      .filter(r => r[0] !== id)
+      .map(r => r[1].name)
+      .filter(n => !!n);
     this.dialog
       .open(RouteDialog, {
         disableClose: true,
         data: {
           title: 'Route Details',
           addMode: false,
-          route: rte
+          route: rte,
+          existingNames: existingNames
         }
       })
       .afterClosed()

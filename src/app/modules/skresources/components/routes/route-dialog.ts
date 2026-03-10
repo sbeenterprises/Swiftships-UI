@@ -15,7 +15,7 @@ import {
 import { SKRoute } from '../../resource-classes';
 
 /********* RouteDialog **********
-	data: {
+  data: {
     route: SKRoute
   }
 ***********************************/
@@ -56,6 +56,11 @@ import { SKRoute } from '../../resource-classes';
                 @if(inpname.invalid && (inpname.dirty || inpname.touched)) {
                 <mat-error> Please enter a name.</mat-error>
                 }
+                @if(isDuplicate) {
+                <div style="color: #f44336; font-size: 12px; margin-top: 4px;">
+                  ⚠ This name already exists.
+                </div>
+                }
               </mat-form-field>
             </div>
             <div>
@@ -79,7 +84,7 @@ import { SKRoute } from '../../resource-classes';
           @if(!readOnly) {
           <button
             mat-raised-button
-            [disabled]="inpname.invalid || readOnly"
+            [disabled]="inpname.invalid || readOnly || isDuplicate"
             (click)="handleClose(true)"
           >
             SAVE
@@ -102,20 +107,28 @@ export class RouteDialog implements OnInit {
   protected name: string;
   protected description: string;
   protected readOnly = false;
+  private existingNames: string[] = [];
 
   constructor(
     private dialogRef: MatDialogRef<RouteDialog>,
     @Inject(MAT_DIALOG_DATA)
     protected data: {
       route: SKRoute;
+      existingNames?: string[];
     }
-  ) {}
+  ) { }
 
   ngOnInit() {
     this.name = this.data.route.name ?? '';
     this.description = this.data.route.description ?? '';
     this.readOnly =
       (this.data.route.feature as any)?.properties?.readOnly ?? false;
+    this.existingNames = (this.data.existingNames ?? []).map(n => n.toLowerCase());
+  }
+
+  get isDuplicate(): boolean {
+    return this.name?.trim().length > 0 &&
+      this.existingNames.includes(this.name.trim().toLowerCase());
   }
 
   handleClose(save: boolean) {
