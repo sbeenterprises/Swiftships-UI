@@ -1115,6 +1115,11 @@ export class AppComponent implements OnDestroy {
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
 
+    // Stop any active waypoint station keep (clear counter from map)
+    if (this.activeWaypointStationKeep.active) {
+      this.stopWaypointStationKeep();
+    }
+
     // Send stop command to MOOS-IvP when aborting
     if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
       this.app.data.moosIvPServer.socket.send('AUTONOMOUS_STOP=true');
