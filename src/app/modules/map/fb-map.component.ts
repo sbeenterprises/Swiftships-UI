@@ -1592,6 +1592,10 @@ export class FBMapComponent implements OnInit, OnDestroy {
         this.skres.deleteNote(id);
         break;
       case 'region':
+        if (this.activeRegionId === id) {
+          this.app.showMessage('Cannot delete an active region. Deactivate it first.', true, 3000);
+          return;
+        }
         this.skres.deleteRegion(id);
         break;
     }

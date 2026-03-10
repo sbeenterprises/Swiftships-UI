@@ -661,7 +661,8 @@
                 </div>
               </div>
 
-              <!-- Speed Control -->
+              <!-- Speed Control (only shown when CAN Messages are enabled) -->
+              @if(autonomousControl.canSend) {
               <div class="autonomous-control-section">
                 <h3>Speed Control</h3>
                 <div class="control-group">
@@ -680,6 +681,7 @@
                   </div>
                 </div>
               </div>
+              }
 
               <!-- Mission Status -->
               <div class="autonomous-control-section">
@@ -717,7 +719,8 @@
                 </div>
               </div>
 
-              <!-- Mission Controls -->
+              <!-- Mission Controls (only shown when CAN Messages are enabled) -->
+              @if(autonomousControl.canSend) {
               <div class="autonomous-control-section">
                 <h3>Mission Controls</h3>
                 <div class="control-group">
@@ -752,6 +755,7 @@
                   </button>
                 </div>
               </div>
+              }
 
               <!-- CAN Messages Control -->
               <div class="autonomous-control-section">

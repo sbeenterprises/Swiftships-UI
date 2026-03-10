@@ -802,6 +802,13 @@ export class AppComponent implements OnDestroy {
 
   /** Sync remote control sliders from backend DESIRED_RUDDER/DESIRED_THRUST values (one-time on panel open) */
   private syncRemoteControlFromMOOS() {
+    // Do not sync sliders when STATUS is DRIVE (autonomous control is active)
+    const status = this.app.data.moosIvPServer?.ivpHelmState;
+    if (status && status.toUpperCase() === 'DRIVE') {
+      console.log('[Remote Control] STATUS is DRIVE - skipping slider sync from MOOS-IvP');
+      return;
+    }
+
     // Sync rudder: MOOS range (-100..100) → UI range (-50..50)
     const desiredRudder = this.app.data.moosIvPServer?.desiredRudder;
     if (desiredRudder !== undefined) {
