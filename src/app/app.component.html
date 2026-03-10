@@ -345,6 +345,8 @@
             </mat-nav-list>
 
             <div class="remote-control-content" style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
+              <!-- Rudder, Thrust and Gear Controls (only shown when CAN Messages are enabled) -->
+              @if(remoteControl.canSend) {
               <!-- Rudder Control -->
               <div class="remote-control-section">
                 <h3>Rudder Control</h3>
@@ -432,23 +434,7 @@
                   </div>
                 </div>
               </div>
-
-              <!-- Trim Control -->
-              <div class="remote-control-section">
-                <h3>Trim Control</h3>
-                <div class="control-group">
-                  <div class="control-buttons">
-                    <button mat-raised-button (click)="sendTrimUp()" class="control-btn">
-                      <mat-icon>keyboard_arrow_up</mat-icon>
-                      Trim Up
-                    </button>
-                    <button mat-raised-button (click)="sendTrimDown()" class="control-btn">
-                      <mat-icon>keyboard_arrow_down</mat-icon>
-                      Trim Down
-                    </button>
-                  </div>
-                </div>
-              </div>
+              }
 
               <!-- CAN Messages Control -->
               <div class="remote-control-section">
