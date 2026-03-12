@@ -149,7 +149,8 @@ export class AppComponent implements OnDestroy {
     ignoreStatusUpdates: false, // Flag to ignore STATUS updates until DRIVE→PARK transition
     lastStatus: '',        // Track last STATUS to detect transitions
     canSend: false,        // CAN messages enabled/disabled
-    ignoreCanSendUpdates: false  // Temporarily ignore incoming CAN_SEND to avoid race conditions
+    ignoreCanSendUpdates: false,  // Temporarily ignore incoming CAN_SEND to avoid race conditions
+    selectedRegion: ''     // Selected region ID
   };
 
   // Station Keep control data
@@ -179,6 +180,9 @@ export class AppComponent implements OnDestroy {
 
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
+
+  // Available regions for autonomous control
+  public availableRegions: [string, any, boolean][] = [];
 
   // MOOS contact cleanup timer
   private moosContactCleanupTimer: any = null;
@@ -269,6 +273,14 @@ export class AppComponent implements OnDestroy {
       if (this.display.autonomousControlPanelOpen && routes) {
         // Routes have changed, reload list from server (without sync to avoid loops)
         this.refreshAvailableRoutes();
+      }
+    });
+
+    // Watch for region changes and update availableRegions when autonomous control panel is open
+    effect(() => {
+      const regions = this.skres.regions();
+      if (this.display.autonomousControlPanelOpen && regions) {
+        this.refreshAvailableRegions();
       }
     });
   }
@@ -500,8 +512,9 @@ export class AppComponent implements OnDestroy {
         this.display.instrumentPanelOpen = false;
         this.display.remoteControlPanelOpen = false;
         this.display.stationKeepPanelOpen = false;
-        // Load routes for the dropdown (sync will be called after routes are loaded)
+        // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
         this.loadAvailableRoutes();
+        this.loadAvailableRegions();
       } else {
         // Closing panel - deactivate autonomous control
         this.app.config.selections.autonomousControl = false;
@@ -517,8 +530,9 @@ export class AppComponent implements OnDestroy {
       this.display.remoteControlPanelOpen = false;
       this.display.stationKeepPanelOpen = false;
       this.app.saveConfig();
-      // Load routes for the dropdown (sync will be called after routes are loaded)
+      // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
       this.loadAvailableRoutes();
+      this.loadAvailableRegions();
       this.app.showMessage('Autonomous Control Activated', false, 3000);
     }
     this.focusMap();
@@ -614,6 +628,81 @@ export class AppComponent implements OnDestroy {
     } catch (error) {
       console.error('Failed to refresh routes:', error);
     }
+  }
+
+  // Load available regions for autonomous control
+  private async loadAvailableRegions() {
+    try {
+      console.log('Starting to load regions...');
+      const regions = await this.skres.listFromServer<[string, any, boolean]>('regions');
+      console.log('Raw regions from server:', regions);
+      this.availableRegions = regions.filter((region: [string, any, boolean]) =>
+        region[1] && region[1].feature && region[1].feature.geometry
+      );
+      console.log('Filtered available regions:', this.availableRegions);
+      console.log('Total regions loaded:', this.availableRegions.length);
+
+      // Sync region selection from MOOS-IvP state
+      if (this.app.data.moosIvPServer?.regionActive) {
+        // If MOOS-IvP has an active region, try to find and select it
+        const regions = this.skres.regions();
+        if (regions && regions.length > 0) {
+          const firstRegion = regions[0];
+          this.autonomousControl.selectedRegion = firstRegion[0];
+          console.log('[REGION] Synced active region from MOOS-IvP:', firstRegion[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load regions:', error);
+      this.availableRegions = [];
+      this.app.showMessage('Failed to load regions', true, 3000);
+    }
+  }
+
+  // Refresh available regions list without sync side effects (used by the effect watcher)
+  private async refreshAvailableRegions() {
+    try {
+      const regions = await this.skres.listFromServer<[string, any, boolean]>('regions');
+      this.availableRegions = regions.filter((region: [string, any, boolean]) =>
+        region[1] && region[1].feature && region[1].feature.geometry
+      );
+    } catch (error) {
+      console.error('Failed to refresh regions:', error);
+    }
+  }
+
+  // Select a region from the dropdown (does NOT activate it immediately)
+  protected selectRegion(regionId: string) {
+    this.autonomousControl.selectedRegion = regionId;
+
+    if (regionId) {
+      const selectedRegion = this.availableRegions.find(r => r[0] === regionId);
+      if (selectedRegion) {
+        // Filter map to show only this region
+        if (this.fbMapRef) {
+          this.fbMapRef.filterRegionId = regionId;
+        }
+        console.log('[REGION] Region selected (not yet activated):', regionId, selectedRegion[1].name);
+      }
+    } else {
+      // Deselect region - hide all regions and deactivate if active
+      if (this.fbMapRef) {
+        this.fbMapRef.filterRegionId = '__none__';
+        this.fbMapRef.activeRegionId = null;
+      }
+      this.onRegionDeactivated();
+      console.log('[REGION] Region deselected');
+    }
+  }
+
+  // Get region name by ID for display
+  public getSelectedRegionName(): string {
+    if (!this.autonomousControl.selectedRegion) {
+      return 'None';
+    }
+
+    const region = this.availableRegions.find(r => r[0] === this.autonomousControl.selectedRegion);
+    return region ? (region[1].name || 'Region ' + region[0]) : this.autonomousControl.selectedRegion;
   }
 
   // Handle STATUS changes from MOOS-IvP in real-time

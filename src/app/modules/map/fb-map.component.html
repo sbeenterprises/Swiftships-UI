@@ -230,9 +230,9 @@
   <!-- /Racing -->
 
   <!-- Regions -->
-  <fb-regions [regions]="skres.regions()" [regionStyles]="featureStyles.region" [darkMode]="app.uiConfig().invertColor"
-    [activeRegion]="activeRegionId" [labelMinZoom]="this.app.config.selections.labelsMinZoom"
-    [mapZoom]="fbMap.zoomLevel" [zIndex]="400">
+  <fb-regions [regions]="getDisplayRegions()" [regionStyles]="featureStyles.region"
+    [darkMode]="app.uiConfig().invertColor" [activeRegion]="activeRegionId"
+    [labelMinZoom]="this.app.config.selections.labelsMinZoom" [mapZoom]="fbMap.zoomLevel" [zIndex]="400">
   </fb-regions>
 
   <!-- Notes -->

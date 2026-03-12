@@ -647,6 +647,27 @@
                 </div>
               </div>
 
+              <!-- Region Selection -->
+              <div class="autonomous-control-section">
+                <h3>Region Selection</h3>
+                <div class="control-group">
+                  <mat-form-field appearance="outline" class="route-select-field">
+                    <mat-label>Select Region</mat-label>
+                    <mat-select [value]="autonomousControl.selectedRegion"
+                      (selectionChange)="selectRegion($event.value)" class="route-select">
+                      <mat-option value="">-- No Region Selected --</mat-option>
+                      <mat-option *ngFor="let region of availableRegions" [value]="region[0]">
+                        {{ region[1].name || 'Region ' + region[0] }}
+                      </mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                  <div class="control-display">
+                    <span class="control-label">Selected Region:</span>
+                    <span class="control-value">{{ getSelectedRegionName() }}</span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Speed Control (only shown when CAN Messages are enabled) -->
               @if(autonomousControl.canSend) {
               <div class="autonomous-control-section">

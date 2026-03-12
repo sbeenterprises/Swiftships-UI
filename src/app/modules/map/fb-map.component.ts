@@ -170,6 +170,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Output() menuItemSelected: EventEmitter<string> = new EventEmitter();
 
   public activeRegionId: string = null;
+  public filterRegionId: string = null; // When set, only this region is shown on the map
 
   @ViewChild(MatMenuTrigger, { static: true }) contextMenu: MatMenuTrigger;
 
@@ -284,6 +285,15 @@ export class FBMapComponent implements OnInit, OnDestroy {
   } | null = null;
 
   private obsList = [];
+
+  // Returns filtered regions for map display (only the selected region when filterRegionId is set)
+  protected getDisplayRegions() {
+    const allRegions = this.skres.regions();
+    if (this.filterRegionId && allRegions) {
+      return allRegions.filter(r => r[0] === this.filterRegionId);
+    }
+    return allRegions;
+  }
 
   constructor(
     protected app: AppFacade,
