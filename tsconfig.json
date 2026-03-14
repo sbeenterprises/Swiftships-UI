@@ -14,20 +14,15 @@
     "typeRoots": [
       "node_modules/@types"
     ],
+    "skipLibCheck": true,
     "lib": [
       "es2018",
       "es2020",
       "es2022",
-      "dom"
-    ],
-    "paths": {
-      "ol": [
-        "node_modules/@types/ol"
-      ],
-      "ol/*": [
-        "node_modules/@types/ol/*"
-      ]
-    }
+      "dom",
+      "ES2021.Intl",
+      "ESNext.Intl"
+    ]
   },
   "angularCompilerOptions": {
     "fullTemplateTypeCheck": true,
