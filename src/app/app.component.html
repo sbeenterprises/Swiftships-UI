@@ -696,20 +696,20 @@
                 <div class="control-group">
                   <div class="control-display">
                     <span class="control-label">Status:</span>
-                    <span class="control-value status-value" [class]="autonomousControl.status">
-                      {{ autonomousControl.status | titlecase }}
+                    <span class="control-value status-value" [class]="autonomousControl.waypointActive ? 'active' : 'standby'">
+                      {{ autonomousControl.waypointActive ? 'Active' : 'Standby' }}
                     </span>
                   </div>
                   <div class="control-display" *ngIf="autonomousControl.selectedRoute">
                     <span class="control-label">Progress:</span>
                     <span class="control-value">{{ autonomousControl.progress }}%</span>
                   </div>
-                  <div class="control-display" *ngIf="autonomousControl.status === 'active'">
+                  <div class="control-display" *ngIf="autonomousControl.waypointActive">
                     <span class="control-label">Current Waypoint:</span>
                     <span class="control-value">{{ autonomousControl.currentWaypoint + 1 }}</span>
                   </div>
                   <div class="control-display"
-                    *ngIf="autonomousControl.status === 'active' && autonomousControl.remainingDistance > 0">
+                    *ngIf="autonomousControl.waypointActive && autonomousControl.remainingDistance > 0">
                     <span class="control-label">Remaining Distance:</span>
                     <span class="control-value">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }} NM</span>
                   </div>
@@ -733,12 +733,12 @@
                 <div class="control-group">
                   <div class="mission-buttons-row">
                     <button mat-raised-button (click)="startMission()"
-                      [disabled]="!autonomousControl.selectedRoute || autonomousControl.status === 'active'"
+                      [disabled]="!autonomousControl.selectedRoute || autonomousControl.waypointActive"
                       class="mission-btn start-btn">
                       <mat-icon>play_arrow</mat-icon>
                       Start
                     </button>
-                    <button mat-raised-button (click)="stopMission()" [disabled]="autonomousControl.status !== 'active'"
+                    <button mat-raised-button (click)="stopMission()" [disabled]="!autonomousControl.waypointActive"
                       class="mission-btn stop-btn">
                       <mat-icon>pause</mat-icon>
                       Stop
@@ -756,7 +756,7 @@
                     </button>
                   </div>
                   <button mat-raised-button color="warn" (click)="abortMission()"
-                    [disabled]="autonomousControl.status === 'standby'" class="mission-btn abort-btn">
+                    [disabled]="!autonomousControl.waypointActive" class="mission-btn abort-btn">
                     <mat-icon>warning</mat-icon>
                     ABORT MISSION
                   </button>

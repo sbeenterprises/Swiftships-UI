@@ -150,7 +150,8 @@ export class AppComponent implements OnDestroy {
     lastStatus: '',        // Track last STATUS to detect transitions
     canSend: false,        // CAN messages enabled/disabled
     ignoreCanSendUpdates: false,  // Temporarily ignore incoming CAN_SEND to avoid race conditions
-    selectedRegion: ''     // Selected region ID
+    selectedRegion: '',    // Selected region ID
+    waypointActive: false  // Whether the waypoint behavior is active (from MOOS WAYPOINT variable)
   };
 
   // Station Keep control data
@@ -2290,7 +2291,7 @@ export class AppComponent implements OnDestroy {
       //console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
     }
     if (data.CAN_SEND !== undefined) {
-      console.log('[CAN_SEND JSON] Raw value:', data.CAN_SEND, '- Type:', typeof data.CAN_SEND);
+      //console.log('[CAN_SEND JSON] Raw value:', data.CAN_SEND, '- Type:', typeof data.CAN_SEND);
       const canSendEnabled = data.CAN_SEND === 'true' || data.CAN_SEND === '1' || data.CAN_SEND === true;
       this.app.data.moosIvPServer.canSend = canSendEnabled;
       if (!this.remoteControl.ignoreCanSendUpdates) {
@@ -2303,6 +2304,17 @@ export class AppComponent implements OnDestroy {
     if (data.REGION !== undefined) {
       const regionEnabled = data.REGION === 'true' || data.REGION === '1' || data.REGION === true;
       this.app.data.moosIvPServer.regionActive = regionEnabled;
+    }
+    if (data.WAYPOINT !== undefined) {
+      const waypointActive = data.WAYPOINT === 'true' || data.WAYPOINT === '1' || data.WAYPOINT === true;
+      this.autonomousControl.waypointActive = waypointActive;
+      // Derive mission status from WAYPOINT: true = behavior running = active, false = standby
+      if (waypointActive) {
+        this.autonomousControl.status = 'active';
+      } else {
+        this.autonomousControl.status = 'standby';
+      }
+      console.log('[WAYPOINT] Received from MOOS-IvP:', data.WAYPOINT, '→ waypointActive:', waypointActive, '→ status:', this.autonomousControl.status);
     }
 
     // Engine status (all numeric)
