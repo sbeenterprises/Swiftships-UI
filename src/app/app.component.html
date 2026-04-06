@@ -700,7 +700,7 @@
                       {{ autonomousControl.waypointActive ? 'Active' : 'Standby' }}
                     </span>
                   </div>
-                  <div class="control-display" *ngIf="autonomousControl.selectedRoute">
+                  <div class="control-display" *ngIf="autonomousControl.waypointActive && autonomousControl.selectedRoute">
                     <span class="control-label">Progress:</span>
                     <span class="control-value">{{ autonomousControl.progress }}%</span>
                   </div>
@@ -714,11 +714,11 @@
                     <span class="control-value">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }} NM</span>
                   </div>
                   <div class="control-display"
-                    *ngIf="autonomousControl.selectedRoute && autonomousControl.totalDistance > 0">
+                    *ngIf="autonomousControl.waypointActive && autonomousControl.selectedRoute && autonomousControl.totalDistance > 0">
                     <span class="control-label">Total Distance:</span>
                     <span class="control-value">{{ (autonomousControl.totalDistance / 1852).toFixed(2) }} NM</span>
                   </div>
-                  <div class="control-display" *ngIf="autonomousControl.selectedRoute">
+                  <div class="control-display" *ngIf="autonomousControl.waypointActive && autonomousControl.selectedRoute">
                     <span class="control-label">Total TOA:</span>
                     <span class="control-value">{{ autonomousControl.totalTimeOfArrival > 0 ?
                       formatTime(autonomousControl.totalTimeOfArrival) : 'N/A (no SOG)' }}</span>
