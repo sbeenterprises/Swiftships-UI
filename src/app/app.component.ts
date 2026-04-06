@@ -1388,13 +1388,10 @@ export class AppComponent implements OnDestroy {
 
       totalDistance = remainingDistance;
 
-      // Calculate progress: (distance traveled / total route distance) * 100
+      // Progress is now driven by WPT_PCT_COMPLETE from MOOS-IvP
       const distanceTraveled = totalRouteDistance - remainingDistance;
-      this.autonomousControl.progress = totalRouteDistance > 0
-        ? Math.round(Math.max(0, Math.min(100, (distanceTraveled / totalRouteDistance) * 100)))
-        : 0;
 
-      console.log(`[ROUTE CALC] Progress: ${this.autonomousControl.progress}% (traveled: ${distanceTraveled.toFixed(0)}m / total: ${totalRouteDistance.toFixed(0)}m)`);
+      console.log(`[ROUTE CALC] Progress: ${this.autonomousControl.progress}% (from WPT_PCT_COMPLETE) (traveled: ${distanceTraveled.toFixed(0)}m / total: ${totalRouteDistance.toFixed(0)}m)`);
       console.log(`[ROUTE CALC] Using remaining distance from WPT_STAT: ${totalDistance.toFixed(0)}m`);
     } else {
       // When mission is not active or no WPT_STAT data, calculate from vessel position
@@ -2213,6 +2210,9 @@ export class AppComponent implements OnDestroy {
         }
         break;
       }
+      case 'WPT_PCT_COMPLETE':
+        this.autonomousControl.progress = Math.floor(parseFloat(value) || 0);
+        break;
       case 'DESIRED_SPEED':
         this.app.data.moosIvPServer.desiredSpeed = parseFloat(value) || 0;
         //console.log('[DESIRED_SPEED] Received from MOOS-IvP:', this.app.data.moosIvPServer.desiredSpeed);
@@ -2315,6 +2315,9 @@ export class AppComponent implements OnDestroy {
         this.autonomousControl.status = 'standby';
       }
       console.log('[WAYPOINT] Received from MOOS-IvP:', data.WAYPOINT, '→ waypointActive:', waypointActive, '→ status:', this.autonomousControl.status);
+    }
+    if (data.WPT_PCT_COMPLETE !== undefined) {
+      this.autonomousControl.progress = Math.floor(parseFloat(data.WPT_PCT_COMPLETE) || 0);
     }
 
     // Engine status (all numeric)
