@@ -151,7 +151,8 @@ export class AppComponent implements OnDestroy {
     canSend: false,        // CAN messages enabled/disabled
     ignoreCanSendUpdates: false,  // Temporarily ignore incoming CAN_SEND to avoid race conditions
     selectedRegion: '',    // Selected region ID
-    waypointActive: false  // Whether the waypoint behavior is active (from MOOS WAYPOINT variable)
+    waypointActive: false, // Whether the waypoint behavior is active (from MOOS WAYPOINT variable)
+    waypointRadii: null as { captureRadius: number, slipRadius: number } | null
   };
 
   // Station Keep control data
@@ -2213,6 +2214,31 @@ export class AppComponent implements OnDestroy {
       case 'WPT_PCT_COMPLETE':
         this.autonomousControl.progress = Math.floor(parseFloat(value) || 0);
         break;
+      case 'WPT_RADII': {
+        try {
+          let radii: any = {};
+          if (typeof value === 'object') {
+             radii = value;
+          } else {
+            const parts = String(value).split(',');
+            parts.forEach(part => {
+               const [key, val] = part.split('=');
+               if (key && val) { radii[key.trim()] = parseFloat(val.trim()); }
+            });
+          }
+          if (radii.capture_radius !== undefined && radii.slip_radius !== undefined) {
+             const parsedRadii = {
+               captureRadius: parseFloat(radii.capture_radius),
+               slipRadius: parseFloat(radii.slip_radius)
+             };
+             this.autonomousControl.waypointRadii = parsedRadii;
+             this.app.data.moosIvPServer.waypointRadii = parsedRadii;
+          }
+        } catch(e) {
+          console.error('[WPT_RADII] error parsing:', e);
+        }
+        break;
+      }
       case 'DESIRED_SPEED':
         this.app.data.moosIvPServer.desiredSpeed = parseFloat(value) || 0;
         //console.log('[DESIRED_SPEED] Received from MOOS-IvP:', this.app.data.moosIvPServer.desiredSpeed);
@@ -2318,6 +2344,9 @@ export class AppComponent implements OnDestroy {
     }
     if (data.WPT_PCT_COMPLETE !== undefined) {
       this.autonomousControl.progress = Math.floor(parseFloat(data.WPT_PCT_COMPLETE) || 0);
+    }
+    if (data.WPT_RADII !== undefined) {
+      this.processMoosVariable('WPT_RADII', data.WPT_RADII);
     }
 
     // Engine status (all numeric)

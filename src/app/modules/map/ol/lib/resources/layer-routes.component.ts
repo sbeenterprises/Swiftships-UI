@@ -27,6 +27,7 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
   @Input() routeStyles: { [key: string]: Style };
   @Input() activeRoute: string;
   @Input() routes: FBRoutes = [];
+  @Input() waypointRadii: { captureRadius: number, slipRadius: number } | null = null;
 
   constructor(
     protected mapComponent: MapComponent,
@@ -43,11 +44,11 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
 
   ngOnChanges(changes: SimpleChanges) {
     super.ngOnChanges(changes);
-    if (this.source && ('routes' in changes || 'activeRoute' in changes)) {
+    if (this.source && ('routes' in changes || 'activeRoute' in changes || 'waypointRadii' in changes)) {
       this.source.clear();
       if ('routes' in changes) {
         this.parseFBRoutes(changes['routes'].currentValue);
-      } else if ('activeRoute' in changes) {
+      } else {
         this.onActivateRoute();
       }
     }
@@ -154,6 +155,79 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
             })
           })
         );
+      } else if (this.waypointRadii) {
+        const position = toLonLat(start) as [number, number];
+        
+        // Add slip circle style (outer)
+        styles.push(
+          new Style({
+            geometry: new CircleGeom(
+              fromLonLat(position),
+              mapifyRadius(this.waypointRadii.slipRadius, position)
+            ),
+            fill: new Fill({ color: 'rgba(255, 165, 0, 0.1)' }),
+            stroke: new Stroke({
+              color: 'rgba(255, 140, 0, 0.8)',
+              width: 2,
+              lineDash: [12, 6]
+            })
+          })
+        );
+
+        // Add capture circle style (inner)
+        styles.push(
+          new Style({
+            geometry: new CircleGeom(
+              fromLonLat(position),
+              mapifyRadius(this.waypointRadii.captureRadius, position)
+            ),
+            fill: new Fill({ color: 'rgba(0, 255, 0, 0.1)' }),
+            stroke: new Stroke({
+              color: 'rgba(0, 200, 0, 0.8)',
+              width: 2,
+              lineDash: [8, 4]
+            })
+          })
+        );
+      }
+
+      // Check last point as well
+      if (idx === l - 2) {
+        const lastPointMeta = pointMetadata[l - 1];
+        const endPosition = toLonLat(end) as [number, number];
+        if (lastPointMeta && lastPointMeta.stationKeep) {
+          const innerRadius = lastPointMeta.stationKeep.innerRadius || 10;
+          const outerRadius = lastPointMeta.stationKeep.outerRadius || 25;
+          styles.push(
+            new Style({
+              geometry: new CircleGeom(fromLonLat(endPosition), mapifyRadius(outerRadius, endPosition)),
+              fill: new Fill({ color: 'rgba(255, 165, 0, 0.1)' }),
+              stroke: new Stroke({ color: 'rgba(255, 140, 0, 0.8)', width: 2, lineDash: [12, 6] })
+            })
+          );
+          styles.push(
+            new Style({
+              geometry: new CircleGeom(fromLonLat(endPosition), mapifyRadius(innerRadius, endPosition)),
+              fill: new Fill({ color: 'rgba(0, 255, 0, 0.1)' }),
+              stroke: new Stroke({ color: 'rgba(0, 200, 0, 0.8)', width: 2, lineDash: [8, 4] })
+            })
+          );
+        } else if (this.waypointRadii) {
+          styles.push(
+            new Style({
+              geometry: new CircleGeom(fromLonLat(endPosition), mapifyRadius(this.waypointRadii.slipRadius, endPosition)),
+              fill: new Fill({ color: 'rgba(255, 165, 0, 0.1)' }),
+              stroke: new Stroke({ color: 'rgba(255, 140, 0, 0.8)', width: 2, lineDash: [12, 6] })
+            })
+          );
+          styles.push(
+            new Style({
+              geometry: new CircleGeom(fromLonLat(endPosition), mapifyRadius(this.waypointRadii.captureRadius, endPosition)),
+              fill: new Fill({ color: 'rgba(0, 255, 0, 0.1)' }),
+              stroke: new Stroke({ color: 'rgba(0, 200, 0, 0.8)', width: 2, lineDash: [8, 4] })
+            })
+          );
+        }
       }
 
       // start point
