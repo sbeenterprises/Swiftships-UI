@@ -305,6 +305,7 @@ export interface FBAppData {
     baseCoords?: string;
     canSend?: boolean;
     regionActive?: boolean;
+    waypointActive?: boolean;
     waypointRadii?: { captureRadius: number, slipRadius: number } | null;
   };
   connectionState?: {

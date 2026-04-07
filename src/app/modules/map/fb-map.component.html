@@ -119,7 +119,8 @@
   <!-- Routes -->
   <fb-routes [routes]="skres.routes()" [routeStyles]="featureStyles.route" [activeRoute]="activeRoute"
     [darkMode]="app.uiConfig().invertColor" [labelMinZoom]="this.app.config.selections.labelsMinZoom"
-    [mapZoom]="fbMap.zoomLevel" [zIndex]="500" [waypointRadii]="app.data.moosIvPServer.waypointRadii">
+    [mapZoom]="fbMap.zoomLevel" [zIndex]="500" [waypointRadii]="app.data.moosIvPServer.waypointRadii"
+    [wptIndex]="app.data.moosIvPServer.wptIndex" [wptActive]="app.data.moosIvPServer.waypointActive">
   </fb-routes>
 
   <!-- Routes -->

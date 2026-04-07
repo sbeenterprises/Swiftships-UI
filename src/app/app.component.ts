@@ -2334,6 +2334,7 @@ export class AppComponent implements OnDestroy {
     if (data.WAYPOINT !== undefined) {
       const waypointActive = data.WAYPOINT === 'true' || data.WAYPOINT === '1' || data.WAYPOINT === true;
       this.autonomousControl.waypointActive = waypointActive;
+      this.app.data.moosIvPServer.waypointActive = waypointActive;
       // Derive mission status from WAYPOINT: true = behavior running = active, false = standby
       if (waypointActive) {
         this.autonomousControl.status = 'active';

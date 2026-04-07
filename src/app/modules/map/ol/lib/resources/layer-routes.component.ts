@@ -28,6 +28,8 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
   @Input() activeRoute: string;
   @Input() routes: FBRoutes = [];
   @Input() waypointRadii: { captureRadius: number, slipRadius: number } | null = null;
+  @Input() wptIndex?: number;
+  @Input() wptActive?: boolean;
 
   constructor(
     protected mapComponent: MapComponent,
@@ -44,7 +46,7 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
 
   ngOnChanges(changes: SimpleChanges) {
     super.ngOnChanges(changes);
-    if (this.source && ('routes' in changes || 'activeRoute' in changes || 'waypointRadii' in changes)) {
+    if (this.source && ('routes' in changes || 'activeRoute' in changes || 'waypointRadii' in changes || 'wptIndex' in changes || 'wptActive' in changes)) {
       this.source.clear();
       if ('routes' in changes) {
         this.parseFBRoutes(changes['routes'].currentValue);
@@ -110,6 +112,13 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
         color: this.routeStyles.default.getStroke().getColor()
       });
     }
+
+    const getPointFill = (pointIndex: number) => {
+      if (this.wptActive && this.wptIndex === pointIndex) {
+        return new Fill({ color: 'orange' });
+      }
+      return ptFill;
+    };
 
     // point styles
     let idx = 0;
@@ -241,7 +250,7 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
                 width: 1,
                 color: 'white'
               }),
-              fill: ptFill
+              fill: getPointFill(idx)
             })
           })
         );
@@ -256,7 +265,7 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
                   width: 1,
                   color: 'white'
                 }),
-                fill: ptFill
+                fill: getPointFill(idx)
               })
             })
           );
@@ -275,7 +284,7 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
                   width: 1,
                   color: 'white'
                 }),
-                fill: ptFill,
+                fill: getPointFill(idx),
                 points: 3,
                 angle: 0,
                 rotateWithView: true,
@@ -296,7 +305,7 @@ export class FreeboardRouteLayerComponent extends FBFeatureLayerComponent {
                 width: 1,
                 color: 'white'
               }),
-              fill: ptFill,
+              fill: getPointFill(l - 1),
               points: 4,
               angle: Math.PI / 4
             })

@@ -596,6 +596,7 @@ export function initData(): FBAppData {
       desiredSpeed: 10,
       canSend: false,
       regionActive: false,
+      waypointActive: false,
       waypointRadii: null
     },
     connectionState: {
