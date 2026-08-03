@@ -1238,6 +1238,138 @@ mat-nav-list {
     box-shadow: none !important;
 }
 
+/* ---------- Service Mode (live PID calibration) ---------- */
+.service-mode-active {
+    border-color: rgba(255, 183, 77, 0.6) !important;
+    box-shadow:
+        0 4px 12px rgba(30, 45, 62, 0.4),
+        0 0 0 1px rgba(255, 183, 77, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.service-mode-active h3 {
+    color: #ffb74d;
+}
+
+.service-mode-toggle {
+    --mdc-switch-selected-track-color: #ffb74d;
+    --mdc-switch-selected-handle-color: #ffffff;
+    --mdc-switch-selected-hover-track-color: #ffc47f;
+    --mdc-switch-selected-focus-track-color: #ffb74d;
+    --mdc-switch-selected-pressed-track-color: #ffb74d;
+}
+
+.service-mode-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 152, 0, 0.12);
+    border: 1px solid rgba(255, 183, 77, 0.45);
+    color: #ffd9a0;
+    font-family: 'Roboto', sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.service-mode-warning mat-icon {
+    flex: none;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: #ffb74d;
+}
+
+.service-mode-hint {
+    font-family: 'Roboto', sans-serif;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.65);
+    padding: 0 4px;
+}
+
+.pid-loop {
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(30, 45, 62, 0.55);
+    border: 1px solid rgba(52, 82, 112, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pid-loop-title {
+    font-family: 'Roboto', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #ffffff;
+}
+
+.pid-loop-title span {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.pid-gain-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.pid-gain-input {
+    width: 84px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(52, 82, 112, 0.8);
+    background: rgba(20, 32, 45, 0.9);
+    color: #a8d4ff;
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: right;
+}
+
+.pid-gain-input:focus {
+    outline: none;
+    border-color: #ffb74d;
+}
+
+.pid-slider {
+    --mdc-slider-active-track-color: #ffb74d;
+    --mdc-slider-inactive-track-color: rgba(255, 183, 77, 0.25);
+    --mdc-slider-handle-color: #ffb74d;
+    --mdc-slider-label-container-color: #345270;
+}
+
+/* compact steppers - the gain rows are much denser than the other panels */
+.pid-gain .slider-btn {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.pid-gain .slider-btn mat-icon {
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    line-height: 16px !important;
+}
+
+.pid-applied {
+    padding: 8px 12px !important;
+}
+
+.pid-applied-value {
+    font-size: 12px !important;
+}
+
 /* Dark theme adjustments for autonomous control */
 .dark-theme .autonomous-control-section {
     background-color: #345270;

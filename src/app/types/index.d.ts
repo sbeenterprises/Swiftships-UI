@@ -167,6 +167,12 @@ export interface IAppConfig {
     remoteControl: boolean;
     autonomousControl: boolean;
     radarControl: boolean;
+    servicePid?: {
+      // last PID gains calibrated from the UI (service mode)
+      enabled: boolean;
+      heading: { kp: number; ki: number; kd: number };
+      speed: { kp: number; ki: number; kd: number };
+    };
   };
   resources: {
     // ** resource options
@@ -307,6 +313,7 @@ export interface FBAppData {
     regionActive?: boolean;
     waypointActive?: boolean;
     waypointRadii?: { captureRadius: number, slipRadius: number } | null;
+    serviceMode?: boolean;
   };
   connectionState?: {
     signalK: {

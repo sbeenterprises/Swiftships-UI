@@ -155,6 +155,64 @@ export class AppComponent implements OnDestroy {
     waypointRadii: null as { captureRadius: number, slipRadius: number } | null
   };
 
+  // Service mode: live PID calibration from the UI.
+  // Gains are pushed to planchaPID through iWebSocket (HEADING_K* / SPEED_K*)
+  // and only replace the backend gain schedule while SERVICE_MODE is active.
+  public servicePid = {
+    enabled: false,
+    heading: { kp: 0.15, ki: 0, kd: 0.26 },   // rudder loop
+    speed: { kp: 0.16, ki: 0.003, kd: 0 },    // thrust loop
+    // gains planchaPID reports it is actually applying (from PID_GAINS)
+    applied: null as {
+      serviceMode: boolean;
+      heading: { kp: number; ki: number; kd: number };
+      speed: { kp: number; ki: number; kd: number };
+    } | null,
+    ignoreModeUpdates: false, // ignore SERVICE_MODE echo right after a local toggle
+    pendingConfirm: false     // waiting for planchaPID to confirm a toggle
+  };
+
+  // Slider bounds per gain: Ki needs a far finer range than Kp/Kd
+  protected readonly pidGainSpecs: {
+    [loop: string]: Array<{
+      key: 'kp' | 'ki' | 'kd';
+      label: string;
+      min: number;
+      max: number;
+      step: number;
+    }>;
+  } = {
+      heading: [
+        { key: 'kp', label: 'Kp', min: 0, max: 2, step: 0.01 },
+        { key: 'ki', label: 'Ki', min: 0, max: 0.2, step: 0.001 },
+        { key: 'kd', label: 'Kd', min: 0, max: 2, step: 0.01 }
+      ],
+      speed: [
+        { key: 'kp', label: 'Kp', min: 0, max: 2, step: 0.01 },
+        { key: 'ki', label: 'Ki', min: 0, max: 0.05, step: 0.001 },
+        { key: 'kd', label: 'Kd', min: 0, max: 1, step: 0.01 }
+      ]
+    };
+
+  // The two loops planchaPID runs, rendered as one panel each
+  protected readonly pidLoops: Array<{
+    id: 'heading' | 'speed';
+    title: string;
+    output: string;
+  }> = [
+      { id: 'heading', title: 'Heading PID', output: 'rudder' },
+      { id: 'speed', title: 'Speed PID', output: 'thrust' }
+    ];
+
+  // Values planchaPID starts with (mission .moos config) - used by Reset
+  private readonly pidGainDefaults = {
+    heading: { kp: 0.15, ki: 0, kd: 0.26 },
+    speed: { kp: 0.16, ki: 0.003, kd: 0 }
+  };
+
+  // Per-gain send timers, so dragging a slider does not flood the websocket
+  private pidSendTimers: { [key: string]: any } = {};
+
   // Station Keep control data
   public stationKeep = {
     innerRadius: 10,      // Inner radius in meters (1-100)
@@ -327,6 +385,9 @@ export class AppComponent implements OnDestroy {
     // ** ensure control buttons start deactivated **
     this.app.config.selections.remoteControl = false;
     this.app.config.selections.autonomousControl = false;
+
+    // ** restore last calibrated PID gains (service mode)
+    this.loadPidSettings();
 
     // ** Start MOOS contact cleanup timer
     this.startMoosContactCleanup();
@@ -1099,7 +1160,225 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  // ***************** SERVICE MODE (PID CALIBRATION) ******************
 
+  /** send a KEY=value message to MOOS-IvP, returns false if not connected */
+  private sendMoos(message: string): boolean {
+    if (!this.app.data.moosIvPServer.connected || !this.app.data.moosIvPServer.socket) {
+      return false;
+    }
+    this.app.data.moosIvPServer.socket.send(message);
+    return true;
+  }
+
+  /**
+   * Toggle service mode. While active planchaPID applies the Kp/Ki/Kd set here
+   * instead of its built-in gain schedule, so the boat can be calibrated from
+   * the UI without changing values in the backend.
+   */
+  protected toggleServiceMode(enabled: boolean) {
+    this.servicePid.enabled = enabled;
+
+    // ignore the SERVICE_MODE echo for a moment so the switch does not flick
+    // back before the backend has caught up
+    this.servicePid.ignoreModeUpdates = true;
+    setTimeout(() => {
+      this.servicePid.ignoreModeUpdates = false;
+    }, 3000);
+
+    if (!this.sendMoos(`SERVICE_MODE=${enabled ? 'true' : 'false'}`)) {
+      console.log('MOOS-IvP not connected, cannot send SERVICE_MODE');
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      return;
+    }
+    console.log(`[SERVICE MODE] Sent SERVICE_MODE=${enabled} to MOOS-IvP`);
+    this.servicePid.pendingConfirm = true;
+
+    if (enabled) {
+      // push the displayed gains so the controller starts from what is shown
+      this.sendAllPidGains();
+      this.app.showMessage('Service mode ON - PID gains now come from the UI', false, 4000);
+    } else {
+      this.app.showMessage('Service mode OFF - gain scheduling restored', false, 3000);
+    }
+
+    this.savePidSettings();
+  }
+
+  /** update a gain from the slider/input and schedule the send to MOOS-IvP */
+  protected updatePidGain(
+    loop: 'heading' | 'speed',
+    key: 'kp' | 'ki' | 'kd',
+    value: number | string
+  ) {
+    const spec = this.pidGainSpecs[loop].find((s) => s.key === key);
+    if (!spec) {
+      return;
+    }
+    const parsed = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(parsed)) {
+      return;
+    }
+    this.servicePid[loop][key] = Math.max(spec.min, Math.min(spec.max, parsed));
+
+    // a slider drag emits continuously - only the settled value needs sending
+    const timerKey = `${loop}.${key}`;
+    clearTimeout(this.pidSendTimers[timerKey]);
+    this.pidSendTimers[timerKey] = setTimeout(() => {
+      this.sendPidGain(loop, key);
+      this.savePidSettings();
+    }, 150);
+  }
+
+  /** typed gain entry: clamps the value and reflects the clamp back in the field */
+  protected onPidGainInput(
+    loop: 'heading' | 'speed',
+    key: 'kp' | 'ki' | 'kd',
+    event: Event
+  ) {
+    const input = event.target as HTMLInputElement;
+    this.updatePidGain(loop, key, input.value);
+    input.value = String(this.servicePid[loop][key]);
+  }
+
+  /** step a gain by one increment (+/- buttons) */
+  protected nudgePidGain(
+    loop: 'heading' | 'speed',
+    key: 'kp' | 'ki' | 'kd',
+    direction: number
+  ) {
+    const spec = this.pidGainSpecs[loop].find((s) => s.key === key);
+    if (!spec) {
+      return;
+    }
+    // steps are fractional (0.001) so round away binary float noise
+    const stepped = this.servicePid[loop][key] + direction * spec.step;
+    this.updatePidGain(loop, key, Math.round(stepped * 1000) / 1000);
+  }
+
+  /** send a single gain to MOOS-IvP (HEADING_KP, SPEED_KI, ...) */
+  private sendPidGain(loop: 'heading' | 'speed', key: 'kp' | 'ki' | 'kd') {
+    const variable = `${loop.toUpperCase()}_${key.toUpperCase()}`;
+    const value = this.servicePid[loop][key];
+    if (this.sendMoos(`${variable}=${value}`)) {
+      console.log(`[SERVICE MODE] Sent ${variable}=${value} to MOOS-IvP`);
+    } else {
+      console.log(`MOOS-IvP not connected, cannot send ${variable}`);
+    }
+  }
+
+  /** push every gain to MOOS-IvP (on enabling service mode / manual re-send) */
+  protected sendAllPidGains() {
+    if (!this.app.data.moosIvPServer.connected) {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      return;
+    }
+    (['heading', 'speed'] as const).forEach((loop) => {
+      this.pidGainSpecs[loop].forEach((spec) => this.sendPidGain(loop, spec.key));
+    });
+  }
+
+  /** restore the gains planchaPID starts with and push them */
+  protected resetPidGains() {
+    this.servicePid.heading = { ...this.pidGainDefaults.heading };
+    this.servicePid.speed = { ...this.pidGainDefaults.speed };
+    if (this.servicePid.enabled) {
+      this.sendAllPidGains();
+    }
+    this.savePidSettings();
+    this.app.showMessage('PID gains reset to defaults', false, 2000);
+  }
+
+  /** gain currently applied by planchaPID, '--' until it reports */
+  protected appliedPidGain(loop: 'heading' | 'speed', key: 'kp' | 'ki' | 'kd'): string {
+    const applied = this.servicePid.applied;
+    return applied ? applied[loop][key].toFixed(3) : '--';
+  }
+
+  /** persist calibrated gains so they survive a reload */
+  private savePidSettings() {
+    this.app.config.selections.servicePid = {
+      enabled: this.servicePid.enabled,
+      heading: { ...this.servicePid.heading },
+      speed: { ...this.servicePid.speed }
+    };
+    this.app.saveConfig();
+  }
+
+  /** apply persisted gains at startup (MOOS telemetry overrides `enabled`) */
+  private loadPidSettings() {
+    const saved = this.app.config.selections.servicePid;
+    if (!saved) {
+      return;
+    }
+    this.servicePid.enabled = !!saved.enabled;
+    if (saved.heading) {
+      this.servicePid.heading = { ...this.servicePid.heading, ...saved.heading };
+    }
+    if (saved.speed) {
+      this.servicePid.speed = { ...this.servicePid.speed, ...saved.speed };
+    }
+  }
+
+  /**
+   * Adopt the mode planchaPID reports. If it disagrees with what was just
+   * requested, say so - a switch that silently flicks back looks like a UI bug
+   * when it actually means the backend never took the command.
+   */
+  private syncServiceMode(active: boolean) {
+    if (this.servicePid.ignoreModeUpdates) {
+      return;
+    }
+    if (this.servicePid.pendingConfirm) {
+      this.servicePid.pendingConfirm = false;
+      if (active !== this.servicePid.enabled) {
+        console.log(
+          `[SERVICE MODE] planchaPID reports ${active} but ${this.servicePid.enabled} was requested`
+        );
+        this.app.showMessage('planchaPID did not accept the service mode change', true, 4000);
+      }
+    }
+    this.servicePid.enabled = active;
+  }
+
+  /** PID_GAINS: gains planchaPID reports it is applying this cycle */
+  private processPidGains(value: string) {
+    try {
+      const parts: { [key: string]: string } = {};
+      String(value)
+        .split(',')
+        .forEach((part) => {
+          const [key, val] = part.split('=', 2);
+          if (key && val !== undefined) {
+            parts[key.trim()] = val.trim();
+          }
+        });
+
+      if (parts['heading_kp'] === undefined) {
+        return;
+      }
+
+      const serviceMode = parts['service_mode'] === 'true';
+      this.servicePid.applied = {
+        serviceMode: serviceMode,
+        heading: {
+          kp: parseFloat(parts['heading_kp']) || 0,
+          ki: parseFloat(parts['heading_ki']) || 0,
+          kd: parseFloat(parts['heading_kd']) || 0
+        },
+        speed: {
+          kp: parseFloat(parts['speed_kp']) || 0,
+          ki: parseFloat(parts['speed_ki']) || 0,
+          kd: parseFloat(parts['speed_kd']) || 0
+        }
+      };
+
+      // planchaPID is the authority on whether service mode is active
+      this.syncServiceMode(serviceMode);
+    } catch (error) {
+      console.error('[PID_GAINS] Error parsing PID_GAINS:', error, 'value:', value);
+    }
+  }
 
   protected startMission() {
     if (!this.autonomousControl.selectedRoute) {
@@ -2268,6 +2547,15 @@ export class AppComponent implements OnDestroy {
         this.app.data.moosIvPServer.regionActive = regionEnabled;
         console.log('[REGION] Received from MOOS-IvP:', value, '- Active:', regionEnabled);
         break;
+      case 'PID_GAINS':
+        this.processPidGains(value);
+        break;
+      case 'SERVICE_MODE': {
+        // iWebSocket's echo of the request. The switch itself follows PID_GAINS,
+        // since planchaPID is what actually applies (or ignores) the mode.
+        this.app.data.moosIvPServer.serviceMode = value === 'true' || value === '1';
+        break;
+      }
       default:
       // Handle other MOOS variables as needed
       // this.app.debug(`Unknown MOOS variable: ${variable} = ${value}`);
@@ -2348,6 +2636,13 @@ export class AppComponent implements OnDestroy {
     }
     if (data.WPT_RADII !== undefined) {
       this.processMoosVariable('WPT_RADII', data.WPT_RADII);
+    }
+    if (data.SERVICE_MODE !== undefined) {
+      this.app.data.moosIvPServer.serviceMode =
+        data.SERVICE_MODE === 'true' || data.SERVICE_MODE === '1' || data.SERVICE_MODE === true;
+    }
+    if (data.PID_GAINS !== undefined) {
+      this.processPidGains(data.PID_GAINS);
     }
 
     // Engine status (all numeric)

@@ -309,6 +309,15 @@ export function cleanConfig(
     settings.selections.autonomousControl = false;
   }
 
+  //Service mode PID gains (upgrade of stored settings)
+  if (typeof settings.selections.servicePid === 'undefined') {
+    settings.selections.servicePid = {
+      enabled: false,
+      heading: { kp: 0.15, ki: 0, kd: 0.26 },
+      speed: { kp: 0.16, ki: 0.003, kd: 0 }
+    };
+  }
+
   // MOOS-IvP connection config
   if (typeof settings.moosIvP === 'undefined') {
     settings.moosIvP = {
@@ -460,7 +469,13 @@ export function defaultConfig(): IAppConfig {
       },
       remoteControl: false,
       autonomousControl: false,
-      radarControl: false
+      radarControl: false,
+      servicePid: {
+        // PID gains calibrated from the UI - seeded with the planchaPID defaults
+        enabled: false,
+        heading: { kp: 0.15, ki: 0, kd: 0.26 },
+        speed: { kp: 0.16, ki: 0.003, kd: 0 }
+      }
     },
     resources: {
       // ** resource options

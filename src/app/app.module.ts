@@ -12,10 +12,12 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -65,9 +67,11 @@ import {
     MatButtonToggleModule,
     MatCheckboxModule,
     MatFormFieldModule,
+    MatInputModule,
     MatListModule,
     MatIconModule,
     MatSelectModule,
+    MatSlideToggleModule,
     MatSliderModule,
     MatTooltipModule,
     MatProgressBarModule,

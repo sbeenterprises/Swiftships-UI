@@ -781,6 +781,87 @@
                   </button>
                 </div>
               </div>
+
+              <!-- Service Mode: live PID calibration -->
+              <div class="autonomous-control-section" [class.service-mode-active]="servicePid.enabled">
+                <h3>Service Mode</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">PID Calibration:</span>
+                    <mat-slide-toggle class="service-mode-toggle" [checked]="servicePid.enabled"
+                      (change)="toggleServiceMode($event.checked)">
+                      <span class="control-value" [style.color]="servicePid.enabled ? '#ffb74d' : '#87ceeb'">
+                        {{ servicePid.enabled ? 'ON' : 'OFF' }}
+                      </span>
+                    </mat-slide-toggle>
+                  </div>
+
+                  @if(servicePid.enabled) {
+                  <div class="service-mode-warning">
+                    <mat-icon>warning</mat-icon>
+                    <span>Gain scheduling bypassed. The boat is running on the values below.</span>
+                  </div>
+
+                  @for(loop of pidLoops; track loop.id) {
+                  <div class="pid-loop">
+                    <div class="pid-loop-title">{{ loop.title }} <span>&rarr; {{ loop.output }}</span></div>
+
+                    @for(spec of pidGainSpecs[loop.id]; track spec.key) {
+                    <div class="pid-gain">
+                      <div class="pid-gain-head">
+                        <span class="control-label">{{ spec.label }}</span>
+                        <input class="pid-gain-input" type="number" [min]="spec.min" [max]="spec.max"
+                          [step]="spec.step" [value]="servicePid[loop.id][spec.key]"
+                          (change)="onPidGainInput(loop.id, spec.key, $event)">
+                      </div>
+                      <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
+                        <button mat-icon-button class="slider-btn minus-btn"
+                          (click)="nudgePidGain(loop.id, spec.key, -1)"
+                          [disabled]="servicePid[loop.id][spec.key] <= spec.min">
+                          <mat-icon>remove</mat-icon>
+                        </button>
+                        <mat-slider [min]="spec.min" [max]="spec.max" [step]="spec.step" class="pid-slider"
+                          style="flex: 1;">
+                          <input matSliderThumb [value]="servicePid[loop.id][spec.key]"
+                            (input)="updatePidGain(loop.id, spec.key, $any($event.target).value)">
+                        </mat-slider>
+                        <button mat-icon-button class="slider-btn plus-btn"
+                          (click)="nudgePidGain(loop.id, spec.key, 1)"
+                          [disabled]="servicePid[loop.id][spec.key] >= spec.max">
+                          <mat-icon>add</mat-icon>
+                        </button>
+                      </div>
+                    </div>
+                    }
+
+                    <div class="control-display pid-applied">
+                      <span class="control-label">Applied:</span>
+                      <span class="control-value pid-applied-value">
+                        {{ appliedPidGain(loop.id, 'kp') }} / {{ appliedPidGain(loop.id, 'ki') }} /
+                        {{ appliedPidGain(loop.id, 'kd') }}
+                      </span>
+                    </div>
+                  </div>
+                  }
+
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="resetPidGains()" class="control-btn">
+                      <mat-icon>restart_alt</mat-icon>
+                      Reset
+                    </button>
+                    <button mat-raised-button (click)="sendAllPidGains()" class="control-btn center-btn">
+                      <mat-icon>upload</mat-icon>
+                      Re-send
+                    </button>
+                  </div>
+                  } @else {
+                  <div class="service-mode-hint">
+                    Enable to tune Kp / Ki / Kd live. While off, planchaPID uses its speed-based
+                    gain schedule.
+                  </div>
+                  }
+                </div>
+              </div>
             </div>
           </div>
         </mat-sidenav>
