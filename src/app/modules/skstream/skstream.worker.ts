@@ -53,7 +53,13 @@ interface MsgFromApp {
     | 'alarm'
     | 'vessel'
     | 'auth'
-    | 'trail';
+    | 'trail'
+    // mission recording / replay
+    | 'record'
+    | 'replayStart'
+    | 'replayDeltas'
+    | 'replayReset'
+    | 'replayStop';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: { [key: string]: any };
 }
@@ -94,6 +100,13 @@ let preferredPaths = {};
 let msgInterval = 500;
 let playbackMode = false;
 let playbackTime: string;
+/** during replay this is the recording's virtual wall clock (epoch ms), else null */
+let replayNow: number | null = null;
+/** set while fast-forwarding a seek: suppresses per-value postMessage floods */
+let silent = false;
+
+/** wall clock, or the replay clock while replaying */
+const nowMs = () => replayNow ?? Date.now();
 const aisMgr = {
   maxAge: 540000, // time since last update in ms (9 min)
   staleAge: 360000, // time since last update in ms (6 min)
@@ -183,9 +196,73 @@ function handleStreamEvent({ action, msg }) {
       });
       break;
     case 'onMessage':
+      captureMessage(msg);
       parseStreamMessage(msg);
       break;
   }
+}
+
+// ******** MISSION RECORDING ************
+// Captures inbound Signal K messages verbatim for later replay.
+// Lines are buffered pre-serialised: postMessage would otherwise structured-clone
+// a fresh object graph for every delta.
+const recorder = {
+  active: false,
+  t0: 0,
+  lines: [] as string[],
+  bytes: 0,
+  timer: null as ReturnType<typeof setInterval> | null,
+  flushBytes: 1024 * 1024, // 1 MB
+  flushMs: 5000
+};
+
+function captureMessage(msg: unknown) {
+  if (!recorder.active) {
+    return;
+  }
+  const line = `{"t":${Date.now() - recorder.t0},"k":"sk","d":${JSON.stringify(
+    msg
+  )}}`;
+  recorder.lines.push(line);
+  recorder.bytes += line.length + 1;
+  if (recorder.bytes >= recorder.flushBytes) {
+    flushRecorder();
+  }
+}
+
+function flushRecorder() {
+  if (recorder.lines.length === 0) {
+    return;
+  }
+  postMessage({
+    action: 'record',
+    result: {
+      lines: recorder.lines.join('\n'),
+      eventCount: recorder.lines.length,
+      durationMs: Date.now() - recorder.t0
+    }
+  });
+  recorder.lines = [];
+  recorder.bytes = 0;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function startRecorder(t0: number, opt: { [key: string]: any } = {}) {
+  stopRecorder();
+  recorder.active = true;
+  recorder.t0 = t0;
+  recorder.flushMs = opt.flushMs ?? 5000;
+  recorder.flushBytes = opt.flushBytes ?? 1024 * 1024;
+  recorder.timer = setInterval(flushRecorder, recorder.flushMs);
+}
+
+function stopRecorder() {
+  if (recorder.timer) {
+    clearInterval(recorder.timer);
+    recorder.timer = null;
+  }
+  flushRecorder();
+  recorder.active = false;
 }
 
 // ******** MESSAGE FROM APP ************
@@ -278,6 +355,82 @@ function handleCommand(data: MsgFromApp) {
       }
       getVesselTrail(trailMgr);
       break;
+    //** { cmd: 'record', options: {start: boolean, t0: number} }
+    case 'record':
+      if (data.options?.start) {
+        startRecorder(data.options.t0 ?? Date.now(), data.options);
+      } else {
+        stopRecorder();
+      }
+      break;
+    /** { cmd: 'replayStart', options: {selfId: string, hello: object} }
+     * Tears down the live socket and stands up a parser-only stream so recorded
+     * deltas can be pushed through the very same state machine.
+     */
+    case 'replayStart':
+      closeStream(true);
+      initVessels();
+      stream = new SignalKStreamWorker();
+      // isSelf() compares against this. The library normally assigns it from the
+      // socket's hello, which never arrives here, and without it every delta for
+      // our own vessel would be filed under aisTargets.
+      stream.selfId = data.options?.selfId ?? '';
+      playbackMode = true;
+      silent = false;
+      // deliberately NOT startTimers(): it would also register the 60s
+      // getAISTracks() poll, which fetches live AIS into the replay.
+      clearTimers();
+      if (data.options?.hello) {
+        postMessage({
+          action: 'hello',
+          result: data.options.hello,
+          self: data.options.selfId,
+          playback: true
+        });
+      }
+      break;
+    /** { cmd: 'replayDeltas', options: {deltas: any[], now: number, render: boolean} } */
+    case 'replayDeltas':
+      if (!stream) {
+        break;
+      }
+      replayNow = data.options?.now ?? null;
+      silent = !data.options?.render;
+      (data.options?.deltas ?? []).forEach((d) => {
+        // A recorded hello would hit parseStreamMessage's hello branch and call
+        // startTimers(), re-arming the very timers replayStart cleared.
+        // replayStart already posted a synthetic hello.
+        if (stream.isHello(d)) {
+          return;
+        }
+        parseStreamMessage(d);
+      });
+      if (data.options?.render) {
+        postUpdate(true);
+        updateReceived = false;
+      } else {
+        // postUpdate() is what normally drains this
+        vessels.self.resourceUpdates = [];
+      }
+      silent = false;
+      break;
+    /** { cmd: 'replayReset', options: {now: number} } */
+    case 'replayReset':
+      initVessels();
+      targetExtent = [0, 0, 0, 0];
+      extRecalcCounter = 0;
+      $source = undefined;
+      playbackTime = undefined;
+      updateReceived = false;
+      replayNow = data.options?.now ?? null;
+      break;
+    //** { cmd: 'replayStop' }
+    case 'replayStop':
+      playbackMode = false;
+      silent = false;
+      replayNow = null;
+      closeStream(true);
+      break;
   }
 }
 
@@ -328,6 +481,7 @@ function applySettings(opt: { [key: string]: any } = {}) {
 function closeStream(fromCommand = false) {
   clearTimers();
   unsubscribe.forEach((i) => i.unsubscribe());
+  unsubscribe.length = 0;
   if (stream && fromCommand) {
     stream.close();
   }
@@ -712,6 +866,7 @@ function postUpdate(immediate = false) {
 
 // ** start message timers
 function startTimers() {
+  clearTimers();
   if (msgInterval && typeof msgInterval === 'number') {
     timers.push(
       setInterval(() => {
@@ -753,7 +908,7 @@ function selectVessel(id: string): SKVessel {
 
 // ** process common vessel data and true / magnetic preference **
 function processVessel(d: SKVessel, v: any, isSelf = false) {
-  d.lastUpdated = new Date();
+  d.lastUpdated = new Date(nowMs());
 
   if (isSelf) {
     if (v.path.startsWith('resources.')) {
@@ -961,6 +1116,9 @@ function processVessel(d: SKVessel, v: any, isSelf = false) {
 
 // process resources messages **
 function processResourceUpdate(v: PathValue) {
+  if (silent) {
+    return;
+  }
   const msg: ResourceMessage = new ResourceMessage();
   msg.playback = playbackMode;
   msg.result = {
@@ -973,6 +1131,9 @@ function processResourceUpdate(v: PathValue) {
 
 // process notification messages **
 function processNotifications(v: PathValue) {
+  if (silent) {
+    return;
+  }
   if (v.path.includes('notifications.')) {
     const msg: NotificationMessage = new NotificationMessage();
     msg.playback = playbackMode;
@@ -987,7 +1148,7 @@ function processNotifications(v: PathValue) {
 
 // process / cleanup stale / obsolete AIS vessels, aircraft, SaR targets
 function processAISStatus() {
-  const now = new Date().valueOf();
+  const now = nowMs();
   vessels.aisTargets.forEach((v, k) => {
     //if not present then mark for deletion
     if (v.lastUpdated.valueOf() < now - aisMgr.maxAge) {

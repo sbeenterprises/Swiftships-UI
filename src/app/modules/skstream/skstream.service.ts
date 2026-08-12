@@ -15,6 +15,13 @@ interface IWorkerCommand {
   cmd: string;
 }
 
+/** a batch of captured Signal K messages as pre-serialised NDJSON */
+export interface RecordChunk {
+  lines: string;
+  eventCount: number;
+  durationMs: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SKWorkerService {
   private worker: Worker;
@@ -22,6 +29,7 @@ export class SKWorkerService {
   private messageSource = new Subject<any>();
   private notificationSource = new Subject<NotificationMessage>();
   private resourceUpdatesSource = new Subject<PathValue[]>();
+  private recordSource = new Subject<RecordChunk>();
   private resourceDeltaSignal = signal<ResourceDeltaSignal>({
     path: '',
     value: null
@@ -45,6 +53,11 @@ export class SKWorkerService {
 
   notification$() {
     return this.notificationSource.asObservable();
+  }
+
+  /** batches of captured Signal K messages, emitted while recording */
+  record$() {
+    return this.recordSource.asObservable();
   }
 
   // ************ Worker Functions *********************
@@ -82,6 +95,8 @@ export class SKWorkerService {
   private handleMessage(msg: any) {
     if (msg.action === 'notification') {
       this.notificationSource.next(msg as NotificationMessage);
+    } else if (msg.action === 'record') {
+      this.recordSource.next(msg.result as RecordChunk);
     } else if (msg.action === 'resource') {
       this.resourceDeltaSignal.set(msg.result);
     } else {

@@ -42,7 +42,8 @@ import {
   AISListComponent,
   GroupListComponent,
   BuildRouteComponent,
-  RadarDisplayComponent
+  RadarDisplayComponent,
+  ReplayBarComponent
 } from './modules';
 
 import {
@@ -102,7 +103,8 @@ import {
     SystemChecklistComponent,
     EngineStatusComponent,
     RouteNextPointComponent,
-    RadarDisplayComponent
+    RadarDisplayComponent,
+    ReplayBarComponent
   ],
   providers: [provideHttpClient(withInterceptorsFromDi())]
 })

@@ -184,6 +184,11 @@
         <span>Resource Sets</span>
       </a>
 
+      <a mat-menu-item (click)="showMissionReplay()">
+        <mat-icon>video_library</mat-icon>
+        <span>Mission Replay</span>
+      </a>
+
       @if(features.playbackAPI) {
       <a mat-menu-item (click)="showPlaybackSettings()">
         <mat-icon>history</mat-icon>
@@ -617,11 +622,27 @@
                 </a>
                 <span style="margin-left: 16px; font-weight: 500;">Autonomous Control</span>
               </a>
+              <!-- sub-panel switch: mission controls vs. PID calibration -->
+              <div class="ac-tabs">
+                <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'control'"
+                  (click)="setAutonomousPanelTab('control')">
+                  Autonomous Control
+                </button>
+                <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'calibration'"
+                  (click)="setAutonomousPanelTab('calibration')">
+                  Calibration
+                  <!-- service mode ON means the boat is on hand-entered gains: stay visible from the other tab -->
+                  @if(servicePid.enabled) {
+                  <span class="ac-tab-dot"></span>
+                  }
+                </button>
+              </div>
               <mat-divider></mat-divider>
             </mat-nav-list>
 
             <div class="autonomous-control-content"
               style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
+              @if(autonomousPanelTab === 'control') {
               <!-- Route Selection -->
               <div class="autonomous-control-section">
                 <h3>Route Selection</h3>
@@ -781,7 +802,9 @@
                   </button>
                 </div>
               </div>
+              }
 
+              @if(autonomousPanelTab === 'calibration') {
               <!-- Service Mode: live PID calibration -->
               <div class="autonomous-control-section" [class.service-mode-active]="servicePid.enabled">
                 <h3>Service Mode</h3>
@@ -862,6 +885,7 @@
                   }
                 </div>
               </div>
+              }
             </div>
           </div>
         </mat-sidenav>
@@ -1013,8 +1037,20 @@
             <div class="buttonPanelItem">
               <!-- Playback mode -->
               <button class="button-warn" mat-mini-fab matTooltip="Exit playback mode" matTooltipPosition="right"
-                (click)="showSelectMode()">
+                (click)="exitMissionReplay()">
                 <mat-icon>cancel</mat-icon>
+              </button>
+            </div>
+            } @if(mode !== 1) {
+            <div class="buttonPanelItem">
+              <!-- Mission recording -->
+              <button [ngClass]="{
+                  'button-warn': replay.isRecording(),
+                  'button-toolbar': !replay.isRecording()
+                }" mat-mini-fab [disabled]="replay.isFinalizing()"
+                [matTooltip]="replay.isFinalizing() ? 'Saving recording...' : replay.isRecording() ? 'Stop recording mission' : 'Record mission'"
+                matTooltipPosition="right" (click)="toggleRecording()">
+                <mat-icon>{{ replay.isFinalizing() ? 'hourglass_top' : replay.isRecording() ? 'stop' : 'fiber_manual_record' }}</mat-icon>
               </button>
             </div>
             }
@@ -1294,6 +1330,11 @@
             </div>
             <div style="text-align: center">{{ display.playback.time }}</div>
           </div>
+          }
+
+          <!-- *** Mission replay transport bar ***-->
+          @if(replay.isReplaying()) {
+          <replay-bar (exit)="exitMissionReplay()"></replay-bar>
           }
 
           <!-- *** Alarm / Mode panel ***-->

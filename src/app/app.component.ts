@@ -4,7 +4,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
-import { Observable, Subject, Subscription } from 'rxjs';
+import { Observable, Subject, Subscription, merge } from 'rxjs';
 
 import { AppFacade } from './app.facade';
 import { SettingsEventMessage } from './lib/services';
@@ -47,7 +47,11 @@ import {
   CourseService,
   RadarService,
   RadarDisplayComponent,
-  EngineStatusComponent
+  EngineStatusComponent,
+  ReplayService,
+  ReplayBarComponent,
+  ReplayListDialog,
+  RecordingMeta
 } from 'src/app/modules';
 
 import { SignalKClient } from 'signalk-client-angular';
@@ -55,6 +59,11 @@ import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
 import * as semver from 'semver';
 import { MoosIvpWebsocketService } from './lib/moos-ivp-websocket.service';
+import {
+  initAutonomousControlData,
+  initEngineStatus,
+  initMoosIvPData
+} from './app.settings';
 
 import {
   NotificationMessage,
@@ -123,6 +132,8 @@ export class AppComponent implements OnDestroy {
   // APP features / mode
   public features = { playbackAPI: true };
   public mode: SKSTREAM_MODE = SKSTREAM_MODE.REALTIME; // current mode
+  /** while replaying, keep the live stream closed - onClose() always reopens otherwise */
+  private replaySuppressReconnect = false;
 
   // Remote control data
   public remoteControl = {
@@ -133,27 +144,37 @@ export class AppComponent implements OnDestroy {
     ignoreCanSendUpdates: false  // Temporarily ignore incoming CAN_SEND to avoid race conditions
   };
 
-  // Autonomous control data
+  // Autonomous control data. Mission-derived fields come from
+  // initAutonomousControlData() so replay can rewind them; the user's own
+  // selections and the send timer stay put.
   public autonomousControl = {
     selectedRoute: '',     // Selected route ID
-    speed: 10,            // Speed in knots (0-35)
-    status: 'standby',    // standby, active, paused, returning, aborted
-    currentWaypoint: 0,   // Current waypoint index
-    progress: 0,          // Mission progress percentage
-    waypointSendTimer: null as any,  // Timer for repeatedly sending waypoints
-    remainingDistance: 0, // Remaining distance from WPT_STAT (meters)
-    estimatedTimeArrival: 0, // ETA from WPT_STAT (seconds)
-    repeatRoute: false,    // Whether to repeat the route continuously (false = once, true = 1000 times)
-    totalDistance: 0,     // Total route distance (meters)
-    totalTimeOfArrival: 0, // Total time of arrival for entire route (seconds)
-    ignoreStatusUpdates: false, // Flag to ignore STATUS updates until DRIVE→PARK transition
-    lastStatus: '',        // Track last STATUS to detect transitions
-    canSend: false,        // CAN messages enabled/disabled
-    ignoreCanSendUpdates: false,  // Temporarily ignore incoming CAN_SEND to avoid race conditions
     selectedRegion: '',    // Selected region ID
-    waypointActive: false, // Whether the waypoint behavior is active (from MOOS WAYPOINT variable)
-    waypointRadii: null as { captureRadius: number, slipRadius: number } | null
+    waypointSendTimer: null as any,  // Timer for repeatedly sending waypoints
+    ...initAutonomousControlData()
+  } as {
+    selectedRoute: string;
+    selectedRegion: string;
+    waypointSendTimer: any;
+    speed: number;
+    status: string;
+    currentWaypoint: number;
+    progress: number;
+    remainingDistance: number;
+    estimatedTimeArrival: number;
+    repeatRoute: boolean;
+    totalDistance: number;
+    totalTimeOfArrival: number;
+    ignoreStatusUpdates: boolean;
+    lastStatus: string;
+    canSend: boolean;
+    ignoreCanSendUpdates: boolean;
+    waypointActive: boolean;
+    waypointRadii: { captureRadius: number, slipRadius: number } | null;
   };
+
+  /** which sub-panel of the Autonomous Control sidenav is showing */
+  protected autonomousPanelTab: 'control' | 'calibration' = 'control';
 
   // Service mode: live PID calibration from the UI.
   // Gains are pushed to planchaPID through iWebSocket (HEADING_K* / SPEED_K*)
@@ -248,20 +269,8 @@ export class AppComponent implements OnDestroy {
   private moosContactCleanupTimer: any = null;
   private readonly MOOS_CONTACT_TIMEOUT = 5000; // 5 seconds
 
-  // Engine status data from MOOS-IvP
-  public engineStatus = {
-    acceleratorPedalPosition: 0,    // ENGINE_ACCELERATOR_PEDAL_POSITION
-    percentLoad: 0,                 // ENGINE_PERCENT_LOAD
-    speed: 0,                       // ENGINE_SPEED
-    percentTorque: 0,               // ENGINE_PERCENT_TORQUE
-    activeDtcs: 0,                  // ENGINE_ACTIVE_DTCS
-    coolantTemp: 0,                 // ENGINE_COOLANT_TEMP
-    oilTemp: 0,                     // ENGINE_OIL_TEMP
-    oilPressure: 0,                 // ENGINE_OIL_PRESSURE
-    fuelRate: 0,                    // ENGINE_FUEL_RATE
-    intakeManifoldPressure: 0,      // ENGINE_INTAKE_MANIFOLD_PRESSURE
-    batteryVoltage: 0               // ENGINE_BATTERY_VOLTAGE
-  };
+  // Engine status data from MOOS-IvP (ENGINE_*)
+  public engineStatus = initEngineStatus();
 
   private timers = [];
 
@@ -294,6 +303,7 @@ export class AppComponent implements OnDestroy {
     protected signalk: SignalKClient,
     protected radarService: RadarService,
     private moosWsService: MoosIvpWebsocketService,
+    protected replay: ReplayService,
     private dom: DomSanitizer,
     private overlayContainer: OverlayContainer,
     private bottomSheet: MatBottomSheet,
@@ -420,6 +430,25 @@ export class AppComponent implements OnDestroy {
     }
 
     // ********************* SUBSCRIPTIONS *****************
+    // ** MISSION REPLAY **
+    // a backward seek cannot un-apply accumulated MOOS state, so wipe it and
+    // let the drain rebuild it from the start of the recording
+    this.obsList.push(
+      this.replay.resetRequest$.subscribe(() => this.resetMoosState())
+    );
+    // Keep the clock live while paused or scrubbing, when no delta arrives to
+    // drive the update branch of onMessage(). Same format, so they agree.
+    this.obsList.push(
+      this.replay.rendered$.subscribe(() => {
+        const started = Date.parse(this.replay.loadedMeta()?.startedAt ?? '');
+        if (!isNaN(started)) {
+          this.display.playback.time = this.formatPlaybackClock(
+            new Date(started + this.replay.vt())
+          );
+        }
+      })
+    );
+
     // ** SIGNAL K STREAM **
     this.obsList.push(
       this.stream
@@ -565,6 +594,10 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
+  protected setAutonomousPanelTab(tab: 'control' | 'calibration') {
+    this.autonomousPanelTab = tab;
+  }
+
   protected toggleAutonomousControl() {
     if (this.app.config.selections.autonomousControl) {
       // If already active, toggle the panel and deactivate if closing
@@ -575,6 +608,7 @@ export class AppComponent implements OnDestroy {
         this.display.instrumentPanelOpen = false;
         this.display.remoteControlPanelOpen = false;
         this.display.stationKeepPanelOpen = false;
+        this.autonomousPanelTab = 'control';
         // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
         this.loadAvailableRoutes();
         this.loadAvailableRegions();
@@ -592,6 +626,7 @@ export class AppComponent implements OnDestroy {
       this.display.instrumentPanelOpen = false;
       this.display.remoteControlPanelOpen = false;
       this.display.stationKeepPanelOpen = false;
+      this.autonomousPanelTab = 'control';
       this.app.saveConfig();
       // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
       this.loadAvailableRoutes();
@@ -1163,7 +1198,17 @@ export class AppComponent implements OnDestroy {
   // ***************** SERVICE MODE (PID CALIBRATION) ******************
 
   /** send a KEY=value message to MOOS-IvP, returns false if not connected */
+  /**
+   * Single choke point for everything we transmit to MOOS-IvP.
+   * Hard-blocked during replay: replayed WPT_INDEX changes reach
+   * handleWaypointReached() -> startWaypointStationKeep(), which would otherwise
+   * send real station-keep commands to the live vehicle.
+   */
   private sendMoos(message: string): boolean {
+    if (this.replay.isReplaying()) {
+      this.app.debug(`[REPLAY] suppressed outbound MOOS: ${message}`);
+      return false;
+    }
     if (!this.app.data.moosIvPServer.connected || !this.app.data.moosIvPServer.socket) {
       return false;
     }
@@ -2286,8 +2331,13 @@ export class AppComponent implements OnDestroy {
       }
     });
 
-    // Subscribe to incoming messages
-    this.moosWsService.messages$.subscribe((data) => {
+    // Only live traffic is recorded...
+    this.moosWsService.messages$.subscribe((data) =>
+      this.replay.recordMoos(data)
+    );
+    // ...but replayed lines are merged in here so they drive exactly the same
+    // handlers as the live socket.
+    merge(this.moosWsService.messages$, this.replay.moos$).subscribe((data) => {
       this.handleMoosIvPMessage(data);
     });
 
@@ -2295,7 +2345,17 @@ export class AppComponent implements OnDestroy {
     // Components checking this.app.data.moosIvPServer.socket still work
     this.app.data.moosIvPServer.socket = {
       readyState: WebSocket.CONNECTING,
-      send: (msg: string) => this.moosWsService.send(msg),
+      // Every outbound MOOS message in this component funnels through here, so
+      // this is the one place that has to block replay from transmitting.
+      // Replayed WPT_INDEX changes reach startWaypointStationKeep(), which would
+      // otherwise send real station-keep commands to the live vehicle.
+      send: (msg: string) => {
+        if (this.replay.isReplaying()) {
+          this.app.debug(`[REPLAY] suppressed outbound MOOS: ${msg}`);
+          return;
+        }
+        this.moosWsService.send(msg);
+      },
       close: () => this.moosWsService.disconnect()
     } as any;
 
@@ -2845,6 +2905,10 @@ export class AppComponent implements OnDestroy {
 
   /** send command to MOOS-IvP server */
   public sendMoosIvPCommand(command: string) {
+    if (this.replay.isReplaying()) {
+      this.app.debug(`[REPLAY] suppressed outbound MOOS: ${command}`);
+      return;
+    }
     if (this.moosWsService.isConnected()) {
       const success = this.moosWsService.send(command);
       if (!success) {
@@ -4084,6 +4148,147 @@ export class AppComponent implements OnDestroy {
     this.openSKStream(options, toMode, true);
   }
 
+  // ******** MISSION REPLAY ************
+
+  /** clock shown in the playback panel */
+  private formatPlaybackClock(d: Date): string {
+    return `${d.toDateString().slice(4)} ${d.toTimeString().slice(0, 8)}`;
+  }
+
+  /** toggle mission recording */
+  public async toggleRecording() {
+    // Finalising uploads the tail and closes the recording server-side, which
+    // takes a moment. Ignore presses until it lands: a second press would either
+    // claim a stop that has not happened yet or, once the state flips to idle,
+    // silently start a new recording.
+    if (this.replay.isFinalizing()) {
+      return;
+    }
+    this.focusMap();
+    if (this.replay.isRecording()) {
+      await this.replay.stopRecording();
+      this.app.showMessage('Recording stopped.', false, 3000);
+    } else {
+      await this.replay.startRecording();
+      if (this.replay.isRecording()) {
+        this.app.showMessage('Recording mission...', false, 3000);
+      }
+    }
+  }
+
+  /** pick a recording and enter replay mode */
+  public showMissionReplay() {
+    if (this.mode === SKSTREAM_MODE.PLAYBACK) {
+      this.exitMissionReplay();
+      return;
+    }
+    if (this.replay.isBusy()) {
+      this.app.showAlert(
+        'Stop the current recording before starting a replay.',
+        'Recording in progress'
+      );
+      return;
+    }
+    this.dialog
+      .open(ReplayListDialog, { data: {}, minWidth: '400px' })
+      .afterClosed()
+      .subscribe(async (selected: RecordingMeta) => {
+        if (selected) {
+          await this.enterMissionReplay(selected);
+        }
+        this.focusMap();
+      });
+  }
+
+  private async enterMissionReplay(rec: RecordingMeta) {
+    if (!(await this.replay.load(rec))) {
+      return;
+    }
+    // Keep the live trail; the replay trail is derived from the recording.
+    this.app.db.saveTrail('self', this.app.data.trail);
+    this.app.data.trail = [];
+    this.switchActiveVessel();
+    this.resetMoosState();
+
+    // Close the live sockets and keep them closed. onClose() would otherwise
+    // reopen immediately (commanded) or after 5s (unexpected).
+    this.replaySuppressReconnect = true;
+    this.stream.replayActive = true;
+    this.moosWsService.disconnect();
+    this.mode = SKSTREAM_MODE.PLAYBACK;
+    this.replay.enterReplay(rec.selfId ?? this.app.data.selfId);
+
+    // queryAfterConnect() no longer runs, so routes/waypoints would be missing
+    // and a replayed active route would have nothing to draw.
+    this.fetchResources(true);
+
+    this.app.showMessage(`Replaying: ${rec.name}`, false, 3000);
+  }
+
+  public exitMissionReplay() {
+    this.stream.replayActive = false;
+    this.resetMoosState();
+    this.switchActiveVessel();
+    this.mode = SKSTREAM_MODE.REALTIME;
+    this.display.playback.time = null;
+    this.app.db.getTrail('self').then((t) => {
+      this.app.data.trail = t && t.value ? t.value : [];
+    });
+
+    // Prime the realtime reopen BEFORE tearing the replay down: replayStop makes
+    // the worker post a commanded close, and onClose() is what actually reopens.
+    // Opening here instead would race - the worker still holds the replay stream,
+    // so openStream() would no-op and nothing would reconnect.
+    this.streamOptions = { options: null, toMode: SKSTREAM_MODE.REALTIME };
+    this.replaySuppressReconnect = false;
+    this.replay.exitReplay();
+
+    this.connectMoosIvPServer();
+    this.focusMap();
+  }
+
+  /**
+   * Wipes everything MOOS-derived. Needed before a backward seek, because none
+   * of this state is re-derivable from a single delta - it accumulates.
+   * Connection fields and the operator's own selections are preserved.
+   */
+  private resetMoosState() {
+    Object.assign(this.app.data.moosIvPServer, initMoosIvPData());
+    this.app.data.moosContacts.clear();
+    this.app.data.moosContactMgr.updateList = [];
+    this.app.data.moosContactMgr.removeList = [];
+
+    Object.assign(this.autonomousControl, initAutonomousControlData());
+    this.engineStatus = initEngineStatus();
+    this.remoteControl.canSend = false;
+
+    this.servicePid.enabled = false;
+    this.servicePid.applied = null;
+    this.servicePid.pendingConfirm = false;
+
+    this.stationKeep.status = 'standby';
+    this.stationKeep.position = null;
+
+    if (this.activeWaypointStationKeep.timer) {
+      clearInterval(this.activeWaypointStationKeep.timer);
+    }
+    this.activeWaypointStationKeep = {
+      active: false,
+      innerRadius: 0,
+      outerRadius: 0,
+      timeToKeep: 0,
+      timeRemaining: 0,
+      position: null,
+      timer: null
+    };
+
+    // AIS tracks only ever shrink via removeList, so a rewind would otherwise
+    // leave ghost tracks behind.
+    this.app.data.vessels.aisTracks.clear();
+    this.app.data.navData.pointIndex = -1;
+    this.clearCourseData();
+  }
+
   // ** show select mode dialog
   public showSelectMode() {
     if (this.mode === SKSTREAM_MODE.REALTIME) {
@@ -4356,6 +4561,10 @@ export class AppComponent implements OnDestroy {
     this.app.debug('onClose: STREAM connection closed...');
     this.app.debug(e);
     this.stopTimers();
+    if (this.replaySuppressReconnect) {
+      // mission replay owns the pipeline now - stay closed
+      return;
+    }
     if (e.result) {
       // closed by command then restart
       this.openSKStream(this.streamOptions.options, this.streamOptions.toMode);
@@ -4414,10 +4623,13 @@ export class AppComponent implements OnDestroy {
     } else if (e.action === 'update') {
       // delta message
       if (this.mode === SKSTREAM_MODE.PLAYBACK) {
-        const d = new Date(e.timestamp);
-        this.display.playback.time = `${d.toDateString().slice(4)} ${d
-          .toTimeString()
-          .slice(0, 8)}`;
+        this.display.playback.time = this.formatPlaybackClock(
+          new Date(e.timestamp)
+        );
+        // This update carries the raw recorded fix, which is up to a full fix
+        // interval behind the virtual clock. Put the vessel back on the
+        // interpolated track before change detection renders the frame.
+        this.replay.applyInterpolatedPosition();
       } else {
         this.display.playback.time = null;
         this.setDarkTheme();

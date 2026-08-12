@@ -7,6 +7,7 @@ import {
 } from '@signalk/server-api';
 import { IRouter, Application, Request, Response } from 'express';
 import { initAlarms } from './alarms/alarms';
+import { initRecordings } from './replay/recordings';
 
 import {
   WEATHER_POLL_INTERVAL,
@@ -111,10 +112,12 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
     }
   };
 
+  const recordings = initRecordings(server);
+
   // ******** REQUIRED PLUGIN DEFINITION *******
   const plugin: Plugin = {
-    id: 'freeboard-sk',
-    name: 'Freeboard-SK',
+    id: 'swiftships-ui',
+    name: 'SwiftShips UI',
     schema: () => CONFIG_SCHEMA,
     uiSchema: () => CONFIG_UISCHEMA,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,6 +130,13 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
     registerWithRouter: (router) => {
       return initApiEndpoints(router);
     },
+    /**
+     * Mission replay recordings are served from here rather than the plugin
+     * router because `/plugins/*` requires an admin principal, which would lock
+     * out read-only and kiosk sessions. `/signalk/v1/api/*` only requires an
+     * authorised principal, which `allow_readonly` grants to everyone.
+     */
+    signalKApiRoutes: (router) => recordings.registerRoutes(router),
     getOpenApi: () => openapi
   };
   // ************************************
@@ -201,6 +211,9 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
         settings: settings
       });
     });
+
+    // same recording routes, admin-gated - useful for curl / debugging
+    recordings.registerRoutes(router);
   };
 
   // ensure meteo path metas are emitted

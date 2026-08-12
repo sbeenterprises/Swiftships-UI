@@ -81,7 +81,8 @@
         "serve": {
           "builder": "@angular-builders/custom-webpack:dev-server",
           "options": {
-            "buildTarget": "freeboard-sk:build"
+            "buildTarget": "freeboard-sk:build",
+            "proxyConfig": "proxy.conf.json"
           },
           "configurations": {
             "production": {

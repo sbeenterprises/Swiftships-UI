@@ -347,6 +347,14 @@ export function cleanConfig(
       autoConnect: true
     };
   }
+
+  // Mission replay recorder tuning (upgrade of stored settings)
+  if (typeof settings.replay === 'undefined') {
+    settings.replay = {
+      chunkSeconds: 5,
+      chunkBytes: 1048576
+    };
+  }
 }
 
 // initialise default configuration
@@ -512,11 +520,83 @@ export function defaultConfig(): IAppConfig {
       url: 'http://127.0.0.1',
       port: 3001,
       autoConnect: true
+    },
+    replay: {
+      chunkSeconds: 5,
+      chunkBytes: 1048576
     }
   };
 }
 
 // initialise state data
+/**
+ * MOOS-IvP mission state, minus the connection fields (socket/url/connected).
+ *
+ * Split out of initData() so mission replay can rewind it on a backward seek
+ * without touching the live connection, and so the field list lives in exactly
+ * one place as new MOOS variables are added.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function initMoosIvPData(): { [key: string]: any } {
+  return {
+    lastMessage: '',
+    ivpHelmState: '',
+    ivpHelmAllstop: '',
+    wptIndex: 0,
+    wptDist: 0,
+    wptEta: 0,
+    wptCompleted: false,
+    desiredSpeed: 10,
+    desiredRudder: 0,
+    desiredThrust: 0,
+    idRoute: '',
+    baseCoords: null,
+    canSend: false,
+    regionActive: false,
+    waypointActive: false,
+    waypointRadii: null
+  };
+}
+
+/** Autonomous control panel state, minus the user's route/region selection. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function initAutonomousControlData(): { [key: string]: any } {
+  return {
+    speed: 10,
+    status: 'standby',
+    currentWaypoint: 0,
+    progress: 0,
+    remainingDistance: 0,
+    estimatedTimeArrival: 0,
+    repeatRoute: false,
+    totalDistance: 0,
+    totalTimeOfArrival: 0,
+    ignoreStatusUpdates: false,
+    lastStatus: '',
+    canSend: false,
+    ignoreCanSendUpdates: false,
+    waypointActive: false,
+    waypointRadii: null
+  };
+}
+
+/** Engine telemetry reported over MOOS (ENGINE_*). */
+export function initEngineStatus() {
+  return {
+    acceleratorPedalPosition: 0,
+    percentLoad: 0,
+    speed: 0,
+    percentTorque: 0,
+    activeDtcs: 0,
+    coolantTemp: 0,
+    oilTemp: 0,
+    oilPressure: 0,
+    fuelRate: 0,
+    intakeManifoldPressure: 0,
+    batteryVoltage: 0
+  };
+}
+
 export function initData(): FBAppData {
   return {
     n2kRoute: null,
@@ -601,18 +681,7 @@ export function initData(): FBAppData {
       socket: null,
       url: '',
       connected: false,
-      lastMessage: '',
-      ivpHelmState: '',
-      ivpHelmAllstop: '',
-      wptIndex: 0,
-      wptDist: 0,
-      wptEta: 0,
-      wptCompleted: false,
-      desiredSpeed: 10,
-      canSend: false,
-      regionActive: false,
-      waypointActive: false,
-      waypointRadii: null
+      ...initMoosIvPData()
     },
     connectionState: {
       signalK: {
@@ -650,16 +719,16 @@ export const processUrlTokens = (s: string, config: IAppConfig): string => {
           config.units.distance === 'm'
             ? config.resources.notes.getRadius
             : Math.floor(
-              Convert.nauticalMilesToKm(config.resources.notes.getRadius)
-            );
+                Convert.nauticalMilesToKm(config.resources.notes.getRadius)
+              );
         return dist * 1000;
       } else if (i === 'fetch:radius') {
         const dist =
           config.units.distance === 'm'
             ? config.resources.notes.getRadius
             : Math.floor(
-              Convert.nauticalMilesToKm(config.resources.fetchRadius)
-            );
+                Convert.nauticalMilesToKm(config.resources.fetchRadius)
+              );
         return dist * 1000;
       } else {
         return i;

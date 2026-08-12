@@ -40,6 +40,8 @@ export class SKStreamFacade {
   }> = new Subject();
   private vesselsUpdate: Subject<void> = new Subject();
   private navDataUpdate: Subject<void> = new Subject();
+  /** set by AppComponent while a mission recording is driving the pipeline */
+  public replayActive = false;
   // **************** SIGNALS ***********************************
   private anchorSignal = signal<{
     maxRadius?: number;
@@ -295,7 +297,9 @@ export class SKStreamFacade {
 
   private parseVesselSelf(v: SKVessel) {
     this.app.data.vessels.self = v;
-    if (this.app.config.fixedLocationMode) {
+    // fixedLocationMode would pin a replayed vessel to a static point and it
+    // would never move, so it only applies to live data
+    if (this.app.config.fixedLocationMode && !this.replayActive) {
       this.app.data.vessels.self.position = [...this.app.config.fixedPosition];
     }
     this.parseSelfRacing(v);

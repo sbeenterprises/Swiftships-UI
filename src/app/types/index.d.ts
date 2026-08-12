@@ -208,6 +208,13 @@ export interface IAppConfig {
     port: number;
     autoConnect: boolean;
   };
+  /** Mission replay recorder tuning */
+  replay?: {
+    /** seconds of capture buffered before a chunk is uploaded */
+    chunkSeconds: number;
+    /** bytes of capture buffered before a chunk is uploaded */
+    chunkBytes: number;
+  };
 }
 
 export interface FBAppData {
