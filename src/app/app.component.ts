@@ -144,6 +144,19 @@ export class AppComponent implements OnDestroy {
     ignoreCanSendUpdates: false  // Temporarily ignore incoming CAN_SEND to avoid race conditions
   };
 
+  // Follow an AIS contact (BHV_Trail on the helm).
+  //
+  // `active` mirrors what pHelmIvP reports through TRAILING rather than what
+  // this UI asked for, so a request that never lands does not leave the panel
+  // claiming the boat is following something.
+  public aisFollow = {
+    active: false,
+    mmsi: '',
+    name: '',
+    range: 100,   // metres astern
+    angle: 180    // degrees relative to the contact's heading
+  };
+
   // Autonomous control data. Mission-derived fields come from
   // initAutonomousControlData() so replay can rewind them; the user's own
   // selections and the send timer stay put.
@@ -398,6 +411,8 @@ export class AppComponent implements OnDestroy {
 
     // ** restore last calibrated PID gains (service mode)
     this.loadPidSettings();
+    this.aisFollow.range = this.app.config.selections.aisFollowRange ?? 100;
+    this.aisFollow.angle = this.app.config.selections.aisFollowAngle ?? 180;
 
     // ** Start MOOS contact cleanup timer
     this.startMoosContactCleanup();
@@ -1338,6 +1353,75 @@ export class AppComponent implements OnDestroy {
   protected appliedPidGain(loop: 'heading' | 'speed', key: 'kp' | 'ki' | 'kd'): string {
     const applied = this.servicePid.applied;
     return applied ? applied[loop][key].toFixed(3) : '--';
+  }
+
+  /** right-click > Follow on an AIS target */
+  protected followAisContact(vessel: SKVessel) {
+    if (!vessel) {
+      return;
+    }
+    // The MMSI is the only identity MOOS needs: pTrafficSim names its
+    // NODE_REPORTs AIS<mmsi>, so no name lookup is involved on either side.
+    const mmsi = vessel.mmsi || (vessel.id ?? '').split(':').pop();
+    if (!mmsi) {
+      this.app.showMessage('Contact has no MMSI - cannot follow.', false, 4000);
+      return;
+    }
+    this.aisFollow.mmsi = mmsi;
+    this.aisFollow.name = vessel.name || mmsi;
+    this.sendFollowUpdate();
+    this.app.showMessage(`Following ${this.aisFollow.name}...`, false, 3000);
+  }
+
+  /** distance to hold from the contact */
+  protected updateFollowRange(range: number) {
+    this.aisFollow.range = Math.max(20, Math.min(1000, Number(range)));
+    this.app.config.selections.aisFollowRange = this.aisFollow.range;
+    this.app.saveConfig();
+    if (this.aisFollow.mmsi) {
+      this.sendFollowUpdate();
+    }
+  }
+
+  /** bearing to hold, relative to the contact's heading */
+  protected updateFollowAngle(angle: number) {
+    this.aisFollow.angle = Math.max(0, Math.min(359, Number(angle)));
+    this.app.config.selections.aisFollowAngle = this.aisFollow.angle;
+    this.app.saveConfig();
+    if (this.aisFollow.mmsi) {
+      this.sendFollowUpdate();
+    }
+  }
+
+  /** release the helm */
+  protected stopFollowAis() {
+    this.sendMoos('TRAIL_FOLLOW=off');
+    this.aisFollow.mmsi = '';
+    this.aisFollow.name = '';
+    // `active` is left to TRAILING - the helm decides when it has let go.
+  }
+
+  private sendFollowUpdate() {
+    this.sendMoos(
+      `TRAIL_FOLLOW=mmsi=${this.aisFollow.mmsi}` +
+        `#range=${this.aisFollow.range}` +
+        `#angle=${this.aisFollow.angle}`
+    );
+  }
+
+  /** are the waypoint capture / slip radius circles drawn on the map? */
+  protected get showWaypointRadii(): boolean {
+    return this.app.config.selections.showWaypointRadii !== false;
+  }
+
+  /**
+   * Show / hide the capture and slip radius circles around each route waypoint.
+   * Display only - WPT_RADII keeps being parsed either way, so turning the
+   * circles back on shows the values MOOS reported while they were hidden.
+   */
+  protected toggleWaypointRadii(show: boolean) {
+    this.app.config.selections.showWaypointRadii = show;
+    this.app.saveConfig();
   }
 
   /** persist calibrated gains so they survive a reload */
@@ -2483,6 +2567,25 @@ export class AppComponent implements OnDestroy {
       case 'CONTACT_INFO':
         this.processContactInfo(value);
         break;
+      case 'TRAILING':
+        // What the helm reports, not what was requested.
+        this.aisFollow.active = value === 'true';
+        if (!this.aisFollow.active) {
+          this.aisFollow.mmsi = '';
+          this.aisFollow.name = '';
+        }
+        break;
+      case 'TRAIL_UPDATES': {
+        // contact=AIS366999001 # trail_range=150 # trail_angle=180
+        const mmsi = String(value).match(/contact=AIS(\d+)/);
+        if (mmsi) {
+          this.aisFollow.mmsi = mmsi[1];
+          if (!this.aisFollow.name) {
+            this.aisFollow.name = mmsi[1];
+          }
+        }
+        break;
+      }
       case 'WPT_STAT': {
         // Parse WPT_STAT format: vname=alpha,behavior-name=waypt_survey,index=0,hits=0/0,cycles=0,dist=2565,eta=513
         // console.log('[WPT_STAT] Received WPT_STAT message:', value);

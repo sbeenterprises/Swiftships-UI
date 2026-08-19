@@ -119,7 +119,8 @@
   <!-- Routes -->
   <fb-routes [routes]="skres.routes()" [routeStyles]="featureStyles.route" [activeRoute]="activeRoute"
     [darkMode]="app.uiConfig().invertColor" [labelMinZoom]="this.app.config.selections.labelsMinZoom"
-    [mapZoom]="fbMap.zoomLevel" [zIndex]="500" [waypointRadii]="app.data.moosIvPServer.waypointRadii"
+    [mapZoom]="fbMap.zoomLevel" [zIndex]="500"
+    [waypointRadii]="app.config.selections.showWaypointRadii ? app.data.moosIvPServer.waypointRadii : null"
     [wptIndex]="app.data.moosIvPServer.wptIndex" [wptActive]="app.data.moosIvPServer.waypointActive">
   </fb-routes>
 
@@ -419,7 +420,14 @@
 <div style="visibility: hidden; position: fixed" [style.left]="contextMenuPosition.x"
   [style.top]="contextMenuPosition.y" [matMenuTriggerFor]="contextMenu"></div>
 <mat-menu #contextMenu="matMenu" (contextmenu)="$event.preventDefault()">
-  <ng-template matMenuContent let-item="item">
+  <ng-template matMenuContent let-item="item" let-ais="ais">
+    @if(ais) {
+    <button mat-menu-item (contextmenu)="$event.preventDefault()" (click)="onContextMenuAction('follow_ais', ais)">
+      <mat-icon>my_location</mat-icon>
+      Follow {{ ais.name || ais.mmsi }}
+    </button>
+    <mat-divider></mat-divider>
+    }
     <button mat-menu-item (contextmenu)="$event.preventDefault()" (click)="onContextMenuAction('nav_to', item)">
       <mat-icon>near_me</mat-icon>
       Navigate to here

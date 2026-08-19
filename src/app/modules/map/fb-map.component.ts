@@ -168,6 +168,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Output() exitMovingMap: EventEmitter<boolean> = new EventEmitter();
   @Output() focusVessel: EventEmitter<string> = new EventEmitter();
   @Output() menuItemSelected: EventEmitter<string> = new EventEmitter();
+  /** right-click > Follow on an AIS target; carries the target itself so the
+   *  app can read its mmsi without re-doing the feature hit test */
+  @Output() followAisTarget: EventEmitter<SKVessel> = new EventEmitter();
+
+  /** AIS target under the last right-click, or null - drives the Follow item */
+  protected contextMenuAis: SKVessel = null;
 
   public activeRegionId: string = null;
   public filterRegionId: string = null; // When set, only this region is shown on the map
@@ -536,6 +542,27 @@ export class FBMapComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** AIS target under the last right-click, or null.
+   *  Feature ids for AIS vessels are 'ais-vessels.<id>' while the backing map
+   *  is keyed 'vessels.<id>' - same split as onMapSingleClick(). */
+  protected aisTargetAtClick(): SKVessel {
+    const features = this.app.data.map.atClick?.features;
+    if (!features || features.length === 0) {
+      return null;
+    }
+    for (const feature of features) {
+      const id = feature.getId() as string;
+      if (!id) {
+        continue;
+      }
+      const t = id.split('.');
+      if (t[0] === 'ais-vessels') {
+        return this.dfeat.ais.get(`vessels.${t[1]}`) ?? null;
+      }
+    }
+    return null;
+  }
+
   // ** handle context menu choices **
   protected onContextMenuAction(action: string, pos: Position) {
     switch (action) {
@@ -583,6 +610,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
         // Emit event to show confirmation message
         this.menuItemSelected.emit('define_base');
+        break;
+      case 'follow_ais':
+        if (this.contextMenuAis) {
+          this.followAisTarget.emit(this.contextMenuAis);
+        }
         break;
       default:
         this.menuItemSelected.emit(action);
@@ -852,7 +884,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
     e.preventDefault();
     this.contextMenuPosition.x = e.clientX + 'px';
     this.contextMenuPosition.y = e.clientY + 'px';
-    this.contextMenu.menuData = { item: this.mouse.coords };
+    // The viewport's own contextmenu listener has already run and filled in
+    // atClick, so the feature under the cursor is known by the time we get here.
+    this.contextMenuAis = this.aisTargetAtClick();
+    this.contextMenu.menuData = {
+      item: this.mouse.coords,
+      ais: this.contextMenuAis
+    };
     if (
       this.mapInteract.isMeasuring() &&
       this.mapInteract.measurement().coords.length !== 0

@@ -711,6 +711,54 @@
               </div>
               }
 
+              <!-- Follow AIS Contact -->
+              <div class="autonomous-control-section" [class.service-mode-active]="aisFollow.active">
+                <h3>Follow Contact</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">Target:</span>
+                    <span class="control-value" [style.color]="aisFollow.active ? '#ffb74d' : '#87ceeb'">
+                      {{ aisFollow.name || 'none' }}
+                    </span>
+                  </div>
+
+                  @if(!aisFollow.name) {
+                  <div class="service-mode-hint">
+                    Right-click an AIS target on the map and choose Follow.
+                  </div>
+                  }
+
+                  <mat-slider min="20" max="1000" step="10" class="speed-slider">
+                    <input matSliderThumb [value]="aisFollow.range"
+                      (input)="updateFollowRange($any($event.target).value)">
+                  </mat-slider>
+                  <div class="control-display">
+                    <span class="control-label">Distance:</span>
+                    <span class="control-value">{{ aisFollow.range }} m</span>
+                  </div>
+
+                  <mat-slider min="0" max="359" step="5" class="speed-slider">
+                    <input matSliderThumb [value]="aisFollow.angle"
+                      (input)="updateFollowAngle($any($event.target).value)">
+                  </mat-slider>
+                  <div class="control-display">
+                    <span class="control-label">Relative angle:</span>
+                    <span class="control-value">
+                      {{ aisFollow.angle }}&deg;
+                      {{ aisFollow.angle === 0 ? '(ahead)' : aisFollow.angle === 180 ? '(astern)' : '' }}
+                    </span>
+                  </div>
+
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="stopFollowAis()" class="control-btn"
+                      [disabled]="!aisFollow.name && !aisFollow.active">
+                      <mat-icon>stop</mat-icon>
+                      Stop Following
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Mission Status -->
               <div class="autonomous-control-section">
                 <h3>Mission Status</h3>
@@ -819,6 +867,16 @@
                     </mat-slide-toggle>
                   </div>
 
+                  <div class="control-display">
+                    <span class="control-label">Waypoint Radii:</span>
+                    <mat-slide-toggle class="service-mode-toggle" [checked]="showWaypointRadii"
+                      (change)="toggleWaypointRadii($event.checked)">
+                      <span class="control-value" [style.color]="showWaypointRadii ? '#87ceeb' : '#9e9e9e'">
+                        {{ showWaypointRadii ? 'SHOWN' : 'HIDDEN' }}
+                      </span>
+                    </mat-slide-toggle>
+                  </div>
+
                   @if(servicePid.enabled) {
                   <div class="service-mode-warning">
                     <mat-icon>warning</mat-icon>
@@ -876,11 +934,6 @@
                       <mat-icon>upload</mat-icon>
                       Re-send
                     </button>
-                  </div>
-                  } @else {
-                  <div class="service-mode-hint">
-                    Enable to tune Kp / Ki / Kd live. While off, planchaPID uses its speed-based
-                    gain schedule.
                   </div>
                   }
                 </div>
@@ -1255,7 +1308,8 @@
               (activate)="activateRoute($event)" (deactivate)="clearDestination()"
               (regionActivated)="onRegionActivated($event)" (regionDeactivated)="onRegionDeactivated()"
               (exitMovingMap)="toggleMoveMap($event)" (focusVessel)="switchActiveVessel($event)"
-              (info)="featureProperties($event)" (menuItemSelected)="handleContextMenuSelection($event)">
+              (info)="featureProperties($event)" (menuItemSelected)="handleContextMenuSelection($event)"
+              (followAisTarget)="followAisContact($event)">
             </fb-map>
 
           </div>

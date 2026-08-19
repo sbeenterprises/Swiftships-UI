@@ -173,6 +173,11 @@ export interface IAppConfig {
       heading: { kp: number; ki: number; kd: number };
       speed: { kp: number; ki: number; kd: number };
     };
+    // draw the capture / slip radius circles around each route waypoint
+    showWaypointRadii?: boolean;
+    // last "Follow AIS contact" standoff distance (m) and relative angle (deg)
+    aisFollowRange?: number;
+    aisFollowAngle?: number;
   };
   resources: {
     // ** resource options

@@ -318,6 +318,19 @@ export function cleanConfig(
     };
   }
 
+  //Waypoint capture / slip radius circles (upgrade of stored settings)
+  if (typeof settings.selections.showWaypointRadii === 'undefined') {
+    settings.selections.showWaypointRadii = true;
+  }
+
+  //Follow AIS contact defaults (upgrade of stored settings)
+  if (typeof settings.selections.aisFollowRange === 'undefined') {
+    settings.selections.aisFollowRange = 100;
+  }
+  if (typeof settings.selections.aisFollowAngle === 'undefined') {
+    settings.selections.aisFollowAngle = 180;
+  }
+
   // MOOS-IvP connection config
   if (typeof settings.moosIvP === 'undefined') {
     settings.moosIvP = {
@@ -483,7 +496,10 @@ export function defaultConfig(): IAppConfig {
         enabled: false,
         heading: { kp: 0.15, ki: 0, kd: 0.26 },
         speed: { kp: 0.16, ki: 0.003, kd: 0 }
-      }
+      },
+      showWaypointRadii: true,
+      aisFollowRange: 100,
+      aisFollowAngle: 180
     },
     resources: {
       // ** resource options
