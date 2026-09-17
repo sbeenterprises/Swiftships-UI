@@ -938,6 +938,235 @@
                   }
                 </div>
               </div>
+
+              <!-- Collision Avoidance Distances: the engagement envelope the
+                   running avdcol_ behaviour (BHV_AvdColregsV22) is configured
+                   with, editable live so it can be trimmed on the water -->
+              <div class="autonomous-control-section" [class.service-mode-active]="colavDistPending">
+                <h3>Collision Avoidance Distances</h3>
+                <div class="control-group">
+                  @for(group of colavDistGroups; track group.id) {
+                  <div class="pid-loop">
+                    <div class="pid-loop-title">{{ group.title }} <span>&rarr; {{ group.output }}</span></div>
+
+                    @for(spec of colavDistSpecsFor(group.id); track spec.key) {
+                    <div class="pid-gain">
+                      <div class="pid-gain-head">
+                        <span class="control-label">{{ spec.label }} (m)</span>
+                        <input class="pid-gain-input" type="number" [min]="spec.min" [max]="spec.max"
+                          [step]="spec.step" [value]="colavDist[spec.key]"
+                          (change)="onColavDistInput(spec.key, $event)">
+                      </div>
+                      <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
+                        <button mat-icon-button class="slider-btn minus-btn"
+                          (click)="nudgeColavDist(spec.key, -1)"
+                          [disabled]="colavDist[spec.key] <= spec.min">
+                          <mat-icon>remove</mat-icon>
+                        </button>
+                        <mat-slider [min]="spec.min" [max]="spec.max" [step]="spec.step" class="pid-slider"
+                          style="flex: 1;">
+                          <input matSliderThumb [value]="colavDist[spec.key]"
+                            (input)="updateColavDist(spec.key, $any($event.target).value)">
+                        </mat-slider>
+                        <button mat-icon-button class="slider-btn plus-btn"
+                          (click)="nudgeColavDist(spec.key, 1)"
+                          [disabled]="colavDist[spec.key] >= spec.max">
+                          <mat-icon>add</mat-icon>
+                        </button>
+                      </div>
+                    </div>
+                    }
+
+                    <div class="control-display pid-applied">
+                      <span class="control-label">Applied:</span>
+                      <span class="control-value pid-applied-value">
+                        @if(group.id === 'envelope') {
+                        {{ appliedColavDist('outer') }} / {{ appliedColavDist('inner') }} /
+                        {{ appliedColavDist('completed') }} m
+                        } @else {
+                        {{ appliedColavDist('minCpa') }} &ndash; {{ appliedColavDist('maxCpa') }} m
+                        }
+                      </span>
+                    </div>
+                  </div>
+                  }
+
+                  @if(colavDistPending) {
+                  <div class="service-mode-warning">
+                    <mat-icon>sync_problem</mat-icon>
+                    <span>The helm has not confirmed these values yet. Re-send if it stays this way.</span>
+                  </div>
+                  }
+
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="resetColavDist()" class="control-btn">
+                      <mat-icon>restart_alt</mat-icon>
+                      Reset
+                    </button>
+                    <button mat-raised-button (click)="sendColavDist()" class="control-btn center-btn">
+                      <mat-icon>upload</mat-icon>
+                      Re-send
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Collision Avoidance Test: place an AIS target and measure the
+                   avoidance the helm actually performs -->
+              <div class="autonomous-control-section" [class.service-mode-active]="colavTest.enabled">
+                <h3>Collision Avoidance Test</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">Test Mode:</span>
+                    <mat-slide-toggle class="service-mode-toggle" [checked]="colavTest.enabled"
+                      (change)="toggleColavTest($event.checked)">
+                      <span class="control-value" [style.color]="colavTest.enabled ? '#ffb74d' : '#87ceeb'">
+                        {{ colavTest.enabled ? 'ON' : 'OFF' }}
+                      </span>
+                    </mat-slide-toggle>
+                  </div>
+
+                  @if(colavTest.enabled) {
+
+                  <!-- avdcol_ carries condition = WAYPOINT = true. Without a
+                       mission the behaviour is idle and nothing is measured,
+                       which reads as a broken avoidance system. -->
+                  @if(!autonomousControl.waypointActive) {
+                  <div class="service-mode-warning">
+                    <mat-icon>warning</mat-icon>
+                    <span>Avoidance only runs during a mission. Start a route before placing targets.</span>
+                  </div>
+                  } @else {
+                  <div class="colav-hint">
+                    <mat-icon>ads_click</mat-icon>
+                    <span>Right-click the chart &rarr; <b>Put Target</b></span>
+                  </div>
+                  }
+
+                  @if(colavTest.lastError) {
+                  <div class="service-mode-warning">
+                    <mat-icon>error_outline</mat-icon>
+                    <span>Last target refused: {{ colavTest.lastError }}</span>
+                  </div>
+                  }
+
+                  <!-- Target parameters -->
+                  <div class="pid-loop">
+                    <div class="pid-loop-title">Target <span>&rarr; simulated AIS</span></div>
+
+                    <div class="control-display">
+                      <span class="control-label">Speed (kn):</span>
+                      <input class="pid-gain-input" type="number" min="0" max="30" step="0.5"
+                        [value]="colavTest.speed"
+                        (change)="updateColavParam('speed', $any($event.target).value)">
+                    </div>
+
+                    <div class="control-display">
+                      <span class="control-label">Course:</span>
+                      <mat-button-toggle-group class="colav-toggle-group" [value]="colavTest.courseMode"
+                        (change)="setColavCourseMode($event.value)">
+                        <mat-button-toggle value="at_usv">At USV</mat-button-toggle>
+                        <mat-button-toggle value="fixed">Fixed</mat-button-toggle>
+                      </mat-button-toggle-group>
+                    </div>
+
+                    @if(colavTest.courseMode === 'fixed') {
+                    <div class="control-display">
+                      <span class="control-label">Bearing (&deg;):</span>
+                      <input class="pid-gain-input" type="number" min="0" max="359" step="1"
+                        [value]="colavTest.course"
+                        (change)="updateColavParam('course', $any($event.target).value)">
+                    </div>
+                    }
+
+                    <div class="control-display">
+                      <span class="control-label">Vessel:</span>
+                      <mat-form-field appearance="outline" class="colav-type-field">
+                        <mat-select [value]="colavTest.vesselType"
+                          (selectionChange)="setColavVesselType($event.value)">
+                          <mat-option *ngFor="let t of colavVesselTypes" [value]="t">{{ t }}</mat-option>
+                        </mat-select>
+                      </mat-form-field>
+                    </div>
+
+                    <div class="control-display">
+                      <span class="control-label">Placed:</span>
+                      <span class="control-value">{{ colavTest.targets.length }}</span>
+                    </div>
+                  </div>
+
+                  <!-- One card per encounter -->
+                  @for(enc of colavTest.encounters; track enc.id) {
+                  <div class="colav-card" [class.live]="enc.state === 'live'"
+                    [class.past]="enc.state === 'past_cpa'" [class.done]="enc.state === 'done'"
+                    [class.bad]="enc.verdict === 'collision' || enc.verdict === 'near_miss'">
+
+                    <div class="colav-card-head">
+                      <span class="colav-cn">{{ enc.cn }}</span>
+                      @if(enc.test) { <span class="colav-badge">test</span> }
+                      <span class="colav-state">
+                        @if(enc.state === 'live') { closing }
+                        @else if(enc.state === 'past_cpa') { past CPA }
+                        @else { {{ enc.verdict }} }
+                      </span>
+                    </div>
+
+                    <div class="colav-mode">{{ enc.mode }}</div>
+
+                    <div class="colav-grid">
+                      @if(enc.state !== 'done') {
+                      <div><span>range</span><b>{{ colavNum(enc.range, 0, ' m') }}</b></div>
+                      <div><span>CPA now</span><b>{{ colavNum(enc.cpaLive, 0, ' m') }}</b></div>
+                      <div><span>TCPA</span><b>{{ colavNum(enc.tcpa, 0, ' s') }}</b></div>
+                      }
+                      <div><span>closest</span><b>{{ colavNum(enc.minRange, 1, ' m') }}</b></div>
+                      <div><span>CPA if held</span><b>{{ colavNum(enc.cpaPred, 1, ' m') }}</b></div>
+                      <div><span>reaction</span><b>{{ colavNum(enc.reaction, 1, ' s') }}</b></div>
+                      <div><span>seen at</span><b>{{ colavNum(enc.rngDetect, 0, ' m') }}</b></div>
+                      <div><span>acted at</span><b>{{ colavNum(enc.rngActive, 0, ' m') }}</b></div>
+                      <div>
+                        <span>deflection</span>
+                        <b [class.colav-doubt]="!enc.deflectionValid">
+                          {{ colavNum(enc.deflection, 0, '°') }}
+                        </b>
+                      </div>
+                      <div><span>min speed</span><b>{{ colavNum(enc.spdMin, 1, ' m/s') }}</b></div>
+                      <div><span>priority</span><b>{{ colavNum(enc.apwtMax, 0) }}</b></div>
+                      <!-- only when uFldCollisionDetect is running as a
+                           second opinion; absent in the stock mission -->
+                      @if(enc.ucdCpa >= 0) {
+                      <div><span>CPA (2nd)</span><b>{{ colavNum(enc.ucdCpa, 1, ' m') }}</b></div>
+                      }
+                    </div>
+
+                    @if(!enc.deflectionValid) {
+                    <div class="colav-note">waypoint changed while avoiding - deflection is not just avoidance</div>
+                    }
+                    @if(enc.state === 'done' && enc.modes) {
+                    <div class="colav-note">modes: {{ enc.modes }}</div>
+                    }
+                    @if(enc.state === 'done' && enc.postMortem) {
+                    <div class="colav-note">ended: {{ enc.postMortem }}</div>
+                    }
+                  </div>
+                  }
+
+                  @if(colavTest.encounters.length === 0) {
+                  <div class="colav-note colav-empty">
+                    No encounters yet. Targets are only picked up inside 300 m,
+                    or on a predicted CPA under 300 m.
+                  </div>
+                  }
+
+                  <div class="control-buttons">
+                    <button mat-raised-button (click)="clearColavTargets()" class="control-btn">
+                      <mat-icon>delete_sweep</mat-icon>
+                      Clear targets
+                    </button>
+                  </div>
+                  }
+                </div>
+              </div>
               }
             </div>
           </div>

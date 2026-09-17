@@ -72,7 +72,9 @@ import {
   Polygon,
   FBRoute,
   Position,
-  ErrorList
+  ErrorList,
+  ColavEncounter,
+  ColregsStatus
 } from './types';
 import { Feature } from 'ol';
 import {
@@ -205,6 +207,101 @@ export class AppComponent implements OnDestroy {
     ignoreModeUpdates: false, // ignore SERVICE_MODE echo right after a local toggle
     pendingConfirm: false     // waiting for planchaPID to confirm a toggle
   };
+
+  // Collision avoidance test: place an AIS target from the map and measure what
+  // BHV_AvdColregsV22 does about it.
+  //
+  // `enabled` is optimistic while a toggle is in flight, then follows
+  // COLAV_TEST_ACK - the ack comes from pColavEval, so the switch only settles
+  // ON if something is actually there to measure. Same handshake as servicePid.
+  public colavTest = {
+    enabled: false,
+    speed: 5,                                        // knots
+    courseMode: 'at_usv' as 'at_usv' | 'fixed',
+    course: 218.7,                                   // used when courseMode is 'fixed'
+    vesselType: 'cargo',
+    length: 25,
+    beam: 9,
+    ignoreModeUpdates: false,
+    pendingConfirm: false,
+    targets: [] as string[],                         // placed, from TRAFFIC_TARGETS
+    encounters: [] as ColavEncounter[],              // parsed from COLAV_METRICS
+    lastError: ''                                    // refusal reason from the backend
+  };
+
+  // Vessel types pTrafficSim maps onto ITU ship-and-cargo codes
+  protected readonly colavVesselTypes = [
+    'cargo', 'tug', 'tanker', 'ferry', 'fishing', 'sailing', 'pleasure'
+  ];
+
+  // Engagement distances the collision avoidance behaviour is running with.
+  // These are the BHV_AvdColregsV22 parameters of the avdcol_ block in
+  // alpha.bhv; iWebSocket pushes them into the behaviour through its updates
+  // variable (CONTACT_INFO) and widens the contact manager's alert range to
+  // match, so the envelope can be trimmed on the water without editing the
+  // .bhv and relaunching the mission.
+  //
+  // `applied` is what the backend reports is actually in force - everything
+  // above it is only what the operator asked for until that echo arrives.
+  public colavDist = {
+    outer: 300,        // pwt_outer_dist
+    inner: 150,        // pwt_inner_dist
+    completed: 1500,   // completed_dist
+    minCpa: 100,       // min_util_cpa_dist
+    maxCpa: 300,       // max_util_cpa_dist
+    applied: null as {
+      outer: number;
+      inner: number;
+      completed: number;
+      minCpa: number;
+      maxCpa: number;
+    } | null
+  };
+
+  // Rendered as two cards: the range envelope the behaviour engages in, and
+  // the CPA band it grades an avoidance by. Each row is one BHV_AvdColregsV22
+  // parameter - outer/inner/completed are pwt_outer_dist, pwt_inner_dist and
+  // completed_dist; the CPA pair is min_util_cpa_dist / max_util_cpa_dist.
+  protected readonly colavDistSpecs: Array<{
+    key: 'outer' | 'inner' | 'completed' | 'minCpa' | 'maxCpa';
+    group: 'envelope' | 'cpa';
+    label: string;
+    min: number;
+    max: number;
+    step: number;
+  }> = [
+      { key: 'outer', group: 'envelope', label: 'Engage at', min: 50, max: 1500, step: 10 },
+      { key: 'inner', group: 'envelope', label: 'Full priority at', min: 20, max: 1500, step: 10 },
+      { key: 'completed', group: 'envelope', label: 'Drop contact at', min: 100, max: 3000, step: 50 },
+      { key: 'minCpa', group: 'cpa', label: 'Collision CPA', min: 5, max: 500, step: 5 },
+      { key: 'maxCpa', group: 'cpa', label: 'All-clear CPA', min: 10, max: 1000, step: 10 }
+    ];
+
+  // The two cards above, in render order
+  protected readonly colavDistGroups: Array<{
+    id: 'envelope' | 'cpa';
+    title: string;
+    output: string;
+  }> = [
+      { id: 'envelope', title: 'Engagement envelope', output: 'range to contact' },
+      { id: 'cpa', title: 'CPA band', output: 'closest point of approach' }
+    ];
+
+  // What alpha.bhv configures avdcol_ with - used by Reset
+  private readonly colavDistDefaults = {
+    outer: 300,
+    inner: 150,
+    completed: 1500,
+    minCpa: 100,
+    maxCpa: 300
+  };
+
+  // A slider drag emits continuously; only the settled set needs sending
+  private colavDistSendTimer: any = null;
+
+  // Ignore the backend echo until this time: a round trip is slower than a
+  // slider drag, and adopting a stale echo would fight the operator's hand.
+  private colavDistMuteUntil = 0;
 
   // Slider bounds per gain: Ki needs a far finer range than Kp/Kd
   protected readonly pidGainSpecs: {
@@ -411,6 +508,8 @@ export class AppComponent implements OnDestroy {
 
     // ** restore last calibrated PID gains (service mode)
     this.loadPidSettings();
+    this.loadColavSettings();
+    this.loadColavDistSettings();
     this.aisFollow.range = this.app.config.selections.aisFollowRange ?? 100;
     this.aisFollow.angle = this.app.config.selections.aisFollowAngle ?? 180;
 
@@ -1409,6 +1508,563 @@ export class AppComponent implements OnDestroy {
     );
   }
 
+  // ***************** COLLISION AVOIDANCE TEST ******************
+
+  /**
+   * Turn the test on or off.
+   *
+   * Off also clears any targets still out there: leaving simulated AIS traffic
+   * running after the panel is closed is how a test target ends up being read
+   * as real traffic. iWebSocket does the same on its side, so a UI that dies
+   * mid-test does not strand contacts either.
+   */
+  protected toggleColavTest(enabled: boolean) {
+    this.colavTest.enabled = enabled;
+    this.colavTest.lastError = '';
+
+    // Ignore the echo briefly so the switch does not flick back before
+    // pColavEval has answered.
+    this.colavTest.ignoreModeUpdates = true;
+    setTimeout(() => {
+      this.colavTest.ignoreModeUpdates = false;
+    }, 3000);
+
+    if (!this.sendMoos(`COLAV_TEST=${enabled ? 'true' : 'false'}`)) {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      this.colavTest.enabled = false;
+      return;
+    }
+    this.colavTest.pendingConfirm = true;
+
+    if (enabled) {
+      this.app.showMessage(
+        'Collision Avoidance Test ON - right-click the chart to put a target',
+        false, 4000
+      );
+    } else {
+      this.colavTest.targets = [];
+      this.app.showMessage('Collision Avoidance Test OFF - targets cleared', false, 3000);
+    }
+  }
+
+  /** persist the target parameters so a reload keeps the operator's setup */
+  private saveColavSettings() {
+    this.app.config.selections.colavTarget = {
+      speed: this.colavTest.speed,
+      courseMode: this.colavTest.courseMode,
+      course: this.colavTest.course,
+      vesselType: this.colavTest.vesselType,
+      length: this.colavTest.length,
+      beam: this.colavTest.beam
+    };
+    this.app.saveConfig();
+  }
+
+  private loadColavSettings() {
+    const saved = this.app.config.selections.colavTarget;
+    if (!saved) {
+      return;
+    }
+    this.colavTest.speed = saved.speed ?? 5;
+    this.colavTest.courseMode = saved.courseMode ?? 'at_usv';
+    this.colavTest.course = saved.course ?? 218.7;
+    this.colavTest.vesselType = saved.vesselType ?? 'cargo';
+    this.colavTest.length = saved.length ?? 25;
+    this.colavTest.beam = saved.beam ?? 9;
+  }
+
+  protected updateColavParam(key: 'speed' | 'course' | 'length' | 'beam', value: number | string) {
+    const parsed = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(parsed)) {
+      return;
+    }
+    if (key === 'speed')       this.colavTest.speed  = Math.max(0, Math.min(30, parsed));
+    else if (key === 'course') this.colavTest.course = ((parsed % 360) + 360) % 360;
+    else if (key === 'length') this.colavTest.length = Math.max(3, Math.min(400, parsed));
+    else                       this.colavTest.beam   = Math.max(1, Math.min(80, parsed));
+    this.saveColavSettings();
+  }
+
+  protected setColavCourseMode(mode: 'at_usv' | 'fixed') {
+    this.colavTest.courseMode = mode;
+    this.saveColavSettings();
+  }
+
+  protected setColavVesselType(type: string) {
+    this.colavTest.vesselType = type;
+    this.saveColavSettings();
+  }
+
+  /**
+   * right-click > Put Target. The position comes from the map component, which
+   * stashes it before emitting - the same handshake Station Keep uses.
+   *
+   * The course is sent as an intent ('at_usv') rather than a computed bearing:
+   * pTrafficSim knows where the boat is at the instant it creates the contact,
+   * and a heading worked out a websocket round trip earlier would be stale.
+   */
+  protected putColavTarget(pos: Position) {
+    if (!pos) {
+      return;
+    }
+    if (!this.colavTest.enabled) {
+      return;
+    }
+
+    // avdcol_ carries condition = WAYPOINT = true, so with no mission running
+    // the behaviour stays idle and nothing is measured. Say so rather than
+    // letting the operator conclude the avoidance system is broken.
+    if (!this.autonomousControl.waypointActive) {
+      this.app.showMessage(
+        'Start a route first - collision avoidance only runs during a mission.',
+        true, 5000
+      );
+      return;
+    }
+
+    const course = this.colavTest.courseMode === 'at_usv'
+      ? 'at_usv'
+      : String(this.colavTest.course);
+
+    const sent = this.sendMoos(
+      `PUT_TARGET=lat=${pos[1].toFixed(6)}` +
+      `#lon=${pos[0].toFixed(6)}` +
+      `#course=${course}` +
+      `#speed=${this.colavTest.speed}` +
+      `#type=${this.colavTest.vesselType}` +
+      `#length=${this.colavTest.length}` +
+      `#beam=${this.colavTest.beam}`
+    );
+    if (!sent) {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      return;
+    }
+    // The target reaches the chart the long way round - AIVDM to Signal K and
+    // back as an AIS vessel - so acknowledge the click straight away.
+    this.app.showMessage('Target placed, waiting for AIS...', false, 2500);
+  }
+
+  /** remove every target this test placed */
+  protected clearColavTargets() {
+    if (!this.sendMoos('CLEAR_TARGETS=all')) {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      return;
+    }
+    this.colavTest.targets = [];
+    this.app.showMessage('Targets cleared', false, 2000);
+  }
+
+  /** COLAV_METRICS is a JSON array; a malformed one must not kill the panel */
+  private processColavMetrics(raw: string) {
+    if (!raw) {
+      this.colavTest.encounters = [];
+      this.app.data.moosIvPServer.colregs = null;
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      this.colavTest.encounters = Array.isArray(parsed) ? parsed : [];
+      this.colregsSeenAt = Date.now();
+      this.updateColregsStatus();
+    } catch (e) {
+      console.warn('[COLAV] could not parse COLAV_METRICS', e);
+    }
+  }
+
+  /**
+   * The ack is the authority: pColavEval echoing COLAV_TEST is what proves an
+   * evaluator is running. Without it the toggle would happily sit ON against
+   * nothing and report no encounters, which looks like a broken behaviour.
+   */
+  private syncColavTest(ack: boolean) {
+    if (this.colavTest.pendingConfirm && (ack !== this.colavTest.enabled)) {
+      this.app.showMessage(
+        'No collision avoidance evaluator responded - is pColavEval running?',
+        true, 5000
+      );
+    }
+    this.colavTest.pendingConfirm = false;
+    if (!this.colavTest.ignoreModeUpdates) {
+      this.colavTest.enabled = ack;
+    }
+  }
+
+
+  // ****************** COLREGS STATUS (chart box) ******************
+
+  // The COLREGS mode BHV_AvdColregsV22 reports, as a rule the operator can
+  // read off the chart. Rule numbers are the ones the behaviour itself cites
+  // in its mode handlers: 13 overtaking, 14 head-on, 16 give-way, 17 stand-on.
+  // "cpa" is the behaviour's unclassified fallback - it is avoiding on CPA
+  // alone, with no COLREGS situation established, and saying so is more honest
+  // than naming a rule it is not following.
+  private readonly colregsRules: {
+    [mode: string]: { rule: string; name: string; action: string; tone: 'act' | 'hold' | 'urgent' };
+  } = {
+      headon: { rule: 'Rule 14', name: 'Head-on', action: 'altering to starboard', tone: 'act' },
+      overtaking: { rule: 'Rule 13', name: 'Overtaking', action: 'passing clear', tone: 'act' },
+      giveway: { rule: 'Rule 16', name: 'Give-way', action: 'keeping out of the way', tone: 'act' },
+      standon: { rule: 'Rule 17', name: 'Stand-on', action: 'holding course and speed', tone: 'hold' },
+      standon_ot: { rule: 'Rule 17', name: 'Stand-on, being overtaken', action: 'holding course and speed', tone: 'hold' },
+      cpa: { rule: '', name: 'Keep clear', action: 'no COLREGS situation - CPA only', tone: 'act' }
+    };
+
+  /** last time the encounter set actually changed, for expiring a stale box */
+  private colregsSeenAt = 0;
+
+  /**
+   * Turn the encounter set into the one line the chart box shows.
+   *
+   * Only encounters the behaviour is ACTIVE on count: an open encounter means
+   * the helm is watching a contact, an active one means it is steering around
+   * it, and the box is there to say what the boat is doing. When more than one
+   * is active the nearest wins and the rest are counted.
+   */
+  private updateColregsStatus() {
+    const active = this.colavTest.encounters.filter(
+      (e) => e.active && e.state !== 'done'
+    );
+    if (active.length === 0) {
+      this.app.data.moosIvPServer.colregs = null;
+      return;
+    }
+
+    const lead = active.reduce((a, b) => {
+      const ra = a.range >= 0 ? a.range : Number.MAX_VALUE;
+      const rb = b.range >= 0 ? b.range : Number.MAX_VALUE;
+      return rb < ra ? b : a;
+    });
+
+    const mode = lead.mode || 'none';
+    const base = mode.split(':')[0];
+    const submode = mode.split(':')[1] ?? 'none';
+    const rule = this.colregsRules[base];
+
+    // Modes the behaviour has not classified yet ("none"), or has finished
+    // with ("complete"). Neither should normally be seen while active, so say
+    // what is known rather than inventing a rule.
+    let status: ColregsStatus = rule
+      ? { ...rule, icon: '', target: '', detail: '', others: 0, mode: mode }
+      : {
+        rule: '', name: 'Avoiding', action: 'classifying the encounter',
+        tone: 'act', icon: '', target: '', detail: '', others: 0, mode: mode
+      };
+
+    // Submodes worth putting in front of the operator. The rest ("unsure",
+    // "neither") are the behaviour still making its mind up and would only
+    // add noise to a box that is meant to be read at a glance.
+    if (base === 'giveway' && submode === 'stern') {
+      status.action = 'crossing astern';
+    } else if (base === 'giveway' && submode === 'bow') {
+      status.action = 'crossing ahead';
+    } else if (base === 'overtaking' && (submode === 'port' || submode === 'starboard')) {
+      status.action = `passing to ${submode}`;
+    } else if (base === 'standon' && submode === 'inextremis') {
+      status = {
+        ...status,
+        rule: 'Rule 17(b)',
+        name: 'Stand-on, in extremis',
+        action: 'taking avoiding action',
+        tone: 'urgent'
+      };
+    }
+
+    status.icon = status.tone === 'urgent'
+      ? 'priority_high'
+      : status.tone === 'hold' ? 'arrow_upward' : 'near_me';
+    status.target = this.colregsTargetName(lead);
+    status.detail = this.colregsDetail(lead);
+    status.others = active.length - 1;
+
+    this.app.data.moosIvPServer.colregs = status;
+  }
+
+  /** range and time to CPA, as the box shows them */
+  private colregsDetail(enc: ColavEncounter): string {
+    const parts: string[] = [];
+    if (enc.range >= 0) {
+      parts.push(`${Math.round(enc.range)} m`);
+    }
+    // TCPA goes negative once the contact is opening again - it is only worth
+    // showing while the boat is still closing on it.
+    if (enc.tcpa >= 0) {
+      parts.push(`TCPA ${Math.round(enc.tcpa)} s`);
+    }
+    return parts.join(' \u00b7 ');
+  }
+
+  /**
+   * The helm knows a contact by the name in its NODE_REPORT (AIS<mmsi> for
+   * simulated traffic). Trade it for the AIS vessel name when the chart has
+   * one, so the box names the ship the operator can see.
+   */
+  private colregsTargetName(enc: ColavEncounter): string {
+    if (enc.mmsi) {
+      const mmsi = String(enc.mmsi);
+      for (const v of this.app.data.vessels.aisTargets.values()) {
+        if (v && v.mmsi === mmsi && v.name) {
+          return v.name;
+        }
+      }
+      return `MMSI ${mmsi}`;
+    }
+    return enc.cn || 'contact';
+  }
+
+  /**
+   * Drop the box if the encounter set has stopped changing. iWebSocket echoes
+   * its last COLAV_METRICS on every tick, so a pColavEval that has died looks
+   * exactly like a quiet one from here - and a box left saying GIVE-WAY after
+   * the evaluator is gone is worse than no box at all. A live encounter moves
+   * its range and TCPA every post, so this cannot expire one that is real.
+   */
+  private expireStaleColregs() {
+    if (!this.app.data.moosIvPServer.colregs) {
+      return;
+    }
+    if (Date.now() - this.colregsSeenAt > 10000) {
+      console.log('[COLREGS] no encounter update in 10s - clearing the chart box');
+      this.app.data.moosIvPServer.colregs = null;
+    }
+  }
+
+  /** pTrafficSim refuses a spawn with a reason - surface it, do not swallow it */
+  private processTrafficSpawned(raw: string) {
+    if (!raw) {
+      return;
+    }
+    const kv: { [k: string]: string } = {};
+    raw.split(',').forEach((p) => {
+      const i = p.indexOf('=');
+      if (i > 0) {
+        kv[p.substring(0, i)] = p.substring(i + 1);
+      }
+    });
+    if (kv['ok'] === 'false') {
+      const why: { [k: string]: string } = {
+        disabled: 'traffic simulation is off in this mission',
+        no_ownship: 'no position fix yet',
+        out_of_range: 'too far from the boat',
+        limit: 'too many targets already placed',
+        bad_spec: 'malformed request',
+        duplicate: 'that target already exists'
+      };
+      const reason = why[kv['why']] || kv['why'] || 'refused';
+      this.colavTest.lastError = reason;
+      this.app.showMessage(`Target not placed: ${reason}`, true, 5000);
+    } else if (kv['ok'] === 'true') {
+      this.colavTest.lastError = '';
+    }
+  }
+
+  /** how many encounters are still open */
+  protected get colavLiveCount(): number {
+    return this.colavTest.encounters.filter((e) => e.state !== 'done').length;
+  }
+
+  /** format a metric that carries -1 for "not yet" */
+  protected colavNum(value: number, digits = 1, suffix = ''): string {
+    if (value === undefined || value === null || value < 0) {
+      return '--';
+    }
+    return value.toFixed(digits) + suffix;
+  }
+
+  // ************ COLLISION AVOIDANCE DISTANCES (avdcol_) ************
+
+  /** the rows of one card */
+  protected colavDistSpecsFor(group: 'envelope' | 'cpa') {
+    return this.colavDistSpecs.filter((s) => s.group === group);
+  }
+
+  /**
+   * Keep the set consistent with the way BHV_AvdColregsV22 clamps it itself:
+   * inner <= outer <= completed, and min_util_cpa <= max_util_cpa. The
+   * behaviour silently drags the partner value when an update breaks one of
+   * these, so doing the same here means the panel shows what the helm will
+   * actually end up with rather than what was typed.
+   */
+  private normalizeColavDist(changed: 'outer' | 'inner' | 'completed' | 'minCpa' | 'maxCpa') {
+    const d = this.colavDist;
+    if (changed === 'inner') {
+      if (d.inner > d.outer) { d.outer = d.inner; }
+      if (d.outer > d.completed) { d.completed = d.outer; }
+    } else if (changed === 'outer') {
+      if (d.inner > d.outer) { d.inner = d.outer; }
+      if (d.outer > d.completed) { d.completed = d.outer; }
+    } else if (changed === 'completed') {
+      if (d.outer > d.completed) { d.outer = d.completed; }
+      if (d.inner > d.completed) { d.inner = d.completed; }
+    } else if (changed === 'minCpa') {
+      if (d.minCpa > d.maxCpa) { d.maxCpa = d.minCpa; }
+    } else {
+      if (d.minCpa > d.maxCpa) { d.minCpa = d.maxCpa; }
+    }
+  }
+
+  /** update one distance from the slider/input and schedule the send */
+  protected updateColavDist(
+    key: 'outer' | 'inner' | 'completed' | 'minCpa' | 'maxCpa',
+    value: number | string
+  ) {
+    const spec = this.colavDistSpecs.find((s) => s.key === key);
+    if (!spec) {
+      return;
+    }
+    const parsed = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(parsed)) {
+      return;
+    }
+    this.colavDist[key] = Math.max(spec.min, Math.min(spec.max, Math.round(parsed)));
+    this.normalizeColavDist(key);
+
+    clearTimeout(this.colavDistSendTimer);
+    this.colavDistSendTimer = setTimeout(() => {
+      this.sendColavDist();
+      this.saveColavDistSettings();
+    }, 250);
+  }
+
+  /** typed entry: clamps the value and reflects the clamp back in the field */
+  protected onColavDistInput(
+    key: 'outer' | 'inner' | 'completed' | 'minCpa' | 'maxCpa',
+    event: Event
+  ) {
+    const input = event.target as HTMLInputElement;
+    this.updateColavDist(key, input.value);
+    input.value = String(this.colavDist[key]);
+  }
+
+  /** step one distance by its increment (+/- buttons) */
+  protected nudgeColavDist(
+    key: 'outer' | 'inner' | 'completed' | 'minCpa' | 'maxCpa',
+    direction: number
+  ) {
+    const spec = this.colavDistSpecs.find((s) => s.key === key);
+    if (!spec) {
+      return;
+    }
+    this.updateColavDist(key, this.colavDist[key] + direction * spec.step);
+  }
+
+  /**
+   * Push the whole set at once. iWebSocket turns it into one update of the
+   * behaviour's updates variable, so the helm never sees a half-applied
+   * envelope with, say, a new outer range against the old inner one.
+   */
+  protected sendColavDist() {
+    const d = this.colavDist;
+    const sent = this.sendMoos(
+      'COLAV_DIST=' +
+      `pwt_outer_dist=${d.outer}` +
+      `#pwt_inner_dist=${d.inner}` +
+      `#completed_dist=${d.completed}` +
+      `#max_util_cpa_dist=${d.maxCpa}` +
+      `#min_util_cpa_dist=${d.minCpa}`
+    );
+    if (!sent) {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      return;
+    }
+    // Do not let the backend echo overwrite the fields while the operator is
+    // still working: the round trip is slower than a slider drag.
+    this.colavDistMuteUntil = Date.now() + 3000;
+    console.log('[COLAV DIST] sent', d);
+  }
+
+  /** back to what alpha.bhv configures avdcol_ with */
+  protected resetColavDist() {
+    Object.assign(this.colavDist, this.colavDistDefaults);
+    this.sendColavDist();
+    this.saveColavDistSettings();
+    this.app.showMessage('Avoidance distances reset to the mission values', false, 2500);
+  }
+
+  /** one distance as the backend reports it is applying it, '--' until then */
+  protected appliedColavDist(
+    key: 'outer' | 'inner' | 'completed' | 'minCpa' | 'maxCpa'
+  ): string {
+    const applied = this.colavDist.applied;
+    return applied ? String(Math.round(applied[key])) : '--';
+  }
+
+  /** does the helm disagree with what the panel is showing? */
+  protected get colavDistPending(): boolean {
+    const applied = this.colavDist.applied;
+    if (!applied) {
+      return false;
+    }
+    return (['outer', 'inner', 'completed', 'minCpa', 'maxCpa'] as const)
+      .some((k) => Math.round(applied[k]) !== this.colavDist[k]);
+  }
+
+  private saveColavDistSettings() {
+    this.app.config.selections.colavDist = {
+      outer: this.colavDist.outer,
+      inner: this.colavDist.inner,
+      completed: this.colavDist.completed,
+      minCpa: this.colavDist.minCpa,
+      maxCpa: this.colavDist.maxCpa
+    };
+    this.app.saveConfig();
+  }
+
+  /**
+   * Seed the panel from the last session. MOOS is still the authority: the
+   * first COLAV_DIST echo replaces these with what the behaviour is really
+   * running, which is what matters after a mission relaunch.
+   */
+  private loadColavDistSettings() {
+    const saved = this.app.config.selections.colavDist;
+    if (!saved) {
+      return;
+    }
+    (['outer', 'inner', 'completed', 'minCpa', 'maxCpa'] as const).forEach((k) => {
+      if (typeof saved[k] === 'number') {
+        this.colavDist[k] = saved[k];
+      }
+    });
+  }
+
+  /**
+   * COLAV_DIST: the distances iWebSocket reports it has pushed into avdcol_.
+   * Adopted into the editable fields as well, so a second UI - or a relaunched
+   * mission - shows the envelope actually in force rather than a stale one.
+   */
+  private processColavDist(raw: string) {
+    if (!raw) {
+      return;
+    }
+    const kv: { [k: string]: number } = {};
+    String(raw).split(',').forEach((part) => {
+      const i = part.indexOf('=');
+      if (i > 0) {
+        const v = parseFloat(part.substring(i + 1));
+        if (!isNaN(v)) {
+          kv[part.substring(0, i).trim()] = v;
+        }
+      }
+    });
+    if (kv['pwt_outer_dist'] === undefined) {
+      return;
+    }
+    this.colavDist.applied = {
+      outer: kv['pwt_outer_dist'],
+      inner: kv['pwt_inner_dist'] ?? 0,
+      completed: kv['completed_dist'] ?? 0,
+      minCpa: kv['min_util_cpa_dist'] ?? 0,
+      maxCpa: kv['max_util_cpa_dist'] ?? 0
+    };
+
+    if (Date.now() < this.colavDistMuteUntil || !this.colavDistPending) {
+      return;
+    }
+    const applied = this.colavDist.applied;
+    (['outer', 'inner', 'completed', 'minCpa', 'maxCpa'] as const).forEach((k) => {
+      this.colavDist[k] = Math.round(applied[k]);
+    });
+  }
+
   /** are the waypoint capture / slip radius circles drawn on the map? */
   protected get showWaypointRadii(): boolean {
     return this.app.config.selections.showWaypointRadii !== false;
@@ -2189,6 +2845,9 @@ export class AppComponent implements OnDestroy {
       case 'station_keep':
         this.openStationKeepPanel();
         break;
+      case 'put_target':
+        this.putColavTarget(this.app.data.map.colavTargetPosition);
+        break;
     }
   }
 
@@ -2807,6 +3466,39 @@ export class AppComponent implements OnDestroy {
     if (data.PID_GAINS !== undefined) {
       this.processPidGains(data.PID_GAINS);
     }
+    if (data.COLAV_TEST !== undefined) {
+      this.app.data.moosIvPServer.colavTest =
+        data.COLAV_TEST === 'true' || data.COLAV_TEST === '1' || data.COLAV_TEST === true;
+    }
+    if (data.COLAV_TEST_ACK !== undefined) {
+      const ack =
+        data.COLAV_TEST_ACK === 'true' || data.COLAV_TEST_ACK === '1' || data.COLAV_TEST_ACK === true;
+      this.app.data.moosIvPServer.colavTestAck = ack;
+      this.syncColavTest(ack);
+    }
+    if (data.COLAV_DIST !== undefined) {
+      this.app.data.moosIvPServer.colavDist = data.COLAV_DIST;
+      this.processColavDist(data.COLAV_DIST);
+    }
+    // iWebSocket re-sends its cached COLAV_METRICS on every tick; parsing an
+    // unchanged one 20 times a second buys nothing, and the change is also
+    // what tells the COLREGS box the evaluator is still alive.
+    if (data.COLAV_METRICS !== undefined &&
+        data.COLAV_METRICS !== this.app.data.moosIvPServer.colavMetrics) {
+      this.app.data.moosIvPServer.colavMetrics = data.COLAV_METRICS;
+      this.processColavMetrics(data.COLAV_METRICS);
+    }
+    if (data.TRAFFIC_SPAWNED !== undefined &&
+        data.TRAFFIC_SPAWNED !== this.app.data.moosIvPServer.trafficSpawned) {
+      this.app.data.moosIvPServer.trafficSpawned = data.TRAFFIC_SPAWNED;
+      this.processTrafficSpawned(data.TRAFFIC_SPAWNED);
+    }
+    if (data.TRAFFIC_TARGETS !== undefined) {
+      this.app.data.moosIvPServer.trafficTargets = data.TRAFFIC_TARGETS;
+      this.colavTest.targets = data.TRAFFIC_TARGETS
+        ? String(data.TRAFFIC_TARGETS).split(',').filter((t: string) => t !== '')
+        : [];
+    }
 
     // Engine status (all numeric)
     if (data.ENGINE_ACCELERATOR_PEDAL_POSITION !== undefined) {
@@ -2963,6 +3655,7 @@ export class AppComponent implements OnDestroy {
     // Run cleanup every 2 seconds
     this.moosContactCleanupTimer = setInterval(() => {
       this.cleanupStaleContacts();
+      this.expireStaleColregs();
     }, 2000);
   }
 
@@ -3000,6 +3693,7 @@ export class AppComponent implements OnDestroy {
   /** disconnect from MOOS-IvP server */
   private disconnectMoosIvPServer() {
     this.moosWsService.disconnect();
+    this.app.data.moosIvPServer.colregs = null;
     this.app.data.moosIvPServer.socket = null;
     this.app.data.moosIvPServer.connected = false;
     this.app.data.connectionState.moosIvP.connected = false;

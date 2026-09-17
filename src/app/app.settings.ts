@@ -323,6 +323,29 @@ export function cleanConfig(
     settings.selections.showWaypointRadii = true;
   }
 
+  //Collision avoidance test target defaults (upgrade of stored settings)
+  if (typeof settings.selections.colavTarget === 'undefined') {
+    settings.selections.colavTarget = {
+      speed: 5,
+      courseMode: 'at_usv',
+      course: 218.7,
+      vesselType: 'cargo',
+      length: 25,
+      beam: 9
+    };
+  }
+
+  //Collision avoidance engagement distances (upgrade of stored settings)
+  if (typeof settings.selections.colavDist === 'undefined') {
+    settings.selections.colavDist = {
+      outer: 300,
+      inner: 150,
+      completed: 1500,
+      minCpa: 100,
+      maxCpa: 300
+    };
+  }
+
   //Follow AIS contact defaults (upgrade of stored settings)
   if (typeof settings.selections.aisFollowRange === 'undefined') {
     settings.selections.aisFollowRange = 100;
@@ -498,6 +521,26 @@ export function defaultConfig(): IAppConfig {
         speed: { kp: 0.16, ki: 0.003, kd: 0 }
       },
       showWaypointRadii: true,
+      colavTarget: {
+        // Target placed by right-click > Put Target during a collision
+        // avoidance test. Speed in knots, course either aimed at the USV or
+        // held at a fixed bearing.
+        speed: 5,
+        courseMode: 'at_usv',
+        course: 218.7,
+        vesselType: 'cargo',
+        length: 25,
+        beam: 9
+      },
+      colavDist: {
+        // Distances the collision avoidance behaviour (avdcol_) engages with,
+        // seeded with what alpha.bhv configures. Metres.
+        outer: 300,
+        inner: 150,
+        completed: 1500,
+        minCpa: 100,
+        maxCpa: 300
+      },
       aisFollowRange: 100,
       aisFollowAngle: 180
     },
@@ -570,7 +613,14 @@ export function initMoosIvPData(): { [key: string]: any } {
     canSend: false,
     regionActive: false,
     waypointActive: false,
-    waypointRadii: null
+    waypointRadii: null,
+    colavTest: false,
+    colavTestAck: false,
+    colavMetrics: '',
+    colregs: null,
+    colavDist: '',
+    trafficSpawned: '',
+    trafficTargets: ''
   };
 }
 

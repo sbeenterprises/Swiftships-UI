@@ -38,6 +38,68 @@ export interface MOOSContact {
   cog: number; // course over ground (degrees)
 }
 
+/**
+ * One collision avoidance encounter, as measured by pColavEval and delivered
+ * in the COLAV_METRICS JSON array.
+ *
+ * Numeric fields carry -1 for "has not happened yet" rather than null, so the
+ * panel can render them uniformly. Ranges are metres, times seconds, angles
+ * degrees.
+ */
+/**
+ * What the collision avoidance behaviour is doing right now, phrased for the
+ * box drawn over the boat on the chart. Derived from the COLREGS mode the
+ * behaviour reports (BHV_AvdColregsV22's $[FULL_MODE]).
+ */
+export interface ColregsStatus {
+  rule: string;        // 'Rule 16', or '' when the mode carries no COLREGS rule
+  name: string;        // 'Give-way'
+  action: string;      // what the boat is doing about it
+  tone: 'act' | 'hold' | 'urgent';
+  icon: string;        // material icon for the box
+  target: string;      // contact name, AIS name when one is known
+  detail: string;      // range and TCPA, formatted - the box has no pipes
+  others: number;      // further contacts being avoided at the same time
+  mode: string;        // raw $[FULL_MODE], e.g. "giveway:stern"
+}
+
+export interface ColavEncounter {
+  id: string;
+  cn: string;
+  mmsi: number;
+  test: boolean;                 // placed from the UI, vs. scenario traffic
+  state: 'live' | 'past_cpa' | 'done';
+  active: boolean;               // the behaviour is influencing the helm right now
+  verdict: 'pending' | 'clear' | 'near_miss' | 'collision' | 'no_data';
+
+  range: number;                 // live range to the contact
+  minRange: number;              // closest actually achieved - ground truth
+  cpaPred: number;               // predicted CPA at the moment of detection
+  cpaLive: number;
+  tcpa: number;
+
+  rngDetect: number;             // range when the behaviour picked it up
+  rngActive: number;             // range when it first influenced the helm
+  reaction: number;              // seconds from detect to first influence
+  pipeline: number;              // seconds from placement to detection
+  duration: number;
+  durActive: number;
+  spans: number;                 // times it entered the ACTIVE state
+
+  mode: string;                  // COLREGS mode, e.g. "giveway:bow"
+  modes: string;                 // every distinct mode, in order
+  apwtMax: number;
+
+  deflection: number;            // max heading change since the behaviour took the helm
+  desDeflection: number;
+  deflectionValid: boolean;      // false if a waypoint change muddied it
+  spdMin: number;
+
+  ucdCpa: number;                // uFldCollisionDetect's independent CPA, -1 if absent
+  postMortem: string;            // why the behaviour ended, from the helm
+  endReason: string;
+}
+
 export interface SKApiResponse {
   state: 'FAILED' | 'COMPLETED' | 'PENDING';
   statusCode: number;
@@ -175,6 +237,25 @@ export interface IAppConfig {
     };
     // draw the capture / slip radius circles around each route waypoint
     showWaypointRadii?: boolean;
+    // parameters for a target placed by right-click > Put Target during a
+    // collision avoidance test
+    colavTarget?: {
+      speed: number;                        // knots
+      courseMode: 'at_usv' | 'fixed';
+      course: number;                       // degrees, when courseMode is fixed
+      vesselType: string;
+      length: number;
+      beam: number;
+    };
+    // engagement distances last pushed into the collision avoidance
+    // behaviour (BHV_AvdColregsV22 / avdcol_), all in metres
+    colavDist?: {
+      outer: number;        // pwt_outer_dist
+      inner: number;        // pwt_inner_dist
+      completed: number;    // completed_dist
+      minCpa: number;       // min_util_cpa_dist
+      maxCpa: number;       // max_util_cpa_dist
+    };
     // last "Follow AIS contact" standoff distance (m) and relative angle (deg)
     aisFollowRange?: number;
     aisFollowAngle?: number;
@@ -250,6 +331,7 @@ export interface FBAppData {
     };
     stationKeepPosition?: Position;
     basePosition?: Position;
+    colavTargetPosition?: Position;
   };
   vessels: {
     // received vessel data
@@ -326,6 +408,18 @@ export interface FBAppData {
     waypointActive?: boolean;
     waypointRadii?: { captureRadius: number, slipRadius: number } | null;
     serviceMode?: boolean;
+    // Collision avoidance test. colavTest is the request echo; colavTestAck is
+    // pColavEval confirming it is actually running and measuring.
+    colavTest?: boolean;
+    colavTestAck?: boolean;
+    colavMetrics?: string;
+    // live COLREGS state for the box over the boat, null when the behaviour
+    // is not avoiding anything
+    colregs?: ColregsStatus | null;
+    // distances iWebSocket reports it has pushed into avdcol_
+    colavDist?: string;
+    trafficSpawned?: string;
+    trafficTargets?: string;
   };
   connectionState?: {
     signalK: {

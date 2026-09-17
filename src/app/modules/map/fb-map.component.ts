@@ -252,6 +252,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
     closest: []
   };
 
+  // Pixel offset of the COLREGS box from the vessel position: far enough up
+  // to clear the boat icon. A field rather than a literal in the template -
+  // an array literal there is a new reference on every change detection pass,
+  // and the overlay would take it as a changed input each time.
+  protected readonly colregsBoxOffset = [0, -34];
+
   // ** AIS target management
   protected aisMgr = {
     updateList: [],
@@ -579,6 +585,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
           latitude: pos[1],
           longitude: pos[0]
         });
+        break;
+      case 'put_target':
+        // Stash-then-emit, like station_keep: app.component owns the target
+        // parameters (speed, course mode, vessel type) and the replay-safe
+        // sendMoos() funnel, so it builds and sends the message, not us.
+        this.app.data.map.colavTargetPosition = pos;
+        this.menuItemSelected.emit('put_target');
         break;
       case 'station_keep':
         // Store position for Station Keep BEFORE emitting event

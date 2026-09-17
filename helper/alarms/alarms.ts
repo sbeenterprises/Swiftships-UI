@@ -25,6 +25,16 @@ const STANDARD_ALARMS = [
   'aground'
 ];
 
+interface AlarmValue {
+  message: string;
+  state: ALARM_STATE;
+  method: ALARM_METHOD[];
+  data?: {
+    position: Position;
+    timestamp: string;
+  };
+}
+
 let server: FreeboardHelperApp;
 let pluginId: string;
 const ALARM_API_PATH = '/signalk/v2/api/alarms';
@@ -107,12 +117,14 @@ const initAlarmEndpoints = () => {
       try {
         const al = server.getSelfPath(
           `notifications.${req.params.alarmType}.${req.params.id}`
-        );
+        ) as { value: AlarmValue } | undefined;
         if (al && al.value) {
           server.debug('Alarm value....');
-          if (al.value.method && al.value.method.includes('sound')) {
+          if (al.value.method && al.value.method.includes(ALARM_METHOD.sound)) {
             server.debug('Alarm has sound... silence!!!');
-            al.value.method = al.value.method.filter((i) => i !== 'sound');
+            al.value.method = al.value.method.filter(
+              (i) => i !== ALARM_METHOD.sound
+            );
             const r = handleAlarm(
               'vessels.self',
               `notifications.${req.params.alarmType}.${req.params.id}` as Path,
@@ -183,7 +195,9 @@ const handleV1PutRequest = (
 };
 
 const buildAlarmData = () => {
-  const pos: { value: Position } = server.getSelfPath('navigation.position');
+  const pos = server.getSelfPath('navigation.position') as
+    | { value: Position }
+    | undefined;
   const r: any = {
     createdAt: new Date().toISOString()
   };
@@ -196,15 +210,7 @@ const buildAlarmData = () => {
 const handleAlarm = (
   context: string,
   path: Path,
-  value: {
-    message: string;
-    state: ALARM_STATE;
-    method: ALARM_METHOD[];
-    data?: {
-      position: Position;
-      timestamp: string;
-    };
-  }
+  value: AlarmValue
 ) => {
   server.debug(`context: ${context}`);
   server.debug(`path: ${path}`);

@@ -404,6 +404,36 @@
     [fixedLocation]="app.config.fixedLocationMode" [zIndex]="999">
   </fb-vessel>
 
+
+  <!-- COLREGS status: while the collision avoidance behaviour has the helm,
+       this says which rule of the road the boat is steering by. Sits just
+       above the vessel, and is passive - pointer events go to the chart. -->
+  @if(dfeat.self.position && app.data.moosIvPServer?.colregs; as colregs) {
+  <ol-overlay [position]="dfeat.self.position" [positioning]="'bottom-center'" [offset]="colregsBoxOffset"
+    [stopEvent]="false">
+    <div class="colregs-box" [class.hold]="colregs.tone === 'hold'"
+      [class.urgent]="colregs.tone === 'urgent'">
+      <div class="colregs-head">
+        <mat-icon class="colregs-icon">{{ colregs.icon }}</mat-icon>
+        @if(colregs.rule) {
+        <span class="colregs-rule">{{ colregs.rule }}</span>
+        }
+        <span class="colregs-name">{{ colregs.name }}</span>
+      </div>
+      <div class="colregs-action">{{ colregs.action }}</div>
+      <div class="colregs-target">
+        <span class="colregs-cn">{{ colregs.target }}</span>
+        @if(colregs.detail) {
+        <span class="colregs-detail">{{ colregs.detail }}</span>
+        }
+      </div>
+      @if(colregs.others > 0) {
+      <div class="colregs-more">+{{ colregs.others }} more being avoided</div>
+      }
+    </div>
+  </ol-overlay>
+  }
+
   @if(app.config.selections.vessel.trail && app.data.vessels.showSelf) {
   <fb-vessel-trail [localTrail]="vesselLines.trail" [serverTrail]="dfeat.trail" [trailStyles]="" [zIndex]="990">
   </fb-vessel-trail>
@@ -436,6 +466,13 @@
       <mat-icon>anchor</mat-icon>
       Station Keep
     </button>
+    <!-- only while a collision avoidance test is actually running and measuring -->
+    @if(app.data.moosIvPServer?.colavTestAck) {
+    <button mat-menu-item (contextmenu)="$event.preventDefault()" (click)="onContextMenuAction('put_target', item)">
+      <mat-icon>gps_fixed</mat-icon>
+      Put Target
+    </button>
+    }
     <button mat-menu-item (contextmenu)="$event.preventDefault()" (click)="onContextMenuAction('define_base', item)">
       <mat-icon>home</mat-icon>
       Define Base

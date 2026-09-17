@@ -1433,3 +1433,158 @@ mat-nav-list {
 .dark-theme .route-select-field .mat-mdc-form-field-infix {
     background-color: rgba(30, 45, 62, 0.9) !important;
 }
+/* ---------------------------------------------------------------------------
+   Collision Avoidance Test panel (Calibration tab)
+
+   Reuses the .autonomous-control-section / .control-* shell; only the encounter
+   cards and the target-parameter controls need anything of their own.
+   --------------------------------------------------------------------------- */
+
+/* the section is the 5th in the tab - keep the staggered entrance consistent */
+.autonomous-control-section:nth-child(5) {
+    animation-delay: 0.5s;
+}
+
+.colav-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 4px 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(135, 206, 235, 0.12);
+    border: 1px solid rgba(135, 206, 235, 0.35);
+    color: #cfe8f5;
+    font-size: 12px;
+}
+
+.colav-hint mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: #87ceeb;
+}
+
+.colav-toggle-group {
+    height: 28px;
+    transform: scale(0.85);
+    transform-origin: right center;
+}
+
+.colav-type-field {
+    width: 130px;
+    transform: scale(0.85);
+    transform-origin: right center;
+}
+
+.colav-type-field .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+}
+
+/* --- one encounter --------------------------------------------------------- */
+
+.colav-card {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(20, 32, 46, 0.55);
+    border-left: 3px solid #87ceeb;
+}
+
+/* state is carried by the left edge: closing, past CPA, finished */
+.colav-card.live {
+    border-left-color: #ffb74d;
+}
+
+.colav-card.past {
+    border-left-color: #64b5f6;
+}
+
+.colav-card.done {
+    border-left-color: #81c784;
+}
+
+/* a collision or near miss outranks the state colour */
+.colav-card.done.bad {
+    border-left-color: #e57373;
+    background: rgba(70, 30, 30, 0.45);
+}
+
+.colav-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.colav-cn {
+    font-weight: 600;
+    color: #e8f2f8;
+    font-size: 13px;
+}
+
+.colav-badge {
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: rgba(255, 183, 77, 0.2);
+    color: #ffb74d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.colav-state {
+    margin-left: auto;
+    font-size: 11px;
+    color: #9fb6c4;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.colav-mode {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #87ceeb;
+    font-family: monospace;
+}
+
+.colav-grid {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+}
+
+.colav-grid > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 11px;
+}
+
+.colav-grid span {
+    color: #9fb6c4;
+}
+
+.colav-grid b {
+    color: #e8f2f8;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+/* a deflection the operator should not read as pure avoidance */
+.colav-doubt {
+    color: #ffb74d !important;
+}
+
+.colav-note {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #9fb6c4;
+    line-height: 1.4;
+    font-style: italic;
+}
+
+.colav-empty {
+    padding: 8px 0;
+}
