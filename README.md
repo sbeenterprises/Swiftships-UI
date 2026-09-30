@@ -151,5 +151,26 @@ This runs `build:helper` (compiles `helper` into `plugin`) and `build:web` (prod
    $ npm pack
    $ npm install -g <the generated tarball>
 ```
+## Signal K data requirements
+
+The top status bar reads these sources. If a field shows `--` or `UNKNOWN`, the source is missing.
+
+| UI field | Source | Provided by |
+|---|---|---|
+| HDG | `navigation.headingTrue` | VectorNav via `signalk/plugins/signalk-vectornav-vnins` |
+| SOG | `navigation.speedOverGround` | VectorNav plugin |
+| LAT / LON | `navigation.position` | VectorNav plugin |
+| Voltage | `electrical.batteries.House.voltage` | Victron VE.Direct plugin (Main Battery name = `House`) |
+| Fuel Level | `tanks.fuel.0.currentLevel` | Fuel tank sender (NMEA 2000 PGN 127505) |
+| STATUS | MOOS-IvP `IVPHELM_STATE` | MOOS-IvP autonomy stack |
+| MODE | MOOS-IvP `IVPHELM_ALLSTOP` | MOOS-IvP autonomy stack |
+
+### VectorNav heading
+
+The VectorNav outputs proprietary `$VNINS` sentences, which the standard Signal K NMEA 0183 parser ignores. Install the `signalk-vectornav-vnins` plugin (see its README) and keep any NMEA 0183 data connection on the same serial port **disabled**.
+
+### Signal K config location
+
+Signal K runs as `root`, so its live config is `/root/.signalk`, not `~/.signalk`. Per-boat config snapshots are kept in `signalk/config/<boat>/`. Do not commit `security.json`.
 
 # END of README
