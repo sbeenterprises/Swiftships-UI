@@ -3,6 +3,7 @@
 import { Injectable } from '@angular/core';
 
 import { AppFacade } from 'src/app/app.facade';
+import { RadarService } from 'src/app/modules/radar/radar.service';
 import { SettingsSaveOptions } from 'src/app/lib/services';
 import { SignalKClient } from 'signalk-client-angular';
 import { FBAppData, IAppConfig, Position } from 'src/app/types';
@@ -198,7 +199,11 @@ export class SettingsFacade {
   settings!: IAppConfig;
   data!: FBAppData;
 
-  constructor(private app: AppFacade, public signalk: SignalKClient) {
+  constructor(
+    private app: AppFacade,
+    public signalk: SignalKClient,
+    private radarService: RadarService
+  ) {
     this.data = this.app.data;
     this.settings = this.app.config;
 
@@ -331,12 +336,21 @@ export class SettingsFacade {
   }
 
   // ** Radar connection methods **
+  // The app facade has no radar methods (they are private to AppComponent),
+  // so the settings dialog talks to RadarService directly.
   connectToRadar() {
-    (this.app as any).connectToRadar();
+    this.radarService.connectToRadar().then(
+      () => this.app.showMessage('Connected to radar server', false, 2000),
+      (error) => {
+        console.error('Failed to connect to radar:', error);
+        this.app.showMessage(`Radar connection failed: ${error}`, false, 5000);
+      }
+    );
   }
 
   disconnectFromRadar() {
-    (this.app as any).disconnectFromRadar();
+    this.radarService.disconnect();
+    this.app.showMessage('Disconnected from radar server', false, 2000);
   }
 
   // ** getter for app facade access in templates **
