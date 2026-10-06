@@ -34,83 +34,6 @@ export class RadarService {
 
   constructor(private app: AppFacade) {
     this.loadProtobuf();
-    // Mirror the connection state into app data, where the settings dialog
-    // reads it (connectionState.radar).
-    this.connected$.subscribe(() => this.publishState());
-    this.connecting$.subscribe(() => this.publishState());
-  }
-
-  private publishState() {
-    const data: any = this.app.data;
-    if (!data) {
-      return;
-    }
-    if (!data.connectionState) {
-      data.connectionState = {};
-    }
-    data.connectionState.radar = {
-      connected: this.connected$.value,
-      connecting: this.connecting$.value,
-      lastAttempt: Date.now()
-    };
-  }
-
-  /** Radar server base URL from settings, e.g. http://192.168.22.11:3001 */
-  private baseUrl(): string {
-    const radarConfig = this.app.config.radar;
-    return radarConfig?.enabled
-      ? `${String(radarConfig.url).replace(/\/+$/, '')}:${radarConfig.port}`
-      : 'http://localhost:3001';
-  }
-
-  /**
-   * Discover radars. Mayara 3.x serves the Signal K Radar API
-   * (/signalk/v2/api/vessels/self/radars + /{id}/capabilities); older
-   * mayara builds (2025) served /v1/api/radars with spokes / maxSpokeLen /
-   * legend / streamUrl inline. Both are mapped to RadarServerInfo.
-   */
-  private async discoverRadars(baseUrl: string): Promise<{ [id: string]: Omit<RadarServerInfo, 'id'> }> {
-    const v2 = `${baseUrl}/signalk/v2/api/vessels/self/radars`;
-    const res = await fetch(v2);
-    if (res.ok) {
-      const body = await res.json();
-      const list = body?.radars ?? {};
-      const out: { [id: string]: Omit<RadarServerInfo, 'id'> } = {};
-      const wsBase = baseUrl.replace(/^http/, 'ws');
-      for (const id of Object.keys(list)) {
-        const capsRes = await fetch(`${v2}/${encodeURIComponent(id)}/capabilities`);
-        if (!capsRes.ok) {
-          throw new Error(`capabilities for ${id}: HTTP ${capsRes.status}`);
-        }
-        const caps = await capsRes.json();
-        // Legend: array of { color: '#rrggbbaa' } indexed by pixel value.
-        const legend: { [key: number]: { color: string } } = {};
-        (caps?.legend?.pixels ?? []).forEach((px: any, i: number) => {
-          if (px?.color) {
-            legend[i] = { color: px.color };
-          }
-        });
-        out[id] = {
-          name: list[id]?.name ?? id,
-          streamUrl: `${wsBase}/signalk/v2/api/vessels/self/radars/${encodeURIComponent(id)}/spokes`,
-          controlUrl: `${v2}/${encodeURIComponent(id)}/controls`,
-          spokes: caps.spokesPerRevolution,
-          maxSpokeLen: caps.maxSpokeLength,
-          legend,
-          controls: caps.controls
-        };
-      }
-      return out;
-    }
-    if (res.status !== 404) {
-      throw new Error(`${v2}: HTTP ${res.status}`);
-    }
-    // Legacy mayara
-    const legacy = await fetch(`${baseUrl}/v1/api/radars`);
-    if (!legacy.ok) {
-      throw new Error(`${baseUrl}/v1/api/radars: HTTP ${legacy.status}`);
-    }
-    return legacy.json();
   }
 
   private async loadProtobuf() {
@@ -149,8 +72,15 @@ export class RadarService {
     this.connecting$.next(true);
 
     try {
-      // Fetch available radars (new Signal K Radar API, or legacy mayara)
-      const radars = await this.discoverRadars(this.baseUrl());
+      // Get radar server URL from configuration
+      const radarConfig = this.app.config.radar;
+      const baseUrl = radarConfig?.enabled 
+        ? `${radarConfig.url}:${radarConfig.port}`
+        : 'http://localhost:3001';
+      
+      // Fetch available radars
+      const response = await fetch(`${baseUrl}/v1/api/radars`);
+      const radars = await response.json();
 
       // If no specific radar ID provided, use the first available radar
       if (!radarId) {

@@ -432,11 +432,6 @@ export interface FBAppData {
       connecting: boolean;
       lastAttempt: number;
     };
-    radar?: {
-      connected: boolean;
-      connecting: boolean;
-      lastAttempt: number;
-    };
   };
   signalkConnecting?: boolean;
   showChecklist: boolean;
