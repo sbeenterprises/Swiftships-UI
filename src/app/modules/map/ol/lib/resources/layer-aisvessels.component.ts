@@ -70,7 +70,7 @@ export class AISVesselsLayerComponent extends AISBaseLayerComponent {
               const s = this.buildVesselStyle(
                 target,
                 label,
-                this.isStale(target)
+                this.isInactive(id, target)
               ).clone();
               f.set('name', label, true);
               f.setStyle(
@@ -130,7 +130,7 @@ export class AISVesselsLayerComponent extends AISBaseLayerComponent {
       const s = this.buildVesselStyle(
         target,
         label,
-        this.isStale(target)
+        this.isInactive(id, target)
       ).clone();
       f.setStyle(
         this.setTextLabel(this.setRotation(s, target.orientation), label)

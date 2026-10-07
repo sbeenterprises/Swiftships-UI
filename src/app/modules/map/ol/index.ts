@@ -33,6 +33,7 @@ import { BearingLineComponent } from './lib/navigation/layer-bearing-line.compon
 import { LaylineComponent } from './lib/navigation/layer-layline.component';
 import { DirectionOfTravelComponent } from './lib/navigation/layer-dot.component';
 import { StationKeepCirclesComponent } from './lib/navigation/layer-station-keep-circles.component';
+import { AISRangeCircleComponent } from './lib/navigation/layer-ais-range-circle.component';
 import { BaseMarkerComponent } from './lib/navigation/layer-base-marker.component';
 import { VesselComponent } from './lib/vessel/layer-vessel.component';
 import { VesselTrailComponent } from './lib/vessel/layer-vessel-trail.component';
@@ -81,6 +82,7 @@ export { TargetAngleComponent } from './lib/navigation/layer-target-angle.compon
 import { TargetAngleComponent } from './lib/navigation/layer-target-angle.component';
 export { DirectionOfTravelComponent } from './lib/navigation/layer-dot.component';
 export { StationKeepCirclesComponent } from './lib/navigation/layer-station-keep-circles.component';
+export { AISRangeCircleComponent } from './lib/navigation/layer-ais-range-circle.component';
 export { BaseMarkerComponent } from './lib/navigation/layer-base-marker.component';
 export { VesselComponent } from './lib/vessel/layer-vessel.component';
 export { VesselTrailComponent } from './lib/vessel/layer-vessel-trail.component';
@@ -124,6 +126,7 @@ const declarations = [
   VesselTrailComponent,
   DirectionOfTravelComponent,
   StationKeepCirclesComponent,
+  AISRangeCircleComponent,
   BaseMarkerComponent,
   FBFeatureLayerComponent,
   RacingStartLineLayerComponent,

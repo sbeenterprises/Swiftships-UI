@@ -256,6 +256,11 @@ export interface IAppConfig {
       minCpa: number;       // min_util_cpa_dist
       maxCpa: number;       // max_util_cpa_dist
     };
+    // range (m) inside which the collision avoidance engages a contact
+    aisLimit?: {
+      enabled: boolean;
+      radius: number;
+    };
     // last "Follow AIS contact" standoff distance (m) and relative angle (deg)
     aisFollowRange?: number;
     aisFollowAngle?: number;
@@ -418,6 +423,9 @@ export interface FBAppData {
     colregs?: ColregsStatus | null;
     // distances iWebSocket reports it has pushed into avdcol_
     colavDist?: string;
+    // range (m) inside which contacts are engaged, as the backend reports it
+    // is applying it; 0 when nothing is being held off. Drawn on the chart.
+    aisRadius?: number;
     trafficSpawned?: string;
     trafficTargets?: string;
   };

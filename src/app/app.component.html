@@ -1011,6 +1011,76 @@
                 </div>
               </div>
 
+              <!-- Limit AIS contacts: cap how many contacts the avoidance
+                   engages at once, so a single manoeuvre can be watched -->
+              <div class="autonomous-control-section" [class.service-mode-active]="aisLimit.enabled">
+                <h3>Limit AIS Contacts</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">Limit:</span>
+                    <mat-slide-toggle class="service-mode-toggle" [checked]="aisLimit.enabled"
+                      (change)="toggleAisLimit($event.checked)">
+                      <span class="control-value" [style.color]="aisLimit.enabled ? '#ffb74d' : '#87ceeb'">
+                        {{ aisLimit.enabled ? 'ON' : 'OFF' }}
+                      </span>
+                    </mat-slide-toggle>
+                  </div>
+
+                  @if(aisLimit.enabled) {
+                  <div class="pid-loop">
+                    <div class="pid-loop-title">Range of action <span>&rarr; avdcol_</span></div>
+
+                    <div class="pid-gain">
+                      <div class="pid-gain-head">
+                        <span class="control-label">Radius (m)</span>
+                        <input class="pid-gain-input" type="number" [min]="aisLimitSpec.min"
+                          [max]="aisLimitSpec.max" [step]="aisLimitSpec.step" [value]="aisLimit.radius"
+                          (change)="onAisLimitInput($event)">
+                      </div>
+                      <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
+                        <button mat-icon-button class="slider-btn minus-btn" (click)="nudgeAisLimit(-1)"
+                          [disabled]="aisLimit.radius <= aisLimitSpec.min">
+                          <mat-icon>remove</mat-icon>
+                        </button>
+                        <mat-slider [min]="aisLimitSpec.min" [max]="aisLimitSpec.max" [step]="aisLimitSpec.step"
+                          class="pid-slider" style="flex: 1;">
+                          <input matSliderThumb [value]="aisLimit.radius"
+                            (input)="updateAisLimitMax($any($event.target).value)">
+                        </mat-slider>
+                        <button mat-icon-button class="slider-btn plus-btn" (click)="nudgeAisLimit(1)"
+                          [disabled]="aisLimit.radius >= aisLimitSpec.max">
+                          <mat-icon>add</mat-icon>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="control-display pid-applied">
+                      <span class="control-label">Engaged:</span>
+                      <span class="control-value pid-applied-value">
+                        {{ aisLimit.engaged }} of {{ aisLimit.tracked }}
+                        @if(aisLimit.held > 0) {
+                        &nbsp;&middot;&nbsp; {{ aisLimit.held }} held off
+                        }
+                      </span>
+                    </div>
+
+                    @if(aisLimit.next >= 0) {
+                    <div class="colav-note">
+                      Nearest contact outside the ring: {{ colavNum(aisLimit.next, 0, ' m') }}
+                    </div>
+                    }
+                  </div>
+
+                  @if(aisLimit.waiting) {
+                  <div class="service-mode-warning">
+                    <mat-icon>warning</mat-icon>
+                    <span>No position fix yet - contacts cannot be ranged, so none are held off.</span>
+                  </div>
+                  }
+                  }
+                </div>
+              </div>
+
               <!-- Collision Avoidance Test: place an AIS target and measure the
                    avoidance the helm actually performs -->
               <div class="autonomous-control-section" [class.service-mode-active]="colavTest.enabled">

@@ -36,6 +36,12 @@ export class AISBaseLayerComponent
   @Input() filterIds: Array<string>;
   @Input() updateIds: Array<string> = [];
   @Input() staleIds: Array<string> = [];
+  /**
+   * Targets to draw as inactive for a reason other than age - currently the
+   * collision avoidance range limit. Kept apart from staleIds because that one
+   * means "has not reported lately", which these targets have.
+   */
+  @Input() inactiveIds: Array<string> = [];
   @Input() removeIds: Array<string> = [];
 
   constructor(
@@ -71,6 +77,13 @@ export class AISBaseLayerComponent
         }
         if (keys.includes('staleIds')) {
           this.updateTargetIds(changes['staleIds'].currentValue, true);
+        }
+        if (keys.includes('inactiveIds')) {
+          // Both sides of the change need re-drawing: the ones that just went
+          // inactive, and the ones that came back and must lose the grey icon.
+          const prev: Array<string> = changes['inactiveIds'].previousValue ?? [];
+          const curr: Array<string> = changes['inactiveIds'].currentValue ?? [];
+          this.updateTargetIds(Array.from(new Set(prev.concat(curr))));
         }
         if (
           (keys.includes('targetStyles') &&
@@ -144,6 +157,18 @@ export class AISBaseLayerComponent
     const now = new Date().valueOf();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return target.lastUpdated.valueOf() < now - this.inactiveTime;
+  }
+
+  /** Should the target be drawn with the inactive icon?
+   * @params id target id
+   * @params target AIS target
+   * @returns true when it has gone quiet, or is being ignored on purpose
+   */
+  protected isInactive(id: string, target: SKTarget): boolean {
+    if (Array.isArray(this.inactiveIds) && this.inactiveIds.includes(id)) {
+      return true;
+    }
+    return this.isStale(target);
   }
 
   /** Return a feature label */

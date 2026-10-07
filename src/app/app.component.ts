@@ -299,6 +299,11 @@ export class AppComponent implements OnDestroy {
   // A slider drag emits continuously; only the settled set needs sending
   private colavDistSendTimer: any = null;
 
+  // same debounce for the AIS contact cap, and the same mute window - the
+  // backend's report is adopted, so it must not fight the operator's hand
+  private aisLimitSendTimer: any = null;
+  private aisLimitMuteUntil = 0;
+
   // Ignore the backend echo until this time: a round trip is slower than a
   // slider drag, and adopting a stale echo would fight the operator's hand.
   private colavDistMuteUntil = 0;
@@ -510,6 +515,8 @@ export class AppComponent implements OnDestroy {
     this.loadPidSettings();
     this.loadColavSettings();
     this.loadColavDistSettings();
+    this.loadAisLimitSettings();
+    this.showAisRing();
     this.aisFollow.range = this.app.config.selections.aisFollowRange ?? 100;
     this.aisFollow.angle = this.app.config.selections.aisFollowAngle ?? 180;
 
@@ -1689,6 +1696,157 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+
+
+  // ****************** LIMIT AIS CONTACTS ******************
+
+  // Range around the boat inside which the collision avoidance engages a
+  // contact. Everything beyond it is held off by iWebSocket through
+  // pContactMgrV20's disable variable. With a dozen vessels in the picture the
+  // helm is solving all of them at once and no single manoeuvre can be read
+  // off the chart - pulling the ring in is what makes an encounter watchable.
+  //
+  // The same ring is drawn around the boat on the chart, so what is in play is
+  // visible rather than inferred.
+  //
+  // `tracked` / `engaged` / `held` / `next` come back from the backend, which
+  // is the only place that knows what is actually being heard.
+  public aisLimit = {
+    enabled: false,
+    radius: 500,     // metres
+    tracked: 0,
+    engaged: 0,
+    held: 0,
+    next: -1,        // range of the nearest held contact, -1 when none
+    waiting: false   // backend has no ownship position to range against
+  };
+
+  protected readonly aisLimitSpec = { min: 50, max: 3000, step: 50 };
+
+  /** send the range, or 0 to let every contact through */
+  protected sendAisLimit() {
+    const value = this.aisLimit.enabled ? this.aisLimit.radius : 0;
+    if (!this.sendMoos(`AIS_RADIUS=${value}`)) {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+      return;
+    }
+    this.aisLimitMuteUntil = Date.now() + 3000;
+    console.log(`[AIS LIMIT] sent AIS_RADIUS=${value}`);
+  }
+
+  protected toggleAisLimit(enabled: boolean) {
+    this.aisLimit.enabled = enabled;
+    this.showAisRing();
+    this.sendAisLimit();
+    this.saveAisLimitSettings();
+    this.app.showMessage(
+      enabled
+        ? `Avoidance limited to contacts within ${this.aisLimit.radius} m`
+        : 'Avoidance sees every contact again',
+      false, 3000
+    );
+  }
+
+  protected updateAisLimitMax(value: number | string) {
+    const parsed = typeof value === 'string' ? parseInt(value, 10) : value;
+    if (isNaN(parsed)) {
+      return;
+    }
+    this.aisLimit.radius = Math.max(
+      this.aisLimitSpec.min,
+      Math.min(this.aisLimitSpec.max, Math.round(parsed))
+    );
+    this.showAisRing();
+
+    clearTimeout(this.aisLimitSendTimer);
+    this.aisLimitSendTimer = setTimeout(() => {
+      if (this.aisLimit.enabled) {
+        this.sendAisLimit();
+      }
+      this.saveAisLimitSettings();
+    }, 250);
+  }
+
+  protected onAisLimitInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.updateAisLimitMax(input.value);
+    input.value = String(this.aisLimit.radius);
+  }
+
+  protected nudgeAisLimit(direction: number) {
+    this.updateAisLimitMax(this.aisLimit.radius + direction * this.aisLimitSpec.step);
+  }
+
+  /**
+   * Put the ring on the chart straight away, without waiting for the backend
+   * to echo it. The echo replaces this the moment it arrives, but a ring that
+   * only appears once MOOS answers is a ring that silently does not appear at
+   * all when the backend is older than the panel - which is exactly how this
+   * looked the first time round.
+   */
+  private showAisRing() {
+    this.app.data.moosIvPServer.aisRadius =
+      this.aisLimit.enabled ? this.aisLimit.radius : 0;
+  }
+
+  private saveAisLimitSettings() {
+    this.app.config.selections.aisLimit = {
+      enabled: this.aisLimit.enabled,
+      radius: this.aisLimit.radius
+    };
+    this.app.saveConfig();
+  }
+
+  private loadAisLimitSettings() {
+    const saved = this.app.config.selections.aisLimit;
+    if (!saved) {
+      return;
+    }
+    this.aisLimit.enabled = !!saved.enabled;
+    if (typeof saved.radius === 'number') {
+      this.aisLimit.radius = saved.radius;
+    }
+  }
+
+  /** AIS_RADIUS: what the backend reports it is actually holding off */
+  private processAisLimit(raw: string) {
+    if (!raw) {
+      return;
+    }
+    const kv: { [k: string]: string } = {};
+    String(raw).split(',').forEach((part) => {
+      const i = part.indexOf('=');
+      if (i > 0) {
+        kv[part.substring(0, i).trim()] = part.substring(i + 1).trim();
+      }
+    });
+    if (kv['tracked'] === undefined) {
+      return;
+    }
+    this.aisLimit.tracked = parseInt(kv['tracked'], 10) || 0;
+    this.aisLimit.engaged = parseInt(kv['engaged'], 10) || 0;
+    this.aisLimit.held = parseInt(kv['held'], 10) || 0;
+    this.aisLimit.next = kv['next'] !== undefined ? parseFloat(kv['next']) : -1;
+    this.aisLimit.waiting = kv['why'] === 'no_ownship_position';
+
+    // The ring drawn on the chart is the one in force, not the one in the
+    // panel: they differ for as long as a change is in flight, and the chart
+    // must not claim a limit the helm is not applying yet.
+    const radius = parseFloat(kv['radius']) || 0;
+    this.app.data.moosIvPServer.aisRadius = radius;
+
+    // The backend is the authority on what is actually in force. A panel
+    // showing ON while nothing is being held off would be telling the
+    // operator the avoidance is ignoring contacts when it is not - so the
+    // switch follows the reported cap, not the stored preference.
+    if (Date.now() < this.aisLimitMuteUntil) {
+      return;
+    }
+    this.aisLimit.enabled = radius > 0;
+    if (radius > 0) {
+      this.aisLimit.radius = Math.round(radius);
+    }
+  }
 
   // ****************** COLREGS STATUS (chart box) ******************
 
@@ -3475,6 +3633,9 @@ export class AppComponent implements OnDestroy {
         data.COLAV_TEST_ACK === 'true' || data.COLAV_TEST_ACK === '1' || data.COLAV_TEST_ACK === true;
       this.app.data.moosIvPServer.colavTestAck = ack;
       this.syncColavTest(ack);
+    }
+    if (data.AIS_RADIUS !== undefined) {
+      this.processAisLimit(data.AIS_RADIUS);
     }
     if (data.COLAV_DIST !== undefined) {
       this.app.data.moosIvPServer.colavDist = data.COLAV_DIST;

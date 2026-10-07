@@ -258,6 +258,16 @@ export class FBMapComponent implements OnInit, OnDestroy {
   // and the overlay would take it as a changed input each time.
   protected readonly colregsBoxOffset = [0, -34];
 
+  // AIS targets outside the collision avoidance ring are drawn with the
+  // inactive (greyed) icon. The boat is not going to manoeuvre for them, and a
+  // picture that does not say so hides the limit: a vessel sailed straight
+  // past would look like a bug rather than a contact that was ruled out.
+  //
+  // The lists handed to the AIS layer are the stream's own plus this: a layer
+  // only re-styles the ids it is given, so a target that crosses the ring has
+  // to be named in one of them to change its icon.
+  protected aisOutOfRange: string[] = [];
+
   // ** AIS target management
   protected aisMgr = {
     updateList: [],
@@ -441,6 +451,37 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ********** EVENT HANDLERS *****************
 
+  /**
+   * Work out which AIS targets fall outside the avoidance ring.
+   *
+   * Ranged here rather than taken from the backend's held list so the chart
+   * agrees with the ring drawn on it: both use the same radius, and the
+   * picture stays right even while a change is still in flight.
+   */
+  private updateAisRangeState() {
+    const radius = this.app.data.moosIvPServer?.aisRadius ?? 0;
+    const self = this.dfeat.self.position;
+    const out: string[] = [];
+
+    if (radius > 0 && Array.isArray(self)) {
+      this.dfeat.ais.forEach((target, id) => {
+        if (Array.isArray(target.position) &&
+            GeoUtils.distanceTo(self, target.position) > radius) {
+          out.push(id);
+        }
+      });
+    }
+    out.sort();
+
+    // The layer compares this input by reference, so it is only replaced when
+    // the set really changed - a fresh array on every vessel delta would
+    // re-style every target out there several times a second.
+    if (out.length !== this.aisOutOfRange.length ||
+        out.some((id, i) => id !== this.aisOutOfRange[i])) {
+      this.aisOutOfRange = out;
+    }
+  }
+
   private onVessels() {
     //store last position incase new position is null
     const lastPos = this.dfeat.self.position;
@@ -474,6 +515,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     this.dfeat.closest = parseClosest();
     this.aisMgr = this.app.data.aisMgr;
     this.moosContactMgr = this.app.data.moosContactMgr;
+    this.updateAisRangeState();
 
     // ** update vessel on map **
     if (this.dfeat.self['positionReceived']) {

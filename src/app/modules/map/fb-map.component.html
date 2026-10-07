@@ -184,9 +184,12 @@
       [staleIds]="aisMgr.staleList" [removeIds]="aisMgr.removeList" [inactiveTime]="app.config.selections.aisStaleAge"
       [zIndex]="985" [darkMode]="app.uiConfig().invertColor">
     </sk-ais-flags>
+    <!-- inactiveIds: contacts outside the collision avoidance ring, drawn with
+         the inactive icon because the boat will not manoeuvre for them -->
     <sk-ais-vessels [darkMode]="app.uiConfig().invertColor" [targets]="dfeat.ais" targetContext="vessels"
       [labelMinZoom]="this.app.config.selections.labelsMinZoom" [mapZoom]="fbMap.zoomLevel"
       [updateIds]="aisMgr.updateList" [staleIds]="aisMgr.staleList" [removeIds]="aisMgr.removeList"
+      [inactiveIds]="aisOutOfRange"
       [inactiveTime]="app.config.selections.aisStaleAge" [zIndex]="980" [focusId]="app.data.vessels.activeId"
       [filterIds]="app.config.selections.aisTargets" [filterByShipType]="app.config.selections.aisFilterByShipType"
       [filterShipTypes]="app.config.selections.aisTargetTypes"
@@ -404,6 +407,15 @@
     [fixedLocation]="app.config.fixedLocationMode" [zIndex]="999">
   </fb-vessel>
 
+
+  <!-- Range of action for collision avoidance: contacts inside the ring are
+       engaged, the ones outside are held off. Drawn from what the backend
+       reports is in force, not from the panel's pending value. -->
+  @if(dfeat.self.position && app.data.moosIvPServer?.aisRadius > 0) {
+  <fb-ais-range-circle [position]="dfeat.self.position" [radius]="app.data.moosIvPServer.aisRadius"
+    [label]="'avoidance ' + app.data.moosIvPServer.aisRadius + ' m'" [visible]="true" [zIndex]="337">
+  </fb-ais-range-circle>
+  }
 
   <!-- COLREGS status: while the collision avoidance behaviour has the helm,
        this says which rule of the road the boat is steering by. Sits just

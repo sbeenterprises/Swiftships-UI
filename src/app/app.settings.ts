@@ -346,6 +346,14 @@ export function cleanConfig(
     };
   }
 
+  //AIS contact cap for collision avoidance (upgrade of stored settings)
+  if (typeof settings.selections.aisLimit === 'undefined') {
+    settings.selections.aisLimit = {
+      enabled: false,
+      radius: 500
+    };
+  }
+
   //Follow AIS contact defaults (upgrade of stored settings)
   if (typeof settings.selections.aisFollowRange === 'undefined') {
     settings.selections.aisFollowRange = 100;
@@ -532,6 +540,12 @@ export function defaultConfig(): IAppConfig {
         length: 25,
         beam: 9
       },
+      aisLimit: {
+        // Range (m) inside which the collision avoidance engages a contact.
+        // Off by default - the helm sees everything.
+        enabled: false,
+        radius: 500
+      },
       colavDist: {
         // Distances the collision avoidance behaviour (avdcol_) engages with,
         // seeded with what alpha.bhv configures. Metres.
@@ -619,6 +633,7 @@ export function initMoosIvPData(): { [key: string]: any } {
     colavMetrics: '',
     colregs: null,
     colavDist: '',
+    aisRadius: 0,
     trafficSpawned: '',
     trafficTargets: ''
   };
