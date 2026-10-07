@@ -65,7 +65,7 @@ Inside the src/app folder (That is one of the most important folder of the direc
 | modules/radar               | Radar overlay fed by the Mayara radar server |
 | modules/replay              | Mission recording and replay (transport bar and replay API) |
 | modules/settings            | Settings dialog                             |
-| modules/skresources         | Signal K resources (routes, waypoints, regions, notes, charts) |
+| modules/skresources         | Signal K resources (routes, waypoints, regions, notes, charts) and the GeoTIFF charts kept in the browser |
 | modules/skstream            | Web worker that consumes the Signal K delta stream |
 | modules/weather             | Weather data and forecast display           |
 
@@ -106,6 +106,27 @@ Variables consumed by the UI (telemetry): `IVPHELM_STATE`, `IVPHELM_ALLSTOP`, `W
 `TRAILING`, `TRAIL_UPDATES`, `SERVICE_MODE`, `PID_GAINS`, `CAN_SEND` and the `ENGINE_*` family coming from the
 `iCANREC` application (RPM, oil pressure and temperature, coolant temperature, fuel rate, battery voltage, load,
 torque, pedal position, intake manifold pressure and active DTCs).
+
+# Chart Files (.tif)
+
+Raster charts in TIFF format can be loaded from the Charts side menu (`+` > `Chart file (.tif)`, or by dropping .tif
+files on the chart list) and shown / hidden like the other charts. The position of a chart comes from its GeoTIFF tags,
+from a MOOS-IvP `.info` file (pMarineViewer background images: `lat_north`, `lat_south`, `lon_east`, `lon_west`) or a
+world file (`.tfw` / `.wld` + `.prj`) selected together with the .tif file, or else from the edges entered by the user
+when the chart is loaded. Each file is converted in the browser into a pyramid of 256 px PNG tiles that is kept in
+IndexedDB (database `swiftships-charts`), so the charts persist across reloads and are displayed without the Signal K
+server. The code is in `src/app/modules/skresources/geotiff`:
+
+| File                       | Description                                 |
+|:-------------------------- |:------------------------------------------- |
+| geotiff-import.ts          | Reads the GeoTIFF (geotiff.js), validates the georeferencing, converts the pixels to RGBA and builds the tile pyramid |
+| geotiff-projection.ts      | GeoTIFF GeoKeys to proj4 definition (EPSG tables, user defined projections, online lookup of unknown EPSG codes) |
+| geotiff-sidecar.ts         | Companion files: MOOS-IvP .info, world files and .prj, grouping of the selected files |
+| geotiff-charts.service.ts  | Storage of the charts, import / cancel / remove |
+| geotiff-layer.ts           | OpenLayers tile layer that displays the stored tiles |
+
+Charts georeferenced with control points only (e.g. converted from BSB/KAP) must be warped first, e.g.
+`gdalwarp -t_srs EPSG:3857 chart.kap chart.tif`.
 
 # Useful Commands
 

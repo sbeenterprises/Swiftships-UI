@@ -27,6 +27,12 @@ import LayerGroup from 'ol/layer/Group';
 import { apply, applyStyle } from 'ol-mapbox-style';
 import { FBChart, FBCharts } from 'src/app/types';
 import { S57Service } from '../s57.service';
+import {
+  GEOTIFF_CHART_TYPE,
+  GeoTiffChartsService,
+  createGeoTiffChartLayer,
+  disposeGeoTiffChartLayer
+} from 'src/app/modules/skresources/geotiff';
 
 // ** Freeboard resource collection format **
 @Component({
@@ -52,7 +58,8 @@ export class FreeboardChartLayerComponent
     protected mapComponent: MapComponent,
     private mapService: MapService,
     private vectorLayerStyleFactory: VectorLayerStyleFactory,
-    private s57: S57Service
+    private s57: S57Service,
+    private geotiffCharts: GeoTiffChartsService
   ) {
     this.changeDetectorRef.detach();
   }
@@ -95,7 +102,10 @@ export class FreeboardChartLayerComponent
   clearlayers() {
     const map = this.mapComponent.getMap();
     if (this.layers && map) {
-      this.layers.forEach((l) => map.removeLayer(l));
+      this.layers.forEach((l) => {
+        map.removeLayer(l);
+        disposeGeoTiffChartLayer(l);
+      });
       map.render();
       this.layers.clear();
     }
@@ -194,6 +204,7 @@ export class FreeboardChartLayerComponent
     this.layers.forEach((v, k) => {
       if (!ids.includes(k)) {
         map.removeLayer(v);
+        disposeGeoTiffChartLayer(v);
         rm.push(k);
       }
     });
@@ -209,6 +220,12 @@ export class FreeboardChartLayerComponent
           layer.setZIndex(this.zIndex + parseInt(i));
           layer.setMinZoom(charts[i][1].minZoom);
           layer.setMaxZoom(charts[i][1].maxZoom);
+        } else if (charts[i][1].type === GEOTIFF_CHART_TYPE) {
+          // GeoTIFF chart stored in the browser
+          const chart = this.geotiffCharts.get(charts[i][0]);
+          if (chart) {
+            layer = createGeoTiffChartLayer(chart, this.zIndex + parseInt(i));
+          }
         } else {
           // signal k charts
           const minZ =

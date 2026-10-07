@@ -1429,7 +1429,8 @@
               " (closed)="displayLeftMenu()">
             </waypoint-list>
             } } @if(display.chartList) { @defer {
-            <chart-list [selectedCharts]="app.config.selections.charts" (closed)="displayLeftMenu()">
+            <chart-list [selectedCharts]="app.config.selections.charts" (closed)="displayLeftMenu()"
+              (pan)="centerResource($event.center, $event.zoomLevel)">
             </chart-list>
             } } @if(display.noteList) { @defer {
             <note-list [notes]="skres.notes()" (select)="skres.noteSelected($event.id, $event.isGroup)"

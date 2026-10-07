@@ -1,11 +1,31 @@
-<div class="resourcelist" style="width: 320px">
+<div
+  class="resourcelist"
+  style="width: 320px"
+  (dragover)="dragOver($event)"
+  (drop)="drop($event)"
+>
   <mat-menu #addchartmenu="matMenu">
     <button mat-menu-item (click)="addChartSource('wmts')">WMTS</button>
     <button mat-menu-item (click)="addChartSource('wms')">WMS</button>
     <button mat-menu-item (click)="addChartSource('json')">
       JSON Map Source
     </button>
+    <button
+      mat-menu-item
+      [disabled]="!!geotiff.importProgress()"
+      (click)="tiffinput.click()"
+    >
+      Chart file (.tif)
+    </button>
   </mat-menu>
+  <input
+    #tiffinput
+    type="file"
+    accept=".tif,.tiff,image/tiff,.info,.tfw,.tifw,.tiffw,.wld,.prj"
+    multiple
+    hidden
+    (change)="importGeoTiff(tiffinput.files); tiffinput.value = ''"
+  />
   <mat-card style="border-radius: unset">
     <mat-card-title>
       <div class="title-block">
@@ -70,7 +90,34 @@
           </mat-checkbox>
         </div>
       </div>
-      } @else {
+      @if(geotiff.importProgress(); as p) {
+      <div style="display: flex; align-items: center; padding: 0 3px 6px 3px">
+        <div style="flex: 1 1 auto; min-width: 0">
+          <div
+            style="
+              font-size: 10pt;
+              text-overflow: ellipsis;
+              overflow-x: hidden;
+              white-space: pre;
+            "
+          >
+            Loading {{ p.fileName }} ({{ p.index + 1 }}/{{ p.count }})
+          </div>
+          <mat-progress-bar
+            mode="determinate"
+            [value]="p.fraction * 100"
+          ></mat-progress-bar>
+        </div>
+        <button
+          mat-icon-button
+          (click)="cancelImport()"
+          matTooltip="Cancel loading"
+          matTooltipPosition="below"
+        >
+          <mat-icon>cancel</mat-icon>
+        </button>
+      </div>
+      } } @else {
       <div style="display: flex; border-top: 1px solid">
         <div style="flex: 1 1 auto; text-align: center; line-height: 2.5em">
           Chart Order
@@ -141,7 +188,7 @@
                   white-space: pre;
                 "
               >
-                <mat-icon>{{isLocal(r[1].url)}}</mat-icon>
+                <mat-icon>{{chartIcon(r[1])}}</mat-icon>
                 &nbsp;<b>{{r[1].name}}</b>
               </div>
               <div
@@ -173,6 +220,27 @@
                 mat-icon-button
                 (click)="itemDelete(r[0])"
                 matTooltip="Remove Chart"
+                matTooltipPosition="right"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+            } @if(r[1].type === 'geotiff') {
+            <div style="width: 100%; text-align: right">
+              <button
+                mat-icon-button
+                (click)="zoomToChart(r[0])"
+                matTooltip="Zoom to Chart"
+                matTooltipPosition="left"
+              >
+                <mat-icon>center_focus_strong</mat-icon>
+              </button>
+            </div>
+            <div style="width: 100%; text-align: right">
+              <button
+                mat-icon-button
+                (click)="itemDelete(r[0])"
+                matTooltip="Remove Chart from this browser"
                 matTooltipPosition="right"
               >
                 <mat-icon>delete</mat-icon>

@@ -12,6 +12,11 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { AppFacade } from 'src/app/app.facade';
 import { SKChart } from 'src/app/modules/skresources/resource-classes';
 import { PipesModule } from 'src/app/lib/pipes';
+import {
+  GEOTIFF_CHART_TYPE,
+  GeoTiffChartInfo,
+  GeoTiffChartsService
+} from 'src/app/modules/skresources/geotiff';
 
 /********* ChartPropertiesDialog **********
 	data: <SKChart>
@@ -31,7 +36,9 @@ import { PipesModule } from 'src/app/lib/pipes';
     <div class="_ap-chartinfo">
       <mat-toolbar style="background-color: transparent">
         <span class="dialog-icon"
-          ><mat-icon>{{ isLocal(data['url']) }}</mat-icon></span
+          ><mat-icon>{{
+            geotiff ? 'image' : isLocal(data['url'])
+          }}</mat-icon></span
         >
         <span style="flex: 1 1 auto; text-align: center">Chart Properties</span>
         <span style="text-align: right">
@@ -50,6 +57,57 @@ import { PipesModule } from 'src/app/lib/pipes';
             <div class="key-label">Description:</div>
             <div style="flex: 1 1 auto;">{{ data['description'] }}</div>
           </div>
+          @if(geotiff) {
+          <div style="display:flex;">
+            <div class="key-label">File:</div>
+            <div style="flex: 1 1 auto; overflow-wrap: anywhere;">
+              {{ geotiff.fileName }} ({{ fileSize(geotiff.fileSize) }})
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div class="key-label">Image:</div>
+            <div style="flex: 1 1 auto;">
+              {{ geotiff.width }} × {{ geotiff.height }} px,
+              {{ geotiff.source.colorModel }}
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div class="key-label">Projection:</div>
+            <div style="flex: 1 1 auto;">
+              {{ geotiff.projection.name }}
+              @if(geotiff.projection.code.startsWith('EPSG:')) { ({{
+                geotiff.projection.code
+              }}) }
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div class="key-label">Position:</div>
+            <div style="flex: 1 1 auto;">
+              {{ positionSource(geotiff.source.georeference) }}
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div class="key-label">Resolution:</div>
+            <div style="flex: 1 1 auto;">
+              {{ geotiff.groundResolution.toFixed(1) }} m / pixel (scale ~1:{{
+                geotiff.scale.toLocaleString()
+              }})
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div class="key-label">Stored:</div>
+            <div style="flex: 1 1 auto;">
+              In this browser, {{ fileSize(geotiff.storedSize) }},
+              {{ geotiff.levels.length }} zoom levels
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div class="key-label">Loaded:</div>
+            <div style="flex: 1 1 auto;">
+              {{ loadedDate(geotiff.added) }}
+            </div>
+          </div>
+          } @else {
           <div style="display:flex;">
             <div class="key-label">Scale:</div>
             <div style="flex: 1 1 auto;">{{ data['scale'] }}</div>
@@ -65,7 +123,7 @@ import { PipesModule } from 'src/app/lib/pipes';
               </div>
             </div>
           </div>
-          @if(data['bounds']) {
+          } @if(data['bounds']) {
           <div style="display:flex;">
             <div class="key-label">Bounds:</div>
             <div
@@ -100,7 +158,7 @@ import { PipesModule } from 'src/app/lib/pipes';
               </div>
             </div>
           </div>
-          }
+          } @if(!geotiff) {
           <div style="display:flex;">
             <div class="key-label">Format:</div>
             <div style="flex: 1 1 auto;">{{ data['format'] }}</div>
@@ -121,6 +179,7 @@ import { PipesModule } from 'src/app/lib/pipes';
               {{ data['url'] }}
             </div>
           </div>
+          }
         </div>
       </mat-dialog-content>
     </div>
@@ -155,14 +214,43 @@ import { PipesModule } from 'src/app/lib/pipes';
 })
 export class ChartPropertiesDialog {
   public icon: string;
+  protected geotiff: GeoTiffChartInfo;
 
   constructor(
     public app: AppFacade,
     public dialogRef: MatDialogRef<ChartPropertiesDialog>,
-    @Inject(MAT_DIALOG_DATA) public data: SKChart
-  ) {}
+    @Inject(MAT_DIALOG_DATA) public data: SKChart,
+    geotiffCharts: GeoTiffChartsService
+  ) {
+    if (data?.type === GEOTIFF_CHART_TYPE) {
+      this.geotiff = geotiffCharts.get(data.identifier);
+    }
+  }
 
   isLocal(url: string) {
     return url && url.indexOf('signalk') !== -1 ? 'map' : 'language';
+  }
+
+  protected fileSize(bytes: number): string {
+    return bytes < 1048576
+      ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+      : `${(bytes / 1048576).toFixed(1)} MB`;
+  }
+
+  protected loadedDate(iso: string): string {
+    return new Date(iso).toLocaleString();
+  }
+
+  protected positionSource(georeference: string): string {
+    switch (georeference) {
+      case 'moos-info':
+        return 'MOOS-IvP .info file';
+      case 'world-file':
+        return 'World file';
+      case 'manual':
+        return 'Edges entered when loaded';
+      default:
+        return 'GeoTIFF tags';
+    }
   }
 }

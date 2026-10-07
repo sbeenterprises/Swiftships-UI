@@ -59,6 +59,7 @@ import {
 import { ActionResult, PathValue } from '@signalk/server-api';
 import { groupBy } from 'rxjs/operators';
 import { SKWorkerService } from '../skstream/skstream.service';
+import { GeoTiffChartsService } from './geotiff';
 
 export type SKResourceType =
   | 'routes'
@@ -79,11 +80,21 @@ export class SKResourceService {
     private dialog: MatDialog,
     private signalk: SignalKClient,
     private worker: SKWorkerService,
-    private app: AppFacade
+    private app: AppFacade,
+    private geotiff: GeoTiffChartsService
   ) {
     this.worker
       .resource$()
       .subscribe((msg: PathValue[]) => this.processResourceMessage(msg));
+    // charts stored in the browser are displayed without waiting for the server
+    this.geotiff.ready().then(() => {
+      if (
+        this.geotiff.charts().length !== 0 &&
+        this.chartCacheSignal().length === 0
+      ) {
+        this.refreshCharts();
+      }
+    });
   }
 
   // ******** Resource selections management ********************
@@ -268,11 +279,13 @@ export class SKResourceService {
    * @description Fetch resources of supplied type from Signal K server.
    * @param collection The resource collection to which the resource belongs e.g. routes, waypoints, etc.
    * @param query  Filter criteria for resources to return
+   * @param rejectWhenNotConnected Reject (status 0) instead of never settling when there is no server connection
    * @returns Promise<T[]> (rejects with HTTPErrorResponse)
    */
   public listFromServer<T>(
     collection: SKResourceType,
-    query?: string
+    query?: string,
+    rejectWhenNotConnected = false
   ): Promise<T[]> {
     if (query) {
       query = query.startsWith('?') ? query : `?${query}`;
@@ -285,6 +298,16 @@ export class SKResourceService {
         this.app.skApiVersion,
         `/resources/${collection}${query}`
       );
+      if (!skf && rejectWhenNotConnected) {
+        reject(
+          new HttpErrorResponse({
+            status: 0,
+            statusText: 'Not connected',
+            error: { message: 'No connection to the Signal K server.' }
+          })
+        );
+        return;
+      }
       skf?.subscribe(
         (res: Routes | Waypoints | Regions | Notes | Charts | Tracks) => {
           const list: any = [];
@@ -560,8 +583,9 @@ export class SKResourceService {
     }
     this.app.debug(`** refreshCharts(): ${query}`);
     try {
-      const chts = await this.listFromServer<FBChart>('charts', query);
+      const chts = await this.listFromServer<FBChart>('charts', query, true);
       this.appendOSM(chts);
+      chts.push(...(await this.listLocalCharts()));
       let flist = chts.filter((chart: FBChart) => chart[2]);
       flist = this.sortByScaleDesc(flist);
       flist = this.arrangeChartLayers(flist);
@@ -570,10 +594,37 @@ export class SKResourceService {
       this.chartCacheSignal.set(flist);
     } catch (err) {
       this.app.debug('** refreshCharts:', err);
-      const flist = this.appendOSM([]);
+      let flist = this.appendOSM([]);
+      // charts stored in the browser do not need the server
+      const local = (await this.listLocalCharts()).filter(
+        (chart: FBChart) => chart[2]
+      );
+      if (local.length !== 0) {
+        flist = this.arrangeChartLayers(
+          flist.filter((chart: FBChart) => chart[2]).concat(local)
+        );
+      }
       this.setMapZoomRange();
       this.chartCacheSignal.set(flist);
     }
+  }
+
+  /**
+   * @description List the GeoTIFF charts stored in this browser.
+   * @returns FBChart array (selection flag set from the charts selection list)
+   */
+  public async listLocalCharts(): Promise<FBCharts> {
+    await this.geotiff.ready();
+    return this.geotiff
+      .charts()
+      .map((info) =>
+        this.geotiff.toFBChart(
+          info,
+          !this.selectionIsFiltered('charts')
+            ? true
+            : this.selectionHas('charts', info.id)
+        )
+      );
   }
 
   /**

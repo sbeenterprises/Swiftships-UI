@@ -12,6 +12,8 @@ import {
 import { AppFacade } from 'src/app/app.facade';
 import { FBCharts } from 'src/app/types';
 import { SKResourceService } from '../../resources.service';
+import { SKChart } from '../../resource-classes';
+import { GEOTIFF_CHART_TYPE } from '../../geotiff/geotiff-types';
 
 /********* ChartLayersList***********/
 @Component({
@@ -36,7 +38,7 @@ import { SKResourceService } from '../../resources.service';
                   [style.cursor]="i > 0 ? 'pointer' : 'initial'"
                 >
                   <div style="width:35px;">
-                    <mat-icon color="">{{ isLocal(ch[1].url) }}</mat-icon>
+                    <mat-icon color="">{{ chartIcon(ch[1]) }}</mat-icon>
                   </div>
                   <div
                     style="flex: 1 1 auto;text-overflow: ellipsis;
@@ -132,5 +134,11 @@ export class ChartLayers implements OnInit {
 
   isLocal(url: string) {
     return url && url.indexOf('signalk') !== -1 ? 'map' : 'language';
+  }
+
+  chartIcon(chart: SKChart) {
+    return chart.type === GEOTIFF_CHART_TYPE
+      ? 'image'
+      : this.isLocal(chart.url);
   }
 }
