@@ -1,0 +1,8 @@
+{
+  "name": "signalk-vectornav-vnins",
+  "version": "1.0.0",
+  "description": "VectorNav $VNINS parser for Signal K",
+  "main": "index.js",
+  "keywords": ["signalk-node-server-plugin"],
+  "license": "Apache-2.0"
+}
