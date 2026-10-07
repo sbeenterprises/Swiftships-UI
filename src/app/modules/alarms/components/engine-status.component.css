@@ -4,7 +4,21 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px;
+  padding: 6px 8px;
+}
+
+/* ngx-gauge internal text — big value reads white, label muted (matches theme) */
+:host ::ng-deep .status-section .reading-block {
+  color: #eaf1f8 !important;
+  font-weight: 700 !important;
+}
+:host ::ng-deep .status-section .reading-label {
+  color: #8ea3b8 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+:host ::ng-deep .status-section .dial {
+  stroke: rgba(52, 82, 112, 0.30);
 }
 
 
@@ -20,22 +34,23 @@
 }
 
 .engine-status-card {
-  background: linear-gradient(135deg, #345270 0%, #2e4660 100%);
-  border: 1px solid rgba(52, 82, 112, 0.8);
+  background: linear-gradient(180deg, #12233a 0%, #0d1a2c 100%);
+  border: 1px solid rgba(46, 74, 110, 0.6);
   box-shadow:
-    0 8px 24px rgba(30, 45, 62, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+    0 10px 30px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
   overflow: hidden;
-  color: white;
+  color: #e7eef6;
+  padding: 0;
 }
 
 .engine-status-card mat-card-header {
-  background: linear-gradient(135deg, #2a4258 0%, #1e2d3e 100%);
-  color: white;
-  padding: 16px;
+  background: #0d1a2c;
+  color: #ffffff;
+  padding: 12px 14px;
   margin: 0;
-  border-bottom: 1px solid rgba(52, 82, 112, 0.6);
+  border-bottom: 1px solid rgba(46, 74, 110, 0.5);
 }
 
 .engine-status-card mat-card-title {
@@ -55,6 +70,7 @@
   font-size: 24px;
   width: 24px;
   height: 24px;
+  color: #e8912d; /* amber accent, matches the panels' logo */
 }
 
 .close-button {
@@ -84,20 +100,20 @@
 }
 
 .status-section {
-  background: linear-gradient(135deg, rgba(30, 45, 62, 0.9) 0%, rgba(26, 41, 56, 0.9) 100%);
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid rgba(52, 82, 112, 0.5);
+  background: rgba(20, 37, 62, 0.55);
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid rgba(46, 74, 110, 0.55);
   box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.2),
-    0 2px 4px rgba(30, 45, 62, 0.3);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.3);
   position: relative;
   overflow: hidden;
   animation: fadeInUp 0.6s ease-out forwards;
   opacity: 0;
   transform: translateY(20px);
   flex: 1;
-  min-width: 250px;
+  min-width: 240px;
 }
 
 .status-section:nth-child(1) { animation-delay: 0.1s; }
@@ -120,44 +136,44 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #345270, #4a6b8a, #345270);
-  opacity: 0.6;
+  background: linear-gradient(90deg, transparent, #e8912d, transparent);
+  opacity: 0.7;
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  margin: 0 0 16px 0;
-  color: #ffffff;
+  margin: 0 0 12px 0;
+  color: #8ea3b8;
   font-family: 'Roboto', sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   text-align: center;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
-  border-bottom: 2px solid rgba(52, 82, 112, 0.6);
-  padding-bottom: 12px;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(46, 74, 110, 0.5);
+  padding-bottom: 10px;
   position: relative;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   justify-content: center;
 }
 
 .section-title::after {
   content: '';
   position: absolute;
-  bottom: -2px;
+  bottom: -1px;
   left: 50%;
   transform: translateX(-50%);
-  width: 40px;
+  width: 36px;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #4a6b8a, transparent);
+  background: linear-gradient(90deg, transparent, #e8912d, transparent);
 }
 
 .section-title mat-icon {
   margin-right: 8px;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #6f8399;
 }
 
 .status-grid {

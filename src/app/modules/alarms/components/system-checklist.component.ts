@@ -47,8 +47,16 @@ export interface ChecklistItem {
       <mat-card class="checklist-card">
         <mat-card-header>
           <mat-card-title>
-            <mat-icon>playlist_add_check</mat-icon>
-            System Checklist
+            <span class="ct-heading">
+              <mat-icon class="ct-logo">playlist_add_check</mat-icon>
+              System Checklist
+            </span>
+            <span
+              class="ct-chip"
+              [class.done]="getCompletedCount() === checklistItems().length"
+            >
+              {{ getCompletedCount() }}/{{ checklistItems().length }}
+            </span>
             <button
               mat-icon-button
               class="close-button"
@@ -62,10 +70,13 @@ export interface ChecklistItem {
         
         <mat-card-content>
           <div class="checklist-progress">
-            <strong>Progress: {{getCompletedCount()}}/{{checklistItems().length}}</strong>
+            <div class="cp-row">
+              <span class="cp-label">Checklist progress</span>
+              <span class="cp-pct">{{ getProgressPercentage() | number: '1.0-0' }}%</span>
+            </div>
             <div class="progress-bar">
-              <div 
-                class="progress-fill" 
+              <div
+                class="progress-fill"
                 [style.width.%]="getProgressPercentage()"
               ></div>
             </div>
@@ -74,10 +85,13 @@ export interface ChecklistItem {
           <div class="checklist-categories">
             @for(category of getCategories(); track category) {
             <div class="category-section">
-              <h4 class="category-title">{{getCategoryTitle(category)}}</h4>
+              <h4 class="category-title">
+                <mat-icon>{{ getCategoryIcon(category) }}</mat-icon>
+                {{ getCategoryTitle(category) }}
+              </h4>
               <mat-list>
                 @for(item of getItemsByCategory(category); track item.id) {
-                <mat-list-item class="checklist-item">
+                <mat-list-item class="checklist-item" [class.done]="item.completed">
                   <mat-checkbox
                     [checked]="item.completed"
                     (change)="toggleItem(item)"
@@ -218,6 +232,17 @@ export class SystemChecklistComponent {
       departure: 'Departure Procedures'
     };
     return titles[category] || category;
+  }
+
+  protected getCategoryIcon(category: string): string {
+    const icons = {
+      navigation: 'explore',
+      safety: 'health_and_safety',
+      communication: 'cell_tower',
+      maintenance: 'build',
+      departure: 'sailing'
+    };
+    return icons[category] || 'checklist';
   }
 
   protected getItemsByCategory(category: string): ChecklistItem[] {
