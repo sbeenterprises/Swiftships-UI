@@ -10,6 +10,12 @@
     <button mat-menu-item (click)="addChartSource('json')">
       JSON Map Source
     </button>
+    <button mat-menu-item (click)="addChartSource('s57')">
+      S-57 ENC Source
+    </button>
+    <button mat-menu-item (click)="uploadEnc()">
+      Import ENC (.zip)
+    </button>
     <button
       mat-menu-item
       [disabled]="!!geotiff.importProgress()"

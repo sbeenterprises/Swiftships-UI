@@ -31,6 +31,8 @@ import { catchError } from 'rxjs/operators';
 import { WMTSDialog } from './wmts-dialog';
 import { WMSDialog } from './wms-dialog';
 import { JsonMapSourceDialog } from './jsonmapsource-dialog';
+import { S57Dialog } from './s57-dialog';
+import { EncUploadDialog } from './enc-upload-dialog';
 import { SignalKClient } from 'signalk-client-angular';
 import { SKWorkerService } from 'src/app/modules/skstream/skstream.service';
 import { ResourceListBase } from '../resource-list-baseclass';
@@ -453,8 +455,10 @@ export class ChartListComponent extends ResourceListBase {
     }
   }
 
-  addChartSource(type: 'wms' | 'wmts' | 'json') {
-    let dref: MatDialogRef<WMTSDialog | WMSDialog | JsonMapSourceDialog>;
+  addChartSource(type: 'wms' | 'wmts' | 'json' | 's57') {
+    let dref: MatDialogRef<
+      WMTSDialog | WMSDialog | JsonMapSourceDialog | S57Dialog
+    >;
 
     if (type === 'wmts') {
       dref = this.dialog.open(WMTSDialog, {
@@ -470,6 +474,12 @@ export class ChartListComponent extends ResourceListBase {
     }
     if (type === 'json') {
       dref = this.dialog.open(JsonMapSourceDialog, {
+        disableClose: true,
+        data: {}
+      });
+    }
+    if (type === 's57') {
+      dref = this.dialog.open(S57Dialog, {
         disableClose: true,
         data: {}
       });
@@ -509,6 +519,25 @@ export class ChartListComponent extends ResourceListBase {
             this.initItems();
           }
         });
+      }
+    });
+  }
+
+  /**
+   * @description Upload an S-57 ENC (.zip) exchange set. The server-side
+   * freeboard-sk plugin unzips + tiles it in the background; on completion the
+   * charts plugin is reloaded and the chart list refreshed so the new cell(s)
+   * become selectable.
+   */
+  uploadEnc() {
+    const dref = this.dialog.open(EncUploadDialog, {
+      disableClose: true,
+      data: {}
+    });
+    dref.afterClosed().subscribe((res) => {
+      if (res?.ok) {
+        // The dialog already reloaded the charts plugin; refresh the list.
+        this.initItems();
       }
     });
   }

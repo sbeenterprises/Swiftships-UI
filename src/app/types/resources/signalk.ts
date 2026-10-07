@@ -79,11 +79,12 @@ export interface ChartProvider {
   name: string;
   title?: string;
   description: string;
-  type: 'tilejson' | 'WMS' | 'WMTS' | 'mapboxstyle';
+  type: 'tilejson' | 'WMS' | 'WMTS' | 'mapboxstyle' | 'S-57';
   url: string;
   layers?: string[];
   bounds?: number[];
   minzoom?: number;
   maxzoom?: number;
+  scale?: number;
   format?: string;
 }
