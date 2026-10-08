@@ -991,8 +991,8 @@ mat-nav-list {
     margin-left: 5px;
     vertical-align: middle;
     border-radius: 50%;
-    background: #ffb74d;
-    box-shadow: 0 0 6px rgba(255, 183, 77, 0.9);
+    background: #e8912d;
+    box-shadow: 0 0 6px rgba(232, 145, 45, 0.9);
 }
 
 .autonomous-control-sidenav .mat-list-item {
@@ -1293,23 +1293,23 @@ mat-nav-list {
 
 /* ---------- Service Mode (live PID calibration) ---------- */
 .service-mode-active {
-    border-color: rgba(255, 183, 77, 0.6) !important;
+    border-color: rgba(232, 145, 45, 0.6) !important;
     box-shadow:
         0 4px 12px rgba(30, 45, 62, 0.4),
-        0 0 0 1px rgba(255, 183, 77, 0.25),
+        0 0 0 1px rgba(232, 145, 45, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
 }
 
 .service-mode-active h3 {
-    color: #ffb74d;
+    color: #e8912d;
 }
 
 .service-mode-toggle {
-    --mdc-switch-selected-track-color: #ffb74d;
+    --mdc-switch-selected-track-color: #e8912d;
     --mdc-switch-selected-handle-color: #ffffff;
-    --mdc-switch-selected-hover-track-color: #ffc47f;
-    --mdc-switch-selected-focus-track-color: #ffb74d;
-    --mdc-switch-selected-pressed-track-color: #ffb74d;
+    --mdc-switch-selected-hover-track-color: #f0a545;
+    --mdc-switch-selected-focus-track-color: #e8912d;
+    --mdc-switch-selected-pressed-track-color: #e8912d;
 }
 
 .service-mode-warning {
@@ -1318,8 +1318,8 @@ mat-nav-list {
     gap: 8px;
     padding: 10px 12px;
     border-radius: 8px;
-    background: rgba(255, 152, 0, 0.12);
-    border: 1px solid rgba(255, 183, 77, 0.45);
+    background: rgba(232, 145, 45, 0.12);
+    border: 1px solid rgba(232, 145, 45, 0.45);
     color: #ffd9a0;
     font-family: 'Roboto', sans-serif;
     font-size: 11px;
@@ -1331,7 +1331,7 @@ mat-nav-list {
     font-size: 18px;
     width: 18px;
     height: 18px;
-    color: #ffb74d;
+    color: #e8912d;
 }
 
 .service-mode-hint {
@@ -1380,7 +1380,7 @@ mat-nav-list {
     padding: 4px 8px;
     border-radius: 6px;
     border: 1px solid rgba(52, 82, 112, 0.8);
-    background: rgba(20, 32, 45, 0.9);
+    background: rgba(11, 22, 38, 0.9);
     color: #a8d4ff;
     font-family: 'Roboto Mono', 'Courier New', monospace;
     font-size: 14px;
@@ -1390,13 +1390,13 @@ mat-nav-list {
 
 .pid-gain-input:focus {
     outline: none;
-    border-color: #ffb74d;
+    border-color: #e8912d;
 }
 
 .pid-slider {
-    --mdc-slider-active-track-color: #ffb74d;
-    --mdc-slider-inactive-track-color: rgba(255, 183, 77, 0.25);
-    --mdc-slider-handle-color: #ffb74d;
+    --mdc-slider-active-track-color: #e8912d;
+    --mdc-slider-inactive-track-color: rgba(232, 145, 45, 0.25);
+    --mdc-slider-handle-color: #e8912d;
     --mdc-slider-label-container-color: #345270;
 }
 
@@ -1487,26 +1487,26 @@ mat-nav-list {
     margin-top: 10px;
     padding: 10px 12px;
     border-radius: 10px;
-    background: rgba(20, 32, 46, 0.55);
+    background: rgba(20, 37, 62, 0.55);
     border-left: 3px solid #87ceeb;
 }
 
 /* state is carried by the left edge: closing, past CPA, finished */
 .colav-card.live {
-    border-left-color: #ffb74d;
+    border-left-color: #e8912d;
 }
 
 .colav-card.past {
-    border-left-color: #64b5f6;
+    border-left-color: #a8d4ff;
 }
 
 .colav-card.done {
-    border-left-color: #81c784;
+    border-left-color: #4bd694;
 }
 
 /* a collision or near miss outranks the state colour */
 .colav-card.done.bad {
-    border-left-color: #e57373;
+    border-left-color: #ff6b6b;
     background: rgba(70, 30, 30, 0.45);
 }
 
@@ -1518,7 +1518,7 @@ mat-nav-list {
 
 .colav-cn {
     font-weight: 600;
-    color: #e8f2f8;
+    color: #e7eef6;
     font-size: 13px;
 }
 
@@ -1527,8 +1527,8 @@ mat-nav-list {
     line-height: 1;
     padding: 3px 6px;
     border-radius: 4px;
-    background: rgba(255, 183, 77, 0.2);
-    color: #ffb74d;
+    background: rgba(232, 145, 45, 0.2);
+    color: #e8912d;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -1536,7 +1536,7 @@ mat-nav-list {
 .colav-state {
     margin-left: auto;
     font-size: 11px;
-    color: #9fb6c4;
+    color: #8ea3b8;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -1563,24 +1563,24 @@ mat-nav-list {
 }
 
 .colav-grid span {
-    color: #9fb6c4;
+    color: #8ea3b8;
 }
 
 .colav-grid b {
-    color: #e8f2f8;
+    color: #e7eef6;
     font-weight: 600;
     font-family: monospace;
 }
 
 /* a deflection the operator should not read as pure avoidance */
 .colav-doubt {
-    color: #ffb74d !important;
+    color: #e8912d !important;
 }
 
 .colav-note {
     margin-top: 6px;
     font-size: 10px;
-    color: #9fb6c4;
+    color: #8ea3b8;
     line-height: 1.4;
     font-style: italic;
 }

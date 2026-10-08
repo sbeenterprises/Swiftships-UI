@@ -70,6 +70,7 @@ import { ReplayService } from '../replay.service';
   `,
   styles: [
     `
+      /* Swiftships dark-navy theme — matches the floating nav bar / control panels */
       .replay-bar {
         position: absolute;
         bottom: 30px;
@@ -79,20 +80,39 @@ import { ReplayService } from '../replay.service';
         display: flex;
         align-items: center;
         gap: 4px;
-        padding: 2px 8px;
-        border-radius: 6px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #12233a 0%, #0d1a2c 100%);
+        border: 1px solid rgba(46, 74, 110, 0.6);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        color: #e7eef6;
+        font-family: Roboto, 'Segoe UI', sans-serif;
         width: min(760px, calc(100vw - 120px));
+      }
+      .replay-bar button {
+        color: #e7eef6;
+      }
+      .replay-bar .mat-mdc-button {
+        color: #c2d2e4;
+        font-weight: 700;
       }
       .replay-bar .timeline {
         flex: 1 1 auto;
         min-width: 120px;
+        --mdc-slider-active-track-color: #e8912d;
+        --mdc-slider-inactive-track-color: rgba(52, 82, 112, 0.5);
+        --mdc-slider-handle-color: #e8912d;
+        --mdc-slider-focus-handle-color: #e8912d;
+        --mdc-slider-hover-handle-color: #f0a545;
       }
       .replay-bar .clock {
-        font-family: monospace;
+        font-family: 'Roboto Mono', monospace;
         font-size: 0.85em;
         white-space: nowrap;
         padding: 0 4px;
+        color: #a8d4ff;
+        font-variant-numeric: tabular-nums;
       }
     `
   ]
