@@ -729,6 +729,16 @@ export class AppComponent implements OnDestroy {
     this.remoteControlTab = tab;
   }
 
+  /** A right-side (end) control panel is open — shifts the floating nav bar
+      left so it stays centred over the visible map (matches usv01). */
+  public get rightPanelOpen(): boolean {
+    return (
+      this.display.autonomousControlPanelOpen ||
+      this.display.remoteControlPanelOpen ||
+      this.display.stationKeepPanelOpen
+    );
+  }
+
   protected toggleAutonomousControl() {
     if (this.app.config.selections.autonomousControl) {
       // If already active, toggle the panel and deactivate if closing

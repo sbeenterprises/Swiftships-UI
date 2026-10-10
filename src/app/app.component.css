@@ -1924,3 +1924,33 @@ mat-nav-list {
 /* COLAV encounter count caption */
 .autonomous-control-sidenav .count-cap { font-size: 11px; color: #8ea3b8; text-align: center; }
 .autonomous-control-sidenav .count-cap b { color: #a8d4ff; }
+
+/* ======================================================================
+   Console fixes — stop section overlap + shift floating nav bar (usv01).
+   ====================================================================== */
+/* Cards keep their natural height (no flex-shrink) and the pane scrolls when
+   a tab's content is taller than the panel — this removes the overlap caused
+   by squished flex children, and matches the dev scroll-middle behaviour. */
+.autonomous-control-sidenav .ac-panes,
+.remote-control-sidenav .ac-panes {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+.autonomous-control-sidenav .ac-panes::-webkit-scrollbar,
+.remote-control-sidenav .ac-panes::-webkit-scrollbar { width: 6px; }
+.autonomous-control-sidenav .ac-panes::-webkit-scrollbar-thumb,
+.remote-control-sidenav .ac-panes::-webkit-scrollbar-thumb { background: rgba(46, 74, 110, 0.7); border-radius: 3px; }
+.autonomous-control-sidenav .autonomous-control-section,
+.remote-control-sidenav .remote-control-section {
+  flex: 0 0 auto !important;
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Floating instrument/nav bar: shift left when a right-side panel is open so it
+   stays centred over the visible map instead of running under the panel. */
+.floatingNavBar { transition: left 0.25s ease; }
+@media only screen and (min-width: 769px) {
+  .floatingNavBar.nav-shift { left: calc(50% - 175px); }
+}

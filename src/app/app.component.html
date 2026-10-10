@@ -215,7 +215,7 @@
     <!--/toolbar button menus-->
 
     <!-- Floating Navigation Bar -->
-    <div class="floatingNavBar">
+    <div class="floatingNavBar" [class.nav-shift]="rightPanelOpen">
       <!-- Left: logo + title -->
       <div class="navBrand">
         <img class="navLogo" src="assets/img/SS_Logo_W.png" alt="SwiftShips" />
@@ -337,7 +337,7 @@
         <!--remote control-->
         @if(display.remoteControlPanelOpen) {
         <mat-sidenav #sideremotecontrol mode="side" position="end" [opened]="display.remoteControlPanelOpen"
-          class="remote-control-sidenav" style="width: 400px;">
+          class="remote-control-sidenav" style="width: 350px;">
           <div class="ac-root" style="position: relative;">
             <!-- Header: logo + title + live CAN link chip (dev usv01 design) -->
             <header class="ac-header">
@@ -632,7 +632,7 @@
         <!--autonomous control-->
         @if(display.autonomousControlPanelOpen) {
         <mat-sidenav #sideautonomouscontrol mode="side" position="end" [opened]="display.autonomousControlPanelOpen"
-          class="autonomous-control-sidenav" style="width: 400px;">
+          class="autonomous-control-sidenav" style="width: 350px;">
           <div class="ac-root" style="position: relative;">
             <!-- Header: logo + title + live connection chip (dev usv01 design) -->
             <header class="ac-header">
