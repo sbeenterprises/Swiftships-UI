@@ -717,6 +717,96 @@
                 </div>
               </div>
 
+              <!-- ===== ENC autonomy planner (usv01 design) ===== -->
+              <div class="ac-phasebar">
+                <span class="ac-phase-lbl">Phase follows status</span>
+                <div class="ac-phase-tabs">
+                  <span class="ac-phase-tab" [class.on]="!autonomousControl.waypointActive">Standby &middot; Plan</span>
+                  <span class="ac-phase-tab" [class.on]="autonomousControl.waypointActive">Active &middot; Control</span>
+                </div>
+              </div>
+
+              @if(depthReferencePosture() !== 'ok') {
+              <div class="autonomous-control-section ac-depthref"
+                [class.no-enc]="depthReferencePosture() === 'no-enc'"
+                [class.no-data]="depthReferencePosture() === 'no-data'">
+                <mat-icon class="ac-depthref-ic">{{ depthReferencePosture() === 'no-enc' ? 'explore_off' : 'layers_clear' }}</mat-icon>
+                <span class="ac-depthref-txt">
+                  @if(depthReferencePosture() === 'no-enc') {
+                  <strong>No ENC chart selected</strong> &mdash; running unrestricted. Select an ENC chart to enable safe-water planning.
+                  } @else {
+                  <strong>ENC selected, no safe-water data</strong> &mdash; route gating can't be applied for this area.
+                  }
+                </span>
+              </div>
+              }
+
+              <div class="autonomous-control-section">
+                <h3>Route Planning</h3>
+                <div class="ac-row corridor-row">
+                  <button mat-stroked-button class="corridor-btn"
+                    [disabled]="planningRoute || !autonomousControl.selectedRoute"
+                    (click)="planSafeRoute()">
+                    <mat-icon>{{ planningRoute ? 'hourglass_empty' : 'alt_route' }}</mat-icon>
+                    {{ planningRoute ? 'Planning…' : 'Plan Safe Route' }}
+                  </button>
+                </div>
+                <div class="ac-row corridor-row">
+                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.active"
+                    (click)="corridor.active ? clearCorridor() : sendCorridor()">
+                    <mat-icon>{{ corridor.active ? 'linear_scale' : 'route' }}</mat-icon>
+                    {{ corridor.active ? 'Clear Route Corridor' : 'Send Route Corridor' }}
+                  </button>
+                  <span *ngIf="corridor.active" class="corridor-status" [attr.data-status]="corridor.status">
+                    {{ corridorStatusText() }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="autonomous-control-section ac-planner">
+                <h3>Planner</h3>
+                <div class="ac-seg" role="group" aria-label="Planner algorithm">
+                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'theta'"
+                    (click)="plannerAlgorithm = 'theta'">Theta*<small>any-angle</small></button>
+                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'astar'"
+                    (click)="plannerAlgorithm = 'astar'">A* grid</button>
+                  <button type="button" class="ac-seg-btn" disabled>Medial<small>soon</small></button>
+                </div>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Hazard clearance</span>
+                  <span class="ac-slider-val">{{ planClearanceM }} m</span>
+                </div>
+                <mat-slider min="5" max="60" step="1" class="clearance-slider">
+                  <input matSliderThumb [value]="planClearanceM" (input)="planClearanceM = +$any($event.target).value">
+                </mat-slider>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Corridor width</span>
+                  <span class="ac-slider-val">{{ corridorWidthM }} m</span>
+                </div>
+                <mat-slider min="20" max="150" step="5" class="clearance-slider">
+                  <input matSliderThumb [value]="corridorWidthM" (input)="corridorWidthM = +$any($event.target).value">
+                </mat-slider>
+              </div>
+
+              <div class="autonomous-control-section ac-planner">
+                <h3>Rules</h3>
+                <div class="ac-togrow">
+                  <div class="ac-tog-txt">Keep to channel centre
+                    <small>Always on — keeps the route clear of edges</small>
+                  </div>
+                  <button type="button" class="ac-sw on" disabled role="switch" aria-checked="true"
+                    aria-label="Keep to channel centre (always on)"></button>
+                </div>
+                <div class="ac-togrow">
+                  <div class="ac-tog-txt">Repeat route
+                    <small>Loop the mission on completion</small>
+                  </div>
+                  <button type="button" class="ac-sw" [class.on]="autonomousControl.repeatRoute"
+                    role="switch" [attr.aria-checked]="autonomousControl.repeatRoute"
+                    (click)="toggleRepeatRoute()" aria-label="Repeat route"></button>
+                </div>
+              </div>
+
               <!-- Speed Control (only shown when CAN Messages are enabled) -->
               @if(autonomousControl.canSend) {
               <div class="autonomous-control-section">

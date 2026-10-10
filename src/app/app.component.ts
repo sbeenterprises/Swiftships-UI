@@ -57,6 +57,7 @@ import {
 import { SignalKClient } from 'signalk-client-angular';
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
+import { RoutePlannerService } from 'src/app/lib/services/route-planner.service';
 import * as semver from 'semver';
 import { MoosIvpWebsocketService } from './lib/moos-ivp-websocket.service';
 import {
@@ -410,6 +411,51 @@ export class AppComponent implements OnDestroy {
 
   protected isInteracting = false; // map interaction flag
 
+  // ===== ENC autonomy planner state (ported from usv01 dev boat) =====
+  // Station-keep hold telemetry (DIST_TO_STATION / STATIONING).
+  public skHold = {
+    holding: false,
+    distToStation: null as number | null,
+    holdElapsed: 0
+  };
+  private skHoldTimer: any = null;
+  // Operating region (OpRegion) selection/activation.
+  public operatingRegion = { selectedId: '', activeId: '' };
+  // Route-relative safe corridor (CORRIDOR_STATUS / XTE_NOW driven).
+  public corridor = {
+    active: false,
+    status: 'none' as 'none' | 'slow' | 'stop' | 'recovering',
+    xte: null as number | null
+  };
+  // Boat held in comms-loss failsafe — needs explicit operator re-arm.
+  protected awaitingRearm = false;
+  private corridorAlertTimer: any = null;
+  private corridorAlerted = false;
+  // ENC safe navigable water rings + coverage hull (from loadSafeWater()).
+  private safeWaterRings: number[][][] = [];
+  private encCoverageHull: number[][] = [];
+  // Global planner settings.
+  protected planningRoute = false;
+  protected plannerAlgorithm: 'theta' | 'astar' = 'theta';
+  protected planClearanceM = 20;
+  protected corridorWidthM = 60;
+  protected planCentreBias = true;
+  // Route report for the Plan phase.
+  protected planReport: {
+    distanceNm: number;
+    turns: number;
+    minClearanceM: number | null;
+    outside: boolean;
+  } | null = null;
+  // Geofence/region status frames.
+  public regionWarning = {
+    status: 'ok' as 'ok' | 'route_outside',
+    count: 0,
+    total: 0
+  };
+  public regionBreach = { active: false };
+  private regionWarnAudio: HTMLAudioElement | null = null;
+
   constructor(
     protected app: AppFacade,
     protected mapInteract: FBMapInteractService,
@@ -422,6 +468,7 @@ export class AppComponent implements OnDestroy {
     protected signalk: SignalKClient,
     protected radarService: RadarService,
     private moosWsService: MoosIvpWebsocketService,
+    private routePlanner: RoutePlannerService,
     protected replay: ReplayService,
     private dom: DomSanitizer,
     private overlayContainer: OverlayContainer,
@@ -737,6 +784,75 @@ export class AppComponent implements OnDestroy {
       this.display.remoteControlPanelOpen ||
       this.display.stationKeepPanelOpen
     );
+  }
+
+  // ===== ENC autonomy console (usv01 look) — GUARDED =====
+  // The planner / corridor / ENC-gating UI is present and styled like the dev
+  // boat, but full route planning, corridor enforcement and region gating need
+  // the dev runtime-config + MOOS/ENC backend, which is not yet ported. These
+  // keep the console safe: they act where self-contained, otherwise they tell
+  // the operator the backend is unavailable instead of doing nothing silently.
+
+  /** An ENC / depth-reference chart is on screen (any non-base-raster chart). */
+  protected encDepthReferenceShown(): boolean {
+    const sel = (this.app.config?.selections?.charts as string[]) || [];
+    const BASE = ['openstreetmap', 'openseamap'];
+    return sel.some((id) => !BASE.includes(id));
+  }
+
+  protected safeWaterEnforced(): boolean {
+    return this.encDepthReferenceShown() && this.safeWaterRings.length > 0;
+  }
+
+  protected depthReferencePosture(): 'ok' | 'no-enc' | 'no-data' {
+    if (!this.encDepthReferenceShown()) return 'no-enc';
+    if (this.safeWaterRings.length === 0) return 'no-data';
+    return 'ok';
+  }
+
+  /** Plan Safe Route — needs ENC safe-water data (loaded by the ENC backend). */
+  protected async planSafeRoute(): Promise<void> {
+    if (!this.autonomousControl.selectedRoute) {
+      this.app.showMessage('Select a route to plan', true, 3000);
+      return;
+    }
+    this.app.showMessage(
+      'Safe-route planning needs ENC safe-water data — the ENC autonomy backend is not yet available.',
+      true,
+      4500
+    );
+  }
+
+  /** Send the route corridor — needs the MOOS corridor backend. */
+  protected sendCorridor(): void {
+    this.app.showMessage(
+      'Route corridor needs the MOOS corridor backend (not configured on this boat).',
+      true,
+      4000
+    );
+  }
+
+  protected clearCorridor(): void {
+    this.corridor.active = false;
+    this.corridor.status = 'none';
+    this.corridor.xte = null;
+  }
+
+  protected corridorStatusText(): string {
+    switch (this.corridor.status) {
+      case 'slow':
+        return 'In corridor — slowing';
+      case 'stop':
+        return 'At corridor edge — holding';
+      case 'recovering':
+        return 'Outside corridor — recovering';
+      default:
+        return 'In corridor';
+    }
+  }
+
+  protected toggleRepeatRoute(): void {
+    this.updateRepeatRoute(!this.autonomousControl.repeatRoute);
   }
 
   protected toggleAutonomousControl() {
