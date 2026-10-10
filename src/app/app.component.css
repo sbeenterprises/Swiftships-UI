@@ -1797,3 +1797,130 @@ mat-nav-list {
   border-color: #e8912d !important;
   outline: none;
 }
+
+/* ======================================================================
+   Console redesign — Autonomous Control + Remote Control.
+   Tabbed, no-scroll, 400px wide, dev (usv01) navy/amber design language.
+   Scoped to the two sidenavs; no leakage to other panels. Markup bindings
+   unchanged — every production-only feature is retained, split across tabs.
+   ====================================================================== */
+.autonomous-control-sidenav .ac-root,
+.remote-control-sidenav .ac-root {
+  display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
+}
+
+/* Header */
+.autonomous-control-sidenav .ac-header,
+.remote-control-sidenav .ac-header {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  background: #0d1a2c; border-bottom: 1px solid rgba(46, 74, 110, 0.5); flex: 0 0 auto;
+}
+.autonomous-control-sidenav .ac-logo,
+.remote-control-sidenav .ac-logo { color: #e8912d !important; font-size: 24px; width: 24px; height: 24px; flex: 0 0 auto; }
+.autonomous-control-sidenav .ac-close,
+.remote-control-sidenav .ac-close { color: #fff !important; flex: 0 0 auto; }
+.autonomous-control-sidenav .ac-title,
+.remote-control-sidenav .ac-title { font-weight: 700; font-size: 16px; color: #fff; flex: 1 1 auto; white-space: nowrap; }
+.autonomous-control-sidenav .ac-chip,
+.remote-control-sidenav .ac-chip { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(11, 22, 38, 0.7); border: 1px solid rgba(46, 74, 110, 0.5); color: #c0c9d4; }
+.autonomous-control-sidenav .chip-dot,
+.remote-control-sidenav .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: #8296ac; }
+.autonomous-control-sidenav .ac-chip.linked,
+.remote-control-sidenav .ac-chip.linked { color: #4bd694; background: rgba(51, 200, 128, 0.1); border-color: rgba(51, 200, 128, 0.4); }
+.autonomous-control-sidenav .ac-chip.linked .chip-dot,
+.remote-control-sidenav .ac-chip.linked .chip-dot { background: #4bd694; }
+
+/* Tabs */
+.autonomous-control-sidenav .ac-tabs,
+.remote-control-sidenav .ac-tabs { display: flex; gap: 2px; margin: 8px 12px 0; padding: 3px; border-radius: 8px; background: rgba(11, 22, 38, 0.6); border: 1px solid rgba(46, 74, 110, 0.5); flex: 0 0 auto; }
+.autonomous-control-sidenav .ac-tab,
+.remote-control-sidenav .ac-tab { flex: 1 1 auto; border: 0; background: transparent; color: #8fb2cf; font: 600 11.5px Roboto, 'Segoe UI', sans-serif; padding: 6px 6px; border-radius: 6px; cursor: pointer; position: relative; white-space: nowrap; }
+.autonomous-control-sidenav .ac-tab:hover,
+.remote-control-sidenav .ac-tab:hover { color: #fff; }
+.autonomous-control-sidenav .ac-tab.active,
+.remote-control-sidenav .ac-tab.active { background: #e8912d; color: #12233a; }
+.autonomous-control-sidenav .ac-tab-dot { position: absolute; top: 3px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: #4bd694; }
+
+/* Panes — fill height, NO SCROLL */
+.autonomous-control-sidenav .ac-panes,
+.remote-control-sidenav .ac-panes { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+
+/* Section cards */
+.autonomous-control-sidenav .autonomous-control-section,
+.remote-control-sidenav .remote-control-section {
+  background: rgba(20, 37, 62, 0.55) !important; border: 1px solid rgba(46, 74, 110, 0.55) !important;
+  border-radius: 12px !important; box-shadow: none !important; padding: 12px !important; margin: 0 !important;
+}
+.autonomous-control-sidenav .autonomous-control-section::before,
+.remote-control-sidenav .remote-control-section::before { display: none !important; }
+.autonomous-control-sidenav .autonomous-control-section:hover,
+.remote-control-sidenav .remote-control-section:hover { transform: none !important; box-shadow: none !important; border-color: rgba(46, 74, 110, 0.55) !important; }
+.autonomous-control-sidenav .autonomous-control-section h3,
+.remote-control-sidenav .remote-control-section h3 {
+  font-size: 10px !important; text-transform: uppercase !important; letter-spacing: 0.6px !important;
+  font-weight: 700 !important; color: #6f8399 !important; border-bottom: none !important;
+  padding: 0 0 6px 0 !important; margin: 0 0 2px 0 !important; text-align: left !important; text-shadow: none !important;
+}
+.autonomous-control-sidenav .autonomous-control-section h3::after,
+.remote-control-sidenav .remote-control-section h3::after { display: none !important; }
+.autonomous-control-sidenav .control-group,
+.remote-control-sidenav .control-group { display: flex; flex-direction: column; gap: 8px; }
+
+/* Rows / labels / values */
+.autonomous-control-sidenav .control-display,
+.remote-control-sidenav .control-display { background: rgba(11, 22, 38, 0.6) !important; border: 1px solid rgba(46, 74, 110, 0.4) !important; border-radius: 8px !important; padding: 7px 10px !important; box-shadow: none !important; margin: 0 !important; }
+.autonomous-control-sidenav .control-label,
+.remote-control-sidenav .control-label { color: #6f8399 !important; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+.autonomous-control-sidenav .control-value,
+.remote-control-sidenav .control-value { color: #eaf1f8 !important; font-weight: 700; }
+
+/* Sliders -> amber */
+.autonomous-control-sidenav .speed-slider, .autonomous-control-sidenav .pid-slider,
+.remote-control-sidenav .rudder-slider, .remote-control-sidenav .thrust-slider {
+  --mdc-slider-active-track-color: #e8912d; --mdc-slider-inactive-track-color: rgba(52, 82, 112, 0.5);
+  --mdc-slider-handle-color: #e8912d; --mdc-slider-focus-handle-color: #e8912d; --mdc-slider-hover-handle-color: #f0a545;
+}
+
+/* Preset / control buttons */
+.autonomous-control-sidenav .control-btn.mat-mdc-raised-button, .autonomous-control-sidenav .control-btn.mat-mdc-button,
+.remote-control-sidenav .control-btn.mat-mdc-raised-button, .remote-control-sidenav .control-btn.mat-mdc-button {
+  background: rgba(11, 22, 38, 0.75) !important; color: #c2d2e4 !important; border: 1px solid rgba(46, 74, 110, 0.6) !important;
+  box-shadow: none !important; border-radius: 8px !important; text-transform: none !important; font-weight: 600 !important; min-height: 34px;
+}
+.autonomous-control-sidenav .control-btn.center-btn.mat-mdc-raised-button,
+.remote-control-sidenav .control-btn.center-btn.mat-mdc-raised-button { color: #f0a545 !important; background: rgba(232, 145, 45, 0.14) !important; border-color: #e8912d !important; }
+.autonomous-control-sidenav .control-buttons,
+.remote-control-sidenav .control-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+/* Compact PID / COLAV gain rows — single line, slider hidden (number + nudge) */
+.autonomous-control-sidenav .pid-loop { display: flex; flex-direction: column; gap: 4px; }
+.autonomous-control-sidenav .pid-loop-title { font-size: 11px; font-weight: 700; color: #c2d2e4; }
+.autonomous-control-sidenav .pid-loop-title span { color: #6f8399; font-weight: 500; font-size: 10px; }
+.autonomous-control-sidenav .pid-gain { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; }
+.autonomous-control-sidenav .pid-gain-head { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; margin: 0; }
+.autonomous-control-sidenav .pid-gain-head .control-label { flex: 1 1 auto; }
+.autonomous-control-sidenav .pid-gain-input { background: rgba(11, 22, 38, 0.9) !important; border: 1px solid rgba(46, 74, 110, 0.6) !important; color: #a8d4ff !important; border-radius: 6px; width: 68px; text-align: center; font-family: 'Roboto Mono', monospace; }
+.autonomous-control-sidenav .pid-gain-input:focus { border-color: #e8912d !important; outline: none; }
+.autonomous-control-sidenav .pid-gain .slider-with-buttons { flex: 0 0 auto; gap: 2px !important; }
+.autonomous-control-sidenav .pid-gain .pid-slider { display: none !important; }
+.autonomous-control-sidenav .slider-btn.mat-mdc-icon-button { width: 28px !important; height: 28px !important; padding: 0 !important; color: #cfe0f0 !important; background: rgba(11, 22, 38, 0.8); border: 1px solid rgba(46, 74, 110, 0.6); border-radius: 6px; }
+.autonomous-control-sidenav .pid-applied { background: none !important; border: 0 !important; padding: 2px 0 !important; }
+.autonomous-control-sidenav .pid-applied-value { color: #a8d4ff !important; font-family: 'Roboto Mono', monospace; }
+
+/* Mission Status — chip + progress + metric tiles */
+.autonomous-control-sidenav .ac-status-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.autonomous-control-sidenav .status-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; color: #8fb2cf; }
+.autonomous-control-sidenav .status-chip.active { color: #4bd694; }
+.autonomous-control-sidenav .status-chip mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.autonomous-control-sidenav .ac-wp { font-size: 13px; font-weight: 600; color: #c2d2e4; white-space: nowrap; }
+.autonomous-control-sidenav .ac-progress { height: 6px; border-radius: 4px; background: rgba(11, 22, 38, 0.9); overflow: hidden; }
+.autonomous-control-sidenav .ac-progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #e8912d, #f0a545); transition: width 0.3s ease; }
+.autonomous-control-sidenav .ac-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.autonomous-control-sidenav .ac-metric { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 8px; background: rgba(11, 22, 38, 0.6); border: 1px solid rgba(46, 74, 110, 0.4); }
+.autonomous-control-sidenav .ac-metric-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #6f8399; }
+.autonomous-control-sidenav .ac-metric-val { font-size: 15px; font-weight: 700; color: #eaf1f8; font-variant-numeric: tabular-nums; }
+.autonomous-control-sidenav .ac-metric-val em { font-size: 10px; font-style: normal; color: #8296ac; margin-left: 2px; }
+
+/* COLAV encounter count caption */
+.autonomous-control-sidenav .count-cap { font-size: 11px; color: #8ea3b8; text-align: center; }
+.autonomous-control-sidenav .count-cap b { color: #a8d4ff; }

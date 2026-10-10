@@ -188,8 +188,12 @@ export class AppComponent implements OnDestroy {
     waypointRadii: { captureRadius: number, slipRadius: number } | null;
   };
 
-  /** which sub-panel of the Autonomous Control sidenav is showing */
-  protected autonomousPanelTab: 'control' | 'calibration' = 'control';
+  /** which tab of the Autonomous Control sidenav is showing */
+  protected autonomousPanelTab: 'mission' | 'follow' | 'pid' | 'colav' | 'test' =
+    'mission';
+
+  /** which tab of the Remote Control sidenav is showing */
+  protected remoteControlTab: 'helm' | 'system' = 'helm';
 
   // Service mode: live PID calibration from the UI.
   // Gains are pushed to planchaPID through iWebSocket (HEADING_K* / SPEED_K*)
@@ -715,8 +719,14 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
-  protected setAutonomousPanelTab(tab: 'control' | 'calibration') {
+  protected setAutonomousPanelTab(
+    tab: 'mission' | 'follow' | 'pid' | 'colav' | 'test'
+  ) {
     this.autonomousPanelTab = tab;
+  }
+
+  protected setRemoteControlTab(tab: 'helm' | 'system') {
+    this.remoteControlTab = tab;
   }
 
   protected toggleAutonomousControl() {
@@ -729,7 +739,7 @@ export class AppComponent implements OnDestroy {
         this.display.instrumentPanelOpen = false;
         this.display.remoteControlPanelOpen = false;
         this.display.stationKeepPanelOpen = false;
-        this.autonomousPanelTab = 'control';
+        this.autonomousPanelTab = 'mission';
         // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
         this.loadAvailableRoutes();
         this.loadAvailableRegions();
@@ -747,7 +757,7 @@ export class AppComponent implements OnDestroy {
       this.display.instrumentPanelOpen = false;
       this.display.remoteControlPanelOpen = false;
       this.display.stationKeepPanelOpen = false;
-      this.autonomousPanelTab = 'control';
+      this.autonomousPanelTab = 'mission';
       this.app.saveConfig();
       // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
       this.loadAvailableRoutes();

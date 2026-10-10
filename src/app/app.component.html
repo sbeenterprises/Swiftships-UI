@@ -337,19 +337,31 @@
         <!--remote control-->
         @if(display.remoteControlPanelOpen) {
         <mat-sidenav #sideremotecontrol mode="side" position="end" [opened]="display.remoteControlPanelOpen"
-          class="remote-control-sidenav" style="width: 350px;">
-          <div style="display: flex; flex-direction: column; position: relative; height: 100%">
-            <mat-nav-list>
-              <a mat-list-item>
-                <a mat-icon-button (click)="closeRemoteControl()">
-                  <mat-icon>close</mat-icon>
-                </a>
-                <span style="margin-left: 16px; font-weight: 500;">Remote Control</span>
+          class="remote-control-sidenav" style="width: 400px;">
+          <div class="ac-root" style="position: relative;">
+            <!-- Header: logo + title + live CAN link chip (dev usv01 design) -->
+            <header class="ac-header">
+              <mat-icon class="ac-logo">sports_esports</mat-icon>
+              <span class="ac-title">Remote control</span>
+              <span class="ac-chip"
+                [class.linked]="remoteControl.canSend"
+                [class.offline]="!remoteControl.canSend">
+                <span class="chip-dot"></span>
+                {{ remoteControl.canSend ? 'CAN · linked' : 'CAN · off' }}
+              </span>
+              <a mat-icon-button (click)="closeRemoteControl()" class="ac-close">
+                <mat-icon>close</mat-icon>
               </a>
-              <mat-divider></mat-divider>
-            </mat-nav-list>
+            </header>
+            <div class="ac-tabs">
+              <button type="button" class="ac-tab" [class.active]="remoteControlTab === 'helm'"
+                (click)="setRemoteControlTab('helm')">Helm</button>
+              <button type="button" class="ac-tab" [class.active]="remoteControlTab === 'system'"
+                (click)="setRemoteControlTab('system')">System</button>
+            </div>
 
-            <div class="remote-control-content" style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
+            <div class="remote-control-content ac-panes">
+              @if(remoteControlTab === 'helm') {
               <!-- Rudder, Thrust and Gear Controls (only shown when CAN Messages are enabled) -->
               @if(remoteControl.canSend) {
               <!-- Rudder Control -->
@@ -439,8 +451,14 @@
                   </div>
                 </div>
               </div>
+              } @else {
+              <div class="remote-control-section">
+                <div class="service-mode-hint">Enable CAN in the System tab to helm the boat.</div>
+              </div>
+              }
               }
 
+              @if(remoteControlTab === 'system') {
               <!-- CAN Messages Control -->
               <div class="remote-control-section">
                 <h3>CAN Messages</h3>
@@ -458,6 +476,7 @@
                   </button>
                 </div>
               </div>
+              }
 
             </div>
           </div>
@@ -613,7 +632,7 @@
         <!--autonomous control-->
         @if(display.autonomousControlPanelOpen) {
         <mat-sidenav #sideautonomouscontrol mode="side" position="end" [opened]="display.autonomousControlPanelOpen"
-          class="autonomous-control-sidenav" style="width: 350px;">
+          class="autonomous-control-sidenav" style="width: 400px;">
           <div class="ac-root" style="position: relative;">
             <!-- Header: logo + title + live connection chip (dev usv01 design) -->
             <header class="ac-header">
@@ -630,25 +649,28 @@
                 <mat-icon>close</mat-icon>
               </a>
             </header>
-            <!-- sub-panel switch: mission controls vs. PID calibration -->
-            <div class="ac-tabs">
-              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'control'"
-                (click)="setAutonomousPanelTab('control')">
-                Autonomous Control
-              </button>
-              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'calibration'"
-                (click)="setAutonomousPanelTab('calibration')">
-                Calibration
-                <!-- service mode ON means the boat is on hand-entered gains: stay visible from the other tab -->
+            <!-- tab switch: Mission / Follow / PID / COLAV / Test -->
+            <div class="ac-tabs wrap">
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'mission'"
+                (click)="setAutonomousPanelTab('mission')">Mission</button>
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'follow'"
+                (click)="setAutonomousPanelTab('follow')">Follow</button>
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'pid'"
+                (click)="setAutonomousPanelTab('pid')">
+                PID
+                <!-- service mode ON means the boat is on hand-entered gains: flag it from any tab -->
                 @if(servicePid.enabled) {
                 <span class="ac-tab-dot"></span>
                 }
               </button>
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'colav'"
+                (click)="setAutonomousPanelTab('colav')">COLAV</button>
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'test'"
+                (click)="setAutonomousPanelTab('test')">Test</button>
             </div>
 
-            <div class="autonomous-control-content"
-              style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
-              @if(autonomousPanelTab === 'control') {
+            <div class="autonomous-control-content ac-panes">
+              @if(autonomousPanelTab === 'mission') {
               <!-- Route Selection -->
               <div class="autonomous-control-section">
                 <h3>Route Selection</h3>
@@ -716,7 +738,9 @@
                 </div>
               </div>
               }
+              }
 
+              @if(autonomousPanelTab === 'follow') {
               <!-- Follow AIS Contact -->
               <div class="autonomous-control-section" [class.service-mode-active]="aisFollow.active">
                 <h3>Follow Contact</h3>
@@ -764,39 +788,38 @@
                   </div>
                 </div>
               </div>
+              }
 
+              @if(autonomousPanelTab === 'mission') {
               <!-- Mission Status -->
-              <div class="autonomous-control-section">
+              <div class="autonomous-control-section ac-status-card">
                 <h3>Mission Status</h3>
                 <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">Status:</span>
-                    <span class="control-value status-value" [class]="autonomousControl.waypointActive ? 'active' : 'standby'">
-                      {{ autonomousControl.waypointActive ? 'Active' : 'Standby' }}
+                  <div class="ac-status-row">
+                    <span class="status-chip" [class.active]="autonomousControl.waypointActive">
+                      <mat-icon>{{ autonomousControl.waypointActive ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                      {{ autonomousControl.waypointActive ? 'Mission active' : 'Standby' }}
+                    </span>
+                    <span class="ac-wp" *ngIf="autonomousControl.waypointActive">
+                      WP {{ autonomousControl.currentWaypoint + 1 }} · {{ autonomousControl.progress }}%
                     </span>
                   </div>
-                  <div class="control-display" *ngIf="autonomousControl.waypointActive && autonomousControl.selectedRoute">
-                    <span class="control-label">Progress:</span>
-                    <span class="control-value">{{ autonomousControl.progress }}%</span>
+                  <div class="ac-progress" *ngIf="autonomousControl.waypointActive">
+                    <div class="ac-progress-fill" [style.width.%]="autonomousControl.progress"></div>
                   </div>
-                  <div class="control-display" *ngIf="autonomousControl.waypointActive">
-                    <span class="control-label">Current Waypoint:</span>
-                    <span class="control-value">{{ autonomousControl.currentWaypoint + 1 }}</span>
-                  </div>
-                  <div class="control-display"
-                    *ngIf="autonomousControl.waypointActive && autonomousControl.remainingDistance > 0">
-                    <span class="control-label">Remaining Distance:</span>
-                    <span class="control-value">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }} NM</span>
-                  </div>
-                  <div class="control-display"
-                    *ngIf="autonomousControl.waypointActive && autonomousControl.selectedRoute && autonomousControl.totalDistance > 0">
-                    <span class="control-label">Total Distance:</span>
-                    <span class="control-value">{{ (autonomousControl.totalDistance / 1852).toFixed(2) }} NM</span>
-                  </div>
-                  <div class="control-display" *ngIf="autonomousControl.waypointActive && autonomousControl.selectedRoute">
-                    <span class="control-label">Total TOA:</span>
-                    <span class="control-value">{{ autonomousControl.totalTimeOfArrival > 0 ?
-                      formatTime(autonomousControl.totalTimeOfArrival) : 'N/A (no SOG)' }}</span>
+                  <div class="ac-metrics">
+                    <div class="ac-metric">
+                      <span class="ac-metric-lbl">Remaining</span>
+                      <span class="ac-metric-val">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }}<em>nm</em></span>
+                    </div>
+                    <div class="ac-metric">
+                      <span class="ac-metric-lbl">Total</span>
+                      <span class="ac-metric-val">{{ (autonomousControl.totalDistance / 1852).toFixed(2) }}<em>nm</em></span>
+                    </div>
+                    <div class="ac-metric">
+                      <span class="ac-metric-lbl">Total TOA</span>
+                      <span class="ac-metric-val">{{ autonomousControl.totalTimeOfArrival > 0 ? formatTime(autonomousControl.totalTimeOfArrival) : 'N/A' }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -858,7 +881,7 @@
               </div>
               }
 
-              @if(autonomousPanelTab === 'calibration') {
+              @if(autonomousPanelTab === 'pid') {
               <!-- Service Mode: live PID calibration -->
               <div class="autonomous-control-section" [class.service-mode-active]="servicePid.enabled">
                 <h3>Service Mode</h3>
@@ -944,7 +967,9 @@
                   }
                 </div>
               </div>
+              }
 
+              @if(autonomousPanelTab === 'colav') {
               <!-- Collision Avoidance Distances: the engagement envelope the
                    running avdcol_ behaviour (BHV_AvdColregsV22) is configured
                    with, editable live so it can be trimmed on the water -->
@@ -1086,7 +1111,9 @@
                   }
                 </div>
               </div>
+              }
 
+              @if(autonomousPanelTab === 'test') {
               <!-- Collision Avoidance Test: place an AIS target and measure the
                    avoidance the helm actually performs -->
               <div class="autonomous-control-section" [class.service-mode-active]="colavTest.enabled">
@@ -1171,8 +1198,9 @@
                     </div>
                   </div>
 
-                  <!-- One card per encounter -->
-                  @for(enc of colavTest.encounters; track enc.id) {
+                  <!-- Active encounter only (no-scroll); total shown below -->
+                  @for(enc of colavTest.encounters; track enc.id; let i = $index) {
+                  @if(i === 0) {
                   <div class="colav-card" [class.live]="enc.state === 'live'"
                     [class.past]="enc.state === 'past_cpa'" [class.done]="enc.state === 'done'"
                     [class.bad]="enc.verdict === 'collision' || enc.verdict === 'near_miss'">
@@ -1225,6 +1253,11 @@
                     <div class="colav-note">ended: {{ enc.postMortem }}</div>
                     }
                   </div>
+                  }
+                  }
+
+                  @if(colavTest.encounters.length > 0) {
+                  <div class="count-cap">Showing the active encounter · <b>{{ colavTest.encounters.length }} total</b> this run</div>
                   }
 
                   @if(colavTest.encounters.length === 0) {
