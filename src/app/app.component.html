@@ -614,31 +614,37 @@
         @if(display.autonomousControlPanelOpen) {
         <mat-sidenav #sideautonomouscontrol mode="side" position="end" [opened]="display.autonomousControlPanelOpen"
           class="autonomous-control-sidenav" style="width: 350px;">
-          <div style="display: flex; flex-direction: column; position: relative; height: 100%">
-            <mat-nav-list>
-              <a mat-list-item>
-                <a mat-icon-button (click)="closeAutonomousControl()">
-                  <mat-icon>close</mat-icon>
-                </a>
-                <span style="margin-left: 16px; font-weight: 500;">Autonomous Control</span>
+          <div class="ac-root" style="position: relative;">
+            <!-- Header: logo + title + live connection chip (dev usv01 design) -->
+            <header class="ac-header">
+              <mat-icon class="ac-logo">directions_boat</mat-icon>
+              <span class="ac-title">Autonomous control</span>
+              <span class="ac-chip"
+                [class.linked]="autonomousControl.canSend"
+                [class.offline]="!autonomousControl.canSend">
+                <span class="chip-dot"></span>
+                {{ autonomousControl.waypointActive ? 'Active' : 'Standby' }} &middot;
+                {{ autonomousControl.canSend ? 'linked' : 'offline' }}
+              </span>
+              <a mat-icon-button (click)="closeAutonomousControl()" class="ac-close">
+                <mat-icon>close</mat-icon>
               </a>
-              <!-- sub-panel switch: mission controls vs. PID calibration -->
-              <div class="ac-tabs">
-                <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'control'"
-                  (click)="setAutonomousPanelTab('control')">
-                  Autonomous Control
-                </button>
-                <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'calibration'"
-                  (click)="setAutonomousPanelTab('calibration')">
-                  Calibration
-                  <!-- service mode ON means the boat is on hand-entered gains: stay visible from the other tab -->
-                  @if(servicePid.enabled) {
-                  <span class="ac-tab-dot"></span>
-                  }
-                </button>
-              </div>
-              <mat-divider></mat-divider>
-            </mat-nav-list>
+            </header>
+            <!-- sub-panel switch: mission controls vs. PID calibration -->
+            <div class="ac-tabs">
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'control'"
+                (click)="setAutonomousPanelTab('control')">
+                Autonomous Control
+              </button>
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'calibration'"
+                (click)="setAutonomousPanelTab('calibration')">
+                Calibration
+                <!-- service mode ON means the boat is on hand-entered gains: stay visible from the other tab -->
+                @if(servicePid.enabled) {
+                <span class="ac-tab-dot"></span>
+                }
+              </button>
+            </div>
 
             <div class="autonomous-control-content"
               style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">

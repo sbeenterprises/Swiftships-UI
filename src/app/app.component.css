@@ -1588,3 +1588,212 @@ mat-nav-list {
 .colav-empty {
     padding: 8px 0;
 }
+
+/* =======================================================================
+   Autonomous console — Swiftships dev (usv01) look.
+   Restyles the existing console markup to the dev .ac-* design language
+   (navy cards, amber accents, status chip, uppercase section labels, amber
+   sliders). Scoped to .autonomous-control-sidenav so nothing leaks to other
+   panels. No markup structure or bindings changed beyond the header, so all
+   production-only features (Calibration, PID, COLAV distances/test, AIS
+   limit, Follow Contact, CAN) are retained and inherit the new design.
+   ======================================================================= */
+.autonomous-control-sidenav .ac-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.autonomous-control-sidenav .ac-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #0d1a2c;
+  border-bottom: 1px solid rgba(46, 74, 110, 0.5);
+  flex: 0 0 auto;
+}
+.autonomous-control-sidenav .ac-logo {
+  color: #e8912d !important;
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+.autonomous-control-sidenav .ac-close {
+  color: #ffffff !important;
+  flex: 0 0 auto;
+}
+.autonomous-control-sidenav .ac-title {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+  color: #ffffff;
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+.autonomous-control-sidenav .ac-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: rgba(11, 22, 38, 0.7);
+  border: 1px solid rgba(46, 74, 110, 0.5);
+  color: #c0c9d4;
+}
+.autonomous-control-sidenav .chip-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8296ac;
+  flex: 0 0 auto;
+}
+.autonomous-control-sidenav .ac-chip.linked {
+  color: #4bd694;
+  background: rgba(51, 200, 128, 0.1);
+  border-color: rgba(51, 200, 128, 0.4);
+}
+.autonomous-control-sidenav .ac-chip.linked .chip-dot {
+  background: #4bd694;
+}
+.autonomous-control-sidenav .ac-chip.offline {
+  color: #c0c9d4;
+}
+.autonomous-control-sidenav .ac-chip.offline .chip-dot {
+  background: #8296ac;
+}
+
+/* Tabs -> dev phase-tab segmented look (amber active) */
+.autonomous-control-sidenav .ac-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 8px 12px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(11, 22, 38, 0.6);
+  border: 1px solid rgba(46, 74, 110, 0.5);
+}
+.autonomous-control-sidenav .ac-tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: #8fb2cf;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+}
+.autonomous-control-sidenav .ac-tab.active {
+  background: #e8912d;
+  color: #12233a;
+}
+.autonomous-control-sidenav .ac-tab-dot {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4bd694;
+}
+
+/* Section cards -> dev .ac-card look (flat navy, no gradient/hairline/hover-lift) */
+.autonomous-control-sidenav .autonomous-control-section {
+  background: rgba(20, 37, 62, 0.55) !important;
+  border: 1px solid rgba(46, 74, 110, 0.55) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  padding: 12px !important;
+  margin: 0 12px 10px !important;
+}
+.autonomous-control-sidenav .autonomous-control-section::before {
+  display: none !important;
+}
+.autonomous-control-sidenav .autonomous-control-section:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: rgba(46, 74, 110, 0.55) !important;
+}
+.autonomous-control-sidenav .autonomous-control-section h3 {
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.6px !important;
+  font-weight: 700 !important;
+  color: #6f8399 !important;
+  border-bottom: none !important;
+  padding: 0 0 8px 0 !important;
+  margin: 0 0 4px 0 !important;
+  text-align: left !important;
+  text-shadow: none !important;
+}
+.autonomous-control-sidenav .autonomous-control-section h3::after {
+  display: none !important;
+}
+
+/* Rows / labels / values -> dev row + metric styling */
+.autonomous-control-sidenav .control-display {
+  background: rgba(11, 22, 38, 0.6) !important;
+  border: 1px solid rgba(46, 74, 110, 0.4) !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  box-shadow: none !important;
+}
+.autonomous-control-sidenav .control-label {
+  color: #6f8399 !important;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+.autonomous-control-sidenav .control-value {
+  color: #eaf1f8 !important;
+  font-weight: 700;
+}
+
+/* Sliders -> dev amber accent */
+.autonomous-control-sidenav .speed-slider,
+.autonomous-control-sidenav .pid-slider {
+  --mdc-slider-active-track-color: #e8912d;
+  --mdc-slider-inactive-track-color: rgba(52, 82, 112, 0.5);
+  --mdc-slider-handle-color: #e8912d;
+  --mdc-slider-focus-handle-color: #e8912d;
+  --mdc-slider-hover-handle-color: #f0a545;
+}
+
+/* Preset / action buttons -> dev navy preset look */
+.autonomous-control-sidenav .control-btn.mat-mdc-raised-button,
+.autonomous-control-sidenav .control-btn.mat-mdc-button,
+.autonomous-control-sidenav .control-btn.mat-mdc-unelevated-button {
+  background: rgba(11, 22, 38, 0.75) !important;
+  color: #c2d2e4 !important;
+  border: 1px solid rgba(46, 74, 110, 0.6) !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+}
+.autonomous-control-sidenav .control-btn.center-btn.mat-mdc-raised-button {
+  color: #f0a545 !important;
+  background: rgba(232, 145, 45, 0.14) !important;
+  border-color: #e8912d !important;
+}
+
+/* PID / COLAV number inputs -> sunken navy wells */
+.autonomous-control-sidenav .pid-gain-input {
+  background: rgba(11, 22, 38, 0.9) !important;
+  border: 1px solid rgba(46, 74, 110, 0.6) !important;
+  color: #a8d4ff !important;
+  border-radius: 6px;
+}
+.autonomous-control-sidenav .pid-gain-input:focus {
+  border-color: #e8912d !important;
+  outline: none;
+}
