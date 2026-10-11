@@ -855,6 +855,36 @@ export class AppComponent implements OnDestroy {
     this.updateRepeatRoute(!this.autonomousControl.repeatRoute);
   }
 
+  /** Quick CAN enable/disable from the left toolbar — emergency actuator cut.
+      Mirrors the per-panel toggles but acts on the master CAN_SEND flag so it
+      works regardless of which control panel is open. */
+  protected toggleCanSend(): void {
+    const next = !this.app.data.moosIvPServer.canSend;
+    const canValue = next ? 'true' : 'false';
+    this.remoteControl.ignoreCanSendUpdates = true;
+    this.autonomousControl.ignoreCanSendUpdates = true;
+    setTimeout(() => {
+      this.remoteControl.ignoreCanSendUpdates = false;
+      this.autonomousControl.ignoreCanSendUpdates = false;
+    }, 3000);
+    if (
+      this.app.data.moosIvPServer.connected &&
+      this.app.data.moosIvPServer.socket
+    ) {
+      this.app.data.moosIvPServer.socket.send(`CAN_SEND=${canValue}`);
+      this.app.data.moosIvPServer.canSend = next;
+      this.remoteControl.canSend = next;
+      this.autonomousControl.canSend = next;
+      this.app.showMessage(
+        `CAN Messages ${next ? 'Enabled' : 'Disabled'}`,
+        false,
+        2000
+      );
+    } else {
+      this.app.showMessage('MOOS-IvP not connected', true, 2000);
+    }
+  }
+
   protected toggleAutonomousControl() {
     if (this.app.config.selections.autonomousControl) {
       // If already active, toggle the panel and deactivate if closing

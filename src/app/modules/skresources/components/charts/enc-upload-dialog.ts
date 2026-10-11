@@ -164,7 +164,7 @@ export class EncUploadDialog {
     this.uploading = true;
     this.rescanned = false;
     this.job = { status: 'uploading', message: 'Uploading…', log: [], cells: [] };
-    const url = `${this.base()}/plugins/freeboard-sk/enc/upload?name=${encodeURIComponent(
+    const url = `${this.base()}/plugins/swiftships-ui/enc/upload?name=${encodeURIComponent(
       this.file.name
     )}`;
     this.http
@@ -180,9 +180,16 @@ export class EncUploadDialog {
         },
         error: (e) => {
           this.uploading = false;
+          const detail =
+            (typeof e?.error === 'string' && e.error) ||
+            e?.error?.message ||
+            e?.error?.error ||
+            e?.message ||
+            (e?.status ? `HTTP ${e.status} ${e.statusText || ''}`.trim() : '') ||
+            'unknown error';
           this.job = {
             status: 'error',
-            message: `Upload failed: ${e?.error?.error || e?.message || e?.status || e}`,
+            message: `Upload failed: ${detail}`,
             log: []
           };
         }
@@ -190,7 +197,7 @@ export class EncUploadDialog {
   }
 
   private startPoll(jobId: string) {
-    const url = `${this.base()}/plugins/freeboard-sk/enc/jobs/${jobId}`;
+    const url = `${this.base()}/plugins/swiftships-ui/enc/jobs/${jobId}`;
     this.pollTimer = setInterval(() => {
       this.http
         .get(url, { headers: this.headers(), withCredentials: true })

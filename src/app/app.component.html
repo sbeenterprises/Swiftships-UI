@@ -1458,6 +1458,18 @@
             }
             <div class="buttonPanelItem">
               <button mat-mini-fab [ngClass]="{
+                  'button-warn': app.data.moosIvPServer.canSend,
+                  'button-toolbar': !app.data.moosIvPServer.canSend
+                }" (click)="toggleCanSend()" [matTooltip]="
+                  app.data.moosIvPServer.canSend
+                    ? 'Disable CAN (emergency)'
+                    : 'Enable CAN'
+                " matTooltipPosition="right">
+                <mat-icon>{{ app.data.moosIvPServer.canSend ? 'power_settings_new' : 'power_off' }}</mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
+              <button mat-mini-fab [ngClass]="{
                   'button-primary': app.config.selections.remoteControl,
                   'button-toolbar': !app.config.selections.remoteControl
                 }" (click)="toggleRemoteControl()" [matTooltip]="
