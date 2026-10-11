@@ -8,6 +8,15 @@ import {
 import { IRouter, Application, Request, Response } from 'express';
 import { initAlarms } from './alarms/alarms';
 import { initRecordings } from './replay/recordings';
+import * as path from 'path';
+import {
+  ENC_CONFIG,
+  initEnc,
+  stopEnc,
+  handleUpload,
+  getJob,
+  listJobs
+} from './enc/enc-service';
 
 import {
   WEATHER_POLL_INTERVAL,
@@ -56,6 +65,45 @@ const CONFIG_SCHEMA = {
             'Select the interval at which the weather service is polled.'
         }
       }
+    },
+    enc: {
+      type: 'object',
+      title: 'ENC Chart Upload',
+      description:
+        'Upload S-57 (.zip) ENC exchange sets from the UI; they are tiled with s57-tiler into the charts directory in the background.',
+      properties: {
+        enable: {
+          type: 'boolean',
+          default: true,
+          title: 'Enable ENC upload & tiling'
+        },
+        tilerPath: {
+          type: 'string',
+          title: 's57-tiler binary path',
+          default: '/home/douglas/s57-tiler'
+        },
+        chartOutputPath: {
+          type: 'string',
+          title: 'Chart output directory',
+          description:
+            'Where tiles are written — must be one of the charts-plugin "chartPaths".',
+          default: '/home/douglas/enc/output'
+        },
+        stagingPath: {
+          type: 'string',
+          title: 'Upload staging directory',
+          description:
+            'Scratch dir for uploads/extraction (blank = under the SignalK config dir).',
+          default: ''
+        },
+        maxZoom: {
+          type: 'number',
+          title: 'Max tiling zoom',
+          default: 16,
+          description:
+            'Cap the tiling zoom. Native zoom on large-scale cells can be millions of tiles.'
+        }
+      }
     }
   }
 };
@@ -87,6 +135,7 @@ interface SETTINGS {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   alarms: { [key: string]: any };
   weather: WEATHER_CONFIG;
+  enc: ENC_CONFIG;
 }
 
 export interface FreeboardHelperApp extends Application, ServerAPI {
@@ -109,6 +158,13 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
       apiVersion: 3,
       apiKey: '',
       pollInterval: defaultPollInterval
+    },
+    enc: {
+      enable: true,
+      tilerPath: '/home/douglas/s57-tiler',
+      chartOutputPath: '/home/douglas/enc/output',
+      stagingPath: '',
+      maxZoom: 16
     }
   };
 
@@ -184,6 +240,22 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
         initWeather(server, plugin.id, settings.weather);
       }
 
+      // ENC chart upload/tiling
+      settings.enc = {
+        enable: options.enc?.enable ?? true,
+        tilerPath: options.enc?.tilerPath || '/home/douglas/s57-tiler',
+        chartOutputPath:
+          options.enc?.chartOutputPath || '/home/douglas/enc/output',
+        stagingPath:
+          options.enc?.stagingPath ||
+          path.join(server.config.configPath, 'enc-uploads'),
+        maxZoom: options.enc?.maxZoom ?? 16
+      };
+      if (settings.enc.enable) {
+        initEnc(server, settings.enc);
+        msg = msg ? `${msg}, ENC upload` : 'Started - Providing: ENC upload';
+      }
+
       server.setPluginStatus(msg);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
@@ -198,6 +270,7 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
   const doShutdown = () => {
     server.debug('** shutting down **');
     stopWeather();
+    stopEnc();
     server.debug('** Un-subscribing from events **');
     const msg = 'Stopped';
     server.setPluginStatus(msg);
@@ -214,6 +287,19 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
 
     // same recording routes, admin-gated - useful for curl / debugging
     recordings.registerRoutes(router);
+
+    // ---- ENC chart upload & tiling ----
+    // POST body is the raw .zip (streamed to disk); ?name=<file> or X-Filename
+    // header carries the original filename. Returns { jobId } immediately.
+    router.post('/enc/upload', (req: Request, res: Response) =>
+      handleUpload(req, res)
+    );
+    router.get('/enc/jobs', (req: Request, res: Response) =>
+      listJobs(req, res)
+    );
+    router.get('/enc/jobs/:id', (req: Request, res: Response) =>
+      getJob(req, res)
+    );
   };
 
   // ensure meteo path metas are emitted
