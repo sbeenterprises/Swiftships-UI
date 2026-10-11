@@ -75,6 +75,34 @@ export class AppFacade extends InfoService {
     params: {}
   };
 
+  /**
+   * Origin the UI was actually loaded from, used for requests that must go
+   * through the reverse proxy (e.g. ENC upload / job-poll / charts-config).
+   * In a dev build hostDef.url is still http://localhost:3000 — unreachable
+   * from a remote browser — so when hostDef is localhost/127.0.0.1 but the
+   * browser is NOT on localhost, fall back to the origin the UI was loaded from.
+   */
+  public get serverOrigin(): string {
+    const origin = (window.location.origin || '').replace(/\/$/, '');
+    let base = this.hostDef?.url;
+    if (!base) return origin;
+    try {
+      const b = new URL(base);
+      const browserOnLocalhost = ['localhost', '127.0.0.1'].includes(
+        window.location.hostname
+      );
+      if (
+        ['localhost', '127.0.0.1'].includes(b.hostname) &&
+        !browserOnLocalhost
+      ) {
+        base = origin;
+      }
+    } catch {
+      base = origin;
+    }
+    return (base || '').replace(/\/$/, '');
+  }
+
   // controls map zoom limits
   public MAP_ZOOM_EXTENT = {
     min: 2,
