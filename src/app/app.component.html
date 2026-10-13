@@ -817,10 +817,20 @@
               <div class="autonomous-control-section">
                 <h3>Speed Control</h3>
                 <div class="control-group">
-                  <mat-slider min="0" max="50" step="1" class="speed-slider">
-                    <input matSliderThumb [value]="autonomousControl.speed"
-                      (input)="updateSpeed($any($event.target).value)">
-                  </mat-slider>
+                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
+                    <button mat-icon-button (click)="updateSpeed(autonomousControl.speed - 1)"
+                      [disabled]="autonomousControl.speed <= 0" class="slider-btn minus-btn">
+                      <mat-icon>remove</mat-icon>
+                    </button>
+                    <mat-slider min="0" max="50" step="1" class="speed-slider" style="flex: 1;">
+                      <input matSliderThumb [value]="autonomousControl.speed"
+                        (input)="updateSpeed($any($event.target).value)">
+                    </mat-slider>
+                    <button mat-icon-button (click)="updateSpeed(autonomousControl.speed + 1)"
+                      [disabled]="autonomousControl.speed >= 50" class="slider-btn plus-btn">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                  </div>
                   <div class="control-display">
                     <span class="control-label">Target Speed:</span>
                     <span class="control-value">{{ autonomousControl.speed }} knots</span>
@@ -916,6 +926,29 @@
                       <span class="ac-metric-val">{{ autonomousControl.totalTimeOfArrival > 0 ? formatTime(autonomousControl.totalTimeOfArrival) : 'N/A' }}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Base (return-to-base point). Set from the map: right-click > Define Base -->
+              <div class="autonomous-control-section">
+                <h3>Base</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">Position:</span>
+                    <span class="control-value">
+                      {{ app.data.map.basePosition
+                         ? (app.data.map.basePosition[1] | number: '1.5-5') + ', ' + (app.data.map.basePosition[0] | number: '1.5-5')
+                         : 'Not set' }}
+                    </span>
+                  </div>
+                  @if(!app.data.map.basePosition) {
+                  <div class="service-mode-hint">Right-click the map and choose Define Base.</div>
+                  }
+                  <button mat-raised-button (click)="deleteBase()" [disabled]="!app.data.map.basePosition"
+                    class="control-btn">
+                    <mat-icon>delete</mat-icon>
+                    Delete Base
+                  </button>
                 </div>
               </div>
 

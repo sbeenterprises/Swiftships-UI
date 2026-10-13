@@ -2008,3 +2008,6 @@ mat-nav-list {
 .remote-control-sidenav .trim-section .control-btn.trim-active { background: #e8912d !important; color: #0d1a2c !important; }
 .remote-control-sidenav .trim-section .trim-moving { color: #e8912d; }
 .remote-control-sidenav .trim-section .control-btn:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }
+
+/* Autonomous panel: make disabled buttons (e.g. Delete Base with no base) read as disabled */
+.autonomous-control-sidenav .control-btn:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }

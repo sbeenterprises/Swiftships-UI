@@ -2592,6 +2592,23 @@ export class AppComponent implements OnDestroy {
     console.log('[RETURN TO BASE] Initiated return to base');
   }
 
+  /**
+   * Remove the return-to-base point. The boat is told too (empty BASE_COORDS),
+   * otherwise its echo would restore the base the next time the panel opens.
+   */
+  protected deleteBase() {
+    if (!this.app.data.map.basePosition) {
+      return;
+    }
+    if (!this.sendMoos('BASE_COORDS=')) {
+      this.app.showMessage('MOOS-IvP not connected, base not deleted', true, 3000);
+      return;
+    }
+    this.app.data.map.basePosition = undefined;
+    this.app.data.moosIvPServer.baseCoords = '';
+    this.app.showMessage('Base deleted', false, 2000);
+  }
+
   protected abortMission() {
     this.autonomousControl.status = 'aborted';
     this.autonomousControl.currentWaypoint = 0;
