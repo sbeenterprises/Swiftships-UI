@@ -142,8 +142,15 @@ export class AppComponent implements OnDestroy {
   public remoteControl = {
     rudder: 0,    // -50 to 50
     thrust: 0,    // -100 to 100%
-    gear: 'neutral'  // forward, neutral, reverse
+    gear: 'neutral',  // forward, neutral, reverse
+    // What iCAN is really sending (CAN_TX_GEAR / |CAN_TX_THRUST_PCT|);
+    // null until the boat first posts them.
+    boatGear: null as 'forward' | 'neutral' | 'reverse' | null,
+    boatThrust: null as number | null
   };
+  /** 1 s keepalive while manual control is on: iWebSocket drops the
+      link (boat -> neutral, 0 thrust) after 3 s without a message. */
+  private manualKeepaliveTimer: ReturnType<typeof setInterval> | null = null;
 
   // Engine trim (manual remote control only). Each TRIM=1 / TRIM=-1 is one
   // timed pulse that iCAN stops by itself; the UI never repeats it.
@@ -699,6 +706,7 @@ export class AppComponent implements OnDestroy {
     this.stopTimers();
     this.stopMoosContactCleanup();
     this.clearTrimAckTimer();
+    this.stopManualKeepalive();
 
     // Clean up TOA update timer
     if (this.toaUpdateTimer) {
@@ -754,6 +762,7 @@ export class AppComponent implements OnDestroy {
         this.syncRemoteControlFromMOOS();
       } else {
         // Closing panel - deactivate remote control
+        this.setManualControl(false);
         this.app.config.selections.remoteControl = false;
         this.app.saveConfig();
         this.app.showMessage('Remote Control Deactivated', false, 3000);
@@ -768,6 +777,7 @@ export class AppComponent implements OnDestroy {
       this.app.saveConfig();
       // Sync sliders from backend values
       this.syncRemoteControlFromMOOS();
+      this.setManualControl(true);
       this.app.showMessage('Remote Control Activated', false, 3000);
     }
     this.focusMap();
@@ -1220,10 +1230,61 @@ export class AppComponent implements OnDestroy {
     this.sendThrustData();
   }
 
+  /**
+   * One DESIRED_GEAR=1|0|-1 per click. The boat resets its thrust to 0 on
+   * every gear change, so the slider goes to 0 too (nothing is sent for it):
+   * the operator applies throttle again after the shift.
+   */
   protected updateGear(gear: 'forward' | 'neutral' | 'reverse') {
+    const code = gear === 'forward' ? 1 : gear === 'reverse' ? -1 : 0;
+    // Keep the model in step with the toggle the operator just pressed;
+    // the "Boat:" readout shows whether the boat actually followed.
     this.remoteControl.gear = gear;
-    // Re-send thrust data with the new gear setting
-    this.sendThrustData();
+    this.remoteControl.thrust = 0;
+    if (!this.sendMoos(`DESIRED_GEAR=${code}`)) {
+      this.app.showMessage('MOOS-IvP not connected, gear not sent', true, 2000);
+    }
+  }
+
+  /**
+   * Manual control on/off. CONTROLE_MANUAL=true makes the SS UI the drive
+   * owner in iCAN (gear from DESIRED_GEAR, lost-link failsafe armed) and the
+   * boat starts in neutral at 0 thrust. CONTROLE_MANUAL=false hands the drive
+   * back to the helm: iWebSocket zeroes rudder and thrust, and any mode flag
+   * still set on the boat (WAYPOINT, TRAILING, REGION) resumes.
+   */
+  private setManualControl(on: boolean) {
+    if (on) {
+      this.resetManualGearAndThrust();
+      if (!this.sendMoos('CONTROLE_MANUAL=true')) {
+        this.app.showMessage('MOOS-IvP not connected, manual control not switched on', true, 3000);
+      }
+      this.startManualKeepalive();
+    } else {
+      this.stopManualKeepalive();
+      this.sendMoos('CONTROLE_MANUAL=false');
+    }
+  }
+
+  /** What the boat does on entering manual or after a lost link. */
+  private resetManualGearAndThrust() {
+    this.remoteControl.gear = 'neutral';
+    this.remoteControl.thrust = 0;
+  }
+
+  private startManualKeepalive() {
+    this.stopManualKeepalive();
+    this.manualKeepaliveTimer = setInterval(
+      () => this.sendMoos(`HEARTBEAT_PING=${Date.now()}`),
+      1000
+    );
+  }
+
+  private stopManualKeepalive() {
+    if (this.manualKeepaliveTimer) {
+      clearInterval(this.manualKeepaliveTimer);
+      this.manualKeepaliveTimer = null;
+    }
   }
 
   private sendRudderData() {
@@ -1239,28 +1300,9 @@ export class AppComponent implements OnDestroy {
   }
 
   private sendThrustData() {
-    // Send thrust data to MOOS-IvP based on gear setting
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      let actualThrust: number;
-
-      // Apply gear-based thrust calculation
-      switch (this.remoteControl.gear) {
-        case 'neutral':
-          actualThrust = 0; // Always 0 in neutral, regardless of slider
-          break;
-        case 'forward':
-          actualThrust = this.remoteControl.thrust; // Positive thrust (0 to 100)
-          break;
-        case 'reverse':
-          actualThrust = -this.remoteControl.thrust; // Negative thrust (0 to -100)
-          break;
-        default:
-          actualThrust = 0;
-      }
-
-      this.app.data.moosIvPServer.socket.send(`DESIRED_THRUST=${actualThrust}`);
-      console.log(`Sent DESIRED_THRUST=${actualThrust} to MOOS-IvP (slider: ${this.remoteControl.thrust}%, gear: ${this.remoteControl.gear})`);
-    } else {
+    // Throttle only (0..100): in manual control the gear comes from
+    // DESIRED_GEAR. Thrust in neutral is ignored by the boat.
+    if (!this.sendMoos(`DESIRED_THRUST=${this.remoteControl.thrust}`)) {
       console.log('MOOS-IvP not connected, cannot send thrust data');
     }
   }
@@ -1289,20 +1331,8 @@ export class AppComponent implements OnDestroy {
       this.remoteControl.rudder = Math.max(-50, Math.min(50, desiredRudder / 2));
       console.log('[Remote Control] Synced rudder from MOOS-IvP:', desiredRudder, '→ UI:', this.remoteControl.rudder);
     }
-
-    // Sync thrust and gear from DESIRED_THRUST
-    const desiredThrust = this.app.data.moosIvPServer?.desiredThrust;
-    if (desiredThrust !== undefined) {
-      this.remoteControl.thrust = Math.abs(desiredThrust);
-      if (desiredThrust > 0) {
-        this.remoteControl.gear = 'forward';
-      } else if (desiredThrust < 0) {
-        this.remoteControl.gear = 'reverse';
-      } else {
-        this.remoteControl.gear = 'neutral';
-      }
-      console.log('[Remote Control] Synced thrust from MOOS-IvP:', desiredThrust, '→ UI thrust:', this.remoteControl.thrust, ', gear:', this.remoteControl.gear);
-    }
+    // Gear and thrust are not synced: the boat starts manual control in
+    // neutral at 0 thrust, and the UI keeps the operator's own selection.
   }
 
   /**
@@ -1340,6 +1370,19 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  /** CAN_TX_GEAR from iCAN: "fwd" | "neutral" | "rev" (what is really sent) */
+  private updateBoatGear(value: unknown) {
+    const g = String(value).trim().toLowerCase();
+    this.remoteControl.boatGear =
+      g === 'fwd' ? 'forward' : g === 'rev' ? 'reverse' : g === 'neutral' ? 'neutral' : null;
+  }
+
+  /** CAN_TX_THRUST_PCT from iCAN, negative in reverse; shown as a magnitude */
+  private updateBoatThrust(value: unknown) {
+    const t = Number(value);
+    this.remoteControl.boatThrust = Number.isFinite(t) ? Math.abs(t) : null;
+  }
+
   /** CAN_TRIM_STATE from iCAN: "up" | "down" | "idle" */
   private updateTrimState(value: unknown) {
     const state = String(value).trim().toLowerCase();
@@ -1352,6 +1395,7 @@ export class AppComponent implements OnDestroy {
 
   protected closeRemoteControl() {
     this.clearTrimAckTimer();
+    this.setManualControl(false);
     this.display.remoteControlPanelOpen = false;
     this.app.config.selections.remoteControl = false;
     this.app.saveConfig();
@@ -3386,6 +3430,12 @@ export class AppComponent implements OnDestroy {
           this.app.data.connectionState.moosIvP.connected = true;
           this.app.data.connectionState.moosIvP.connecting = false;
           this.app.showMessage('Mission Management System connection established', false, 3000);
+          // A lost link leaves the boat in neutral at 0 thrust: match it,
+          // and re-assert manual control if the operator still has it on.
+          this.resetManualGearAndThrust();
+          if (this.app.config.selections.remoteControl) {
+            this.sendMoos('CONTROLE_MANUAL=true');
+          }
           // Sync region state after a delay to ensure regions are loaded from Signal K
           setTimeout(() => this.syncRegionFromMOOS(), 5000);
           break;
@@ -3701,6 +3751,12 @@ export class AppComponent implements OnDestroy {
       case 'CAN_TRIM_STATE':
         this.updateTrimState(value);
         break;
+      case 'CAN_TX_GEAR':
+        this.updateBoatGear(value);
+        break;
+      case 'CAN_TX_THRUST_PCT':
+        this.updateBoatThrust(value);
+        break;
       case 'REGION':
         const regionEnabled = value === 'true' || value === '1';
         this.app.data.moosIvPServer.regionActive = regionEnabled;
@@ -3773,6 +3829,12 @@ export class AppComponent implements OnDestroy {
     }
     // Missing until iCAN first posts it: treat as idle.
     this.updateTrimState(data.CAN_TRIM_STATE ?? 'idle');
+    if (data.CAN_TX_GEAR !== undefined) {
+      this.updateBoatGear(data.CAN_TX_GEAR);
+    }
+    if (data.CAN_TX_THRUST_PCT !== undefined) {
+      this.updateBoatThrust(data.CAN_TX_THRUST_PCT);
+    }
     if (data.REGION !== undefined) {
       const regionEnabled = data.REGION === 'true' || data.REGION === '1' || data.REGION === true;
       this.app.data.moosIvPServer.regionActive = regionEnabled;
@@ -5398,6 +5460,8 @@ export class AppComponent implements OnDestroy {
     this.engineStatus = initEngineStatus();
     this.trimControl.state = 'idle';
     this.clearTrimAckTimer();
+    this.remoteControl.boatGear = null;
+    this.remoteControl.boatThrust = null;
 
     this.servicePid.enabled = false;
     this.servicePid.applied = null;

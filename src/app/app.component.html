@@ -410,6 +410,10 @@
                     <span class="control-label">Thrust:</span>
                     <span class="control-value">{{ remoteControl.thrust }}%</span>
                   </div>
+                  <div class="control-display">
+                    <span class="control-label">Boat:</span>
+                    <span class="control-value">{{ remoteControl.boatThrust !== null ? (remoteControl.boatThrust | number: '1.0-0') + '%' : '—' }}</span>
+                  </div>
                   <div class="control-buttons">
                     <button mat-raised-button (click)="updateThrust(0)" class="control-btn">Stop 0%</button>
                     <button mat-raised-button (click)="updateThrust(50)" class="control-btn center-btn">Half
@@ -439,8 +443,15 @@
                     </mat-button-toggle>
                   </mat-button-toggle-group>
                   <div class="control-display">
-                    <span class="control-label">Selected Gear:</span>
+                    <span class="control-label">Selected:</span>
                     <span class="control-value gear-value">{{ remoteControl.gear | titlecase }}</span>
+                  </div>
+                  <div class="control-display">
+                    <span class="control-label">Boat:</span>
+                    <span class="control-value gear-value"
+                      [class.gear-shifting]="remoteControl.boatGear !== null && remoteControl.boatGear !== remoteControl.gear">
+                      {{ remoteControl.boatGear ? (remoteControl.boatGear | titlecase) : '—' }}
+                    </span>
                   </div>
                 </div>
               </div>

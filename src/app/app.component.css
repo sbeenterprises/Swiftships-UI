@@ -2011,3 +2011,6 @@ mat-nav-list {
 
 /* Autonomous panel: make disabled buttons (e.g. Delete Base with no base) read as disabled */
 .autonomous-control-sidenav .control-btn:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }
+
+/* Remote control: boat gear differs from the selected gear (shift in progress) */
+.remote-control-sidenav .gear-shifting { color: #e8912d !important; }
