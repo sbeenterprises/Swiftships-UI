@@ -51,6 +51,27 @@ export interface MOOSContact {
  * box drawn over the boat on the chart. Derived from the COLREGS mode the
  * behaviour reports (BHV_AvdColregsV22's $[FULL_MODE]).
  */
+/**
+ * The comms-loss failsafe, as iWebSocket reports it in COMMS_LOSS. If nothing
+ * is heard from any UI for TIMEOUT seconds while the boat is underway, it
+ * returns to base (RETURN 'returning') and then holds there ('holding').
+ */
+export interface CommsLossStatus {
+  ENABLED: boolean;
+  TIMEOUT: number;        // seconds without a frame from the UI
+  ARMED: boolean;         // a UI has been heard from since iWebSocket started
+  WILL_RETURN: boolean;   // a loss now would send it to base (helm in DRIVE, or underway)
+  STAY_REASON: string;    // why it would stay where it is, when it would not
+  LOST: boolean;          // the boat hears nothing from any UI right now
+  COUNT: number;          // losses since iWebSocket started
+  LOST_AT: number;        // UNIX s, last frame before the latest loss
+  DURATION: number;       // s, of the last loss that ended
+  ACTION: string;         // what the boat did about the latest loss
+  RETURN: 'idle' | 'returning' | 'holding';
+  FAILSAFE: boolean;      // the return/hold was engaged by the comms loss
+  REASON: string;         // comms_loss, operator, or empty
+}
+
 export interface ColregsStatus {
   rule: string;        // 'Rule 16', or '' when the mode carries no COLREGS rule
   name: string;        // 'Give-way'
@@ -408,6 +429,10 @@ export interface FBAppData {
     desiredRudder?: number;
     desiredThrust?: number;
     baseCoords?: string;
+    // a base sent from the chart that the USV has not echoed back yet
+    basePending?: { lat: number; lon: number; sentAt: number } | null;
+    // comms-loss failsafe as iWebSocket reports it (COMMS_LOSS)
+    commsLoss?: CommsLossStatus | null;
     canSend?: boolean;
     regionActive?: boolean;
     waypointActive?: boolean;

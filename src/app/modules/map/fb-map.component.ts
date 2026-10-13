@@ -83,6 +83,7 @@ import { Position as SKPosition } from '@signalk/server-api';
 import { FBMapEvent, FBPointerEvent } from './ol/lib/map.component';
 import { FeatureLike } from 'ol/Feature';
 import { HttpErrorResponse } from '@angular/common/http';
+import { MoosIvpWebsocketService } from 'src/app/lib/moos-ivp-websocket.service';
 import {
   FBMapInteractService,
   DrawFeatureInfo,
@@ -326,7 +327,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
     protected anchor: AnchorFacade,
     protected notiMgr: NotificationManager,
     private course: CourseService,
-    protected mapInteract: FBMapInteractService
+    protected mapInteract: FBMapInteractService,
+    private moosWs: MoosIvpWebsocketService
   ) { }
 
   ngAfterViewInit() {
@@ -647,25 +649,23 @@ export class FBMapComponent implements OnInit, OnDestroy {
       case 'measure':
         this.mapInteract.startMeasuring();
         break;
-      case 'define_base':
-        // Store position for Return to Base feature (only one base allowed)
-        this.app.data.map.basePosition = pos;
-        console.log('Base position defined at:', pos);
-
-        // Send BASE_COORDS message to MOOS-IvP
-        if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-          const lat = pos[1].toFixed(6);
-          const lon = pos[0].toFixed(6);
-          const message = `BASE_COORDS=${lat},${lon}`;
-          this.app.data.moosIvPServer.socket.send(message);
-          console.log('Sent to MOOS-IvP:', message);
-        } else {
-          console.log('MOOS-IvP not connected, cannot send BASE_COORDS');
+      case 'define_base': {
+        // The base belongs to the USV: it is where iWebSocket sends the boat
+        // if the link to this station is lost. So it only changes on the
+        // chart once it has been sent; app.component follows BASE_COORDS
+        // and confirms (or reverts) when the USV echoes it.
+        const lat = Number(pos[1].toFixed(6));
+        const lon = Number(pos[0].toFixed(6));
+        if (!this.app.data.moosIvPServer.connected || !this.app.data.moosIvPServer.socket || !this.moosWs.isLinkFresh()) {
+          this.app.showMessage('No link to the USV: the base was not changed', true, 4000);
+          break;
         }
-
-        // Emit event to show confirmation message
+        this.app.data.moosIvPServer.socket.send(`BASE_COORDS=${lat.toFixed(6)},${lon.toFixed(6)}`);
+        this.app.data.moosIvPServer.basePending = { lat, lon, sentAt: Date.now() };
+        this.app.data.map.basePosition = [lon, lat];
         this.menuItemSelected.emit('define_base');
         break;
+      }
       case 'follow_ais':
         if (this.contextMenuAis) {
           this.followAisTarget.emit(this.contextMenuAis);

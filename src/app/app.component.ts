@@ -74,7 +74,8 @@ import {
   Position,
   ErrorList,
   ColavEncounter,
-  ColregsStatus
+  ColregsStatus,
+  CommsLossStatus
 } from './types';
 import { Feature } from 'ol';
 import {
@@ -374,6 +375,13 @@ export class AppComponent implements OnDestroy {
   // Timer for updating Total TOA periodically
   private toaUpdateTimer: any = null;
 
+  // Link to the USV as this station sees it: refreshed every second for the
+  // LINK readout and the comms-loss banner.
+  protected usvLink = { everConnected: false, stale: false, ageS: 0 };
+  private usvLinkTimer: ReturnType<typeof setInterval> | null = null;
+  private lastRefusedNotice = 0;
+  private lastBaseCoords: string | null = null;
+
   // Available routes for autonomous control
   public availableRoutes: [string, any, boolean][] = [];
 
@@ -622,6 +630,11 @@ export class AppComponent implements OnDestroy {
       }
     }, 2000); // Update every 2 seconds
 
+    this.usvLinkTimer = setInterval(() => this.updateUsvLink(), 1000);
+    this.obsList.push(
+      this.moosWsService.refused$.subscribe(() => this.notifyCommandRefused())
+    );
+
     // fullscreen event handlers
     document.addEventListener('fullscreenchange', () => {
       //console.log(document.fullscreenElement)
@@ -646,6 +659,10 @@ export class AppComponent implements OnDestroy {
     if (this.toaUpdateTimer) {
       clearInterval(this.toaUpdateTimer);
       this.toaUpdateTimer = null;
+    }
+    if (this.usvLinkTimer) {
+      clearInterval(this.usvLinkTimer);
+      this.usvLinkTimer = null;
     }
 
     this.stream.terminate();
@@ -792,19 +809,9 @@ export class AppComponent implements OnDestroy {
       }
     }
 
-    // Restore base position from BASE_COORDS received from MOOS-IvP (just once when opening)
-    const baseCoords = this.app.data.moosIvPServer.baseCoords;
-    if (baseCoords) {
-      console.log('[AUTONOMOUS CONTROL] BASE_COORDS received:', baseCoords);
-      // Parse BASE_COORDS format: "lat,lon"
-      const coords = baseCoords.split(',').map(c => parseFloat(c.trim()));
-      if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-        // Convert from "lat,lon" to Position format [lon, lat]
-        this.app.data.map.basePosition = [coords[1], coords[0]];
-        console.log('[AUTONOMOUS CONTROL] Restored base position from MOOS-IvP:', this.app.data.map.basePosition);
-      } else {
-        console.warn('[AUTONOMOUS CONTROL] Invalid BASE_COORDS format:', baseCoords);
-      }
+    // The base comes from MOOS-IvP (BASE_COORDS), as in the live telemetry
+    if (typeof this.app.data.moosIvPServer.baseCoords === 'string') {
+      this.applyBaseFromMoos(this.app.data.moosIvPServer.baseCoords);
     }
 
     // Sync CAN_SEND state from MOOS-IvP (just once when opening)
@@ -1333,8 +1340,8 @@ export class AppComponent implements OnDestroy {
     if (!this.app.data.moosIvPServer.connected || !this.app.data.moosIvPServer.socket) {
       return false;
     }
-    this.app.data.moosIvPServer.socket.send(message);
-    return true;
+    // false also when the link is stale and the service held the message back
+    return this.moosWsService.send(message);
   }
 
   /**
@@ -3253,9 +3260,9 @@ export class AppComponent implements OnDestroy {
       send: (msg: string) => {
         if (this.replay.isReplaying()) {
           this.app.debug(`[REPLAY] suppressed outbound MOOS: ${msg}`);
-          return;
+          return false;
         }
-        this.moosWsService.send(msg);
+        return this.moosWsService.send(msg);
       },
       close: () => this.moosWsService.disconnect()
     } as any;
@@ -3543,6 +3550,129 @@ export class AppComponent implements OnDestroy {
   }
 
   /** Process consolidated JSON message from MOOS-IvP */
+  // ***************** BASE & COMMS-LOSS FAILSAFE ******************
+
+  /**
+   * The base on the chart follows the one the USV holds (BASE_COORDS, lat,lon):
+   * that is where it goes if the link to this station is lost. A base just set
+   * from the chart (basePending) is shown until the USV echoes it, and if it
+   * does not within 10 s the chart goes back to the USV's.
+   */
+  private applyBaseFromMoos(coords: string) {
+    const moos = this.app.data.moosIvPServer;
+    const pending = moos.basePending;
+    if (coords === this.lastBaseCoords && !pending) {
+      return;
+    }
+    const parts = String(coords ?? '').split(',').map((c) => parseFloat(c));
+    const valid = parts.length === 2 && parts.every((v) => Number.isFinite(v));
+    if (pending) {
+      const echoed =
+        valid && Math.abs(parts[0] - pending.lat) < 2e-6 && Math.abs(parts[1] - pending.lon) < 2e-6;
+      if (echoed) {
+        moos.basePending = null;
+        this.app.showMessage('Base set on the USV: it returns here if the link is lost', false, 4000);
+      } else if (Date.now() - pending.sentAt < 10000) {
+        return;
+      } else {
+        moos.basePending = null;
+        this.app.showMessage('The USV did not take the new base - the chart shows the one it is using', true, 6000);
+      }
+    }
+    this.lastBaseCoords = coords;
+    this.app.data.map.basePosition = valid ? [parts[1], parts[0]] : undefined;
+  }
+
+  private processCommsLoss(status: CommsLossStatus) {
+    const prev = this.app.data.moosIvPServer.commsLoss;
+    this.app.data.moosIvPServer.commsLoss = status;
+    const failsafe = (s?: CommsLossStatus | null) => !!s && s.FAILSAFE && s.RETURN !== 'idle';
+    if (failsafe(status) && !failsafe(prev)) {
+      this.app.showMessage(
+        status.RETURN === 'returning'
+          ? 'The link to the USV was lost: it is returning to base on its own'
+          : 'The link to the USV was lost: it went back to base on its own and is holding there',
+        true,
+        8000
+      );
+    }
+  }
+
+  private updateUsvLink() {
+    const age = this.moosWsService.lastMessageAge();
+    if (age !== Infinity) {
+      this.usvLink.everConnected = true;
+    }
+    this.usvLink.ageS = age === Infinity ? 0 : Math.floor(age / 1000);
+    this.usvLink.stale = this.usvLink.everConnected && !this.moosWsService.isLinkFresh();
+  }
+
+  private notifyCommandRefused() {
+    if (Date.now() - this.lastRefusedNotice > 3000) {
+      this.lastRefusedNotice = Date.now();
+      this.app.showMessage('No data from the USV - command not sent', true, 4000);
+    }
+  }
+
+  /** LINK readout in the status bar */
+  protected linkLabel(): string {
+    if (!this.usvLink.everConnected) {
+      return '--';
+    }
+    if (this.usvLink.stale) {
+      return `LOST ${this.usvLink.ageS}s`;
+    }
+    return this.app.data.moosIvPServer.commsLoss?.LOST ? 'ONE-WAY' : 'OK';
+  }
+
+  /** banner over the chart while the link is in trouble or the boat is returning */
+  protected commsLossBanner(): { title: string; detail: string; warn: boolean; stop: boolean } | null {
+    const cl = this.app.data.moosIvPServer.commsLoss;
+    // What the USV said a loss would make it do, as of the last contact
+    let onLoss = '';
+    if (cl) {
+      onLoss = cl.WILL_RETURN === false
+        ? `If the link stays down it stays where it is (${cl.STAY_REASON}).`
+        : `It returns to base after ${cl.TIMEOUT} s without contact.`;
+    }
+    if (this.usvLink.stale) {
+      return {
+        title: `No data from the USV for ${this.usvLink.ageS} s`,
+        detail: `${onLoss} Commands are held back until the link is back.`.trim(),
+        warn: true,
+        stop: false
+      };
+    }
+    if (cl && cl.RETURN !== 'idle') {
+      const where = cl.RETURN === 'returning' ? 'Returning to base' : 'Holding at base';
+      const when = cl.FAILSAFE && cl.LOST_AT
+        ? ` The link was lost at ${new Date(cl.LOST_AT * 1000).toLocaleTimeString()} for ${Math.round(cl.DURATION)} s.`
+        : '';
+      return {
+        title: cl.FAILSAFE ? `${where}: the link to the USV was lost` : where,
+        detail: `${when} A mission, station keep, follow or rudder/thrust command takes over.`.trim(),
+        warn: false,
+        stop: true
+      };
+    }
+    if (cl?.LOST) {
+      return {
+        title: 'The USV is not hearing this station',
+        detail: onLoss,
+        warn: true,
+        stop: false
+      };
+    }
+    return null;
+  }
+
+  /** end the return to base (or the hold there) from the banner */
+  protected stopCommsLossReturn() {
+    if (this.sendMoos('AUTONOMOUS_STOP=true')) {
+      this.app.showMessage('Return to base stopped', false, 3000);
+    }
+  }
+
   private processMoosJsonMessage(data: any) {
     // String variables
     if (data.IVPHELM_STATE !== undefined) {
@@ -3582,7 +3712,10 @@ export class AppComponent implements OnDestroy {
     }
     if (data.BASE_COORDS !== undefined) {
       this.app.data.moosIvPServer.baseCoords = data.BASE_COORDS;
-      //console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
+      this.applyBaseFromMoos(data.BASE_COORDS);
+    }
+    if (data.COMMS_LOSS !== undefined) {
+      this.processCommsLoss(data.COMMS_LOSS);
     }
     if (data.CAN_SEND !== undefined) {
       //console.log('[CAN_SEND JSON] Raw value:', data.CAN_SEND, '- Type:', typeof data.CAN_SEND);

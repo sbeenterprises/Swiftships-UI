@@ -624,6 +624,8 @@ export function initMoosIvPData(): { [key: string]: any } {
     desiredThrust: 0,
     idRoute: '',
     baseCoords: null,
+    basePending: null,
+    commsLoss: null,
     canSend: false,
     regionActive: false,
     waypointActive: false,

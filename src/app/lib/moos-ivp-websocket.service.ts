@@ -14,15 +14,33 @@ export class MoosIvpWebsocketService {
     private reconnectTimer: any = null;
     private lastMessageTime: number = 0;
     private heartbeatCheckInterval: any = null;
-    private heartbeatTimeout = 60000; // 60 seconds - match server timeout
+    // iWebSocket sends telemetry 20 times a second, so 10 s of silence is a
+    // dead link, not a quiet one.
+    private heartbeatTimeout = 10000;
     private heartbeatSendInterval: any = null;
-    private heartbeatSendFrequency = 30000; // Send heartbeat every 30 seconds
+    // The boat returns to base when it hears nothing from the UI for
+    // comms_loss_timeout (30 s by default) - a heartbeat every 5 s keeps a
+    // healthy link well clear of that.
+    private heartbeatSendFrequency = 5000;
+    private lastHeartbeatSent = 0;
+    private closingStale = false;
+
+    /**
+     * Telemetry older than this means the link is in trouble. Commands are not
+     * sent then: TCP would hold them and deliver them whenever the link comes
+     * back, by which time the boat may be doing something else entirely -
+     * returning to base after a comms loss, for one.
+     */
+    public static readonly STALE_MS = 3000;
 
     // Observable connection state
     public connectionState$ = new BehaviorSubject<ConnectionState>('disconnected');
 
     // Observable data stream
     public messages$ = new Subject<string>();
+
+    // Commands refused because the link to the USV was stale
+    public refused$ = new Subject<string>();
 
     // Connection info
     public url: string = '';
@@ -61,6 +79,12 @@ export class MoosIvpWebsocketService {
 
             this.ws.onmessage = (event: MessageEvent) => {
                 this.lastMessageTime = Date.now();
+                // Heartbeats ride on the telemetry as well as on the timer: a
+                // browser throttles timers in a background tab (to once a
+                // minute after a while), but not incoming messages.
+                if (Date.now() - this.lastHeartbeatSent >= this.heartbeatSendFrequency) {
+                    this.sendHeartbeat();
+                }
                 this.messages$.next(event.data);
             };
 
@@ -73,8 +97,11 @@ export class MoosIvpWebsocketService {
                 console.log(`[MoosIvpWS] Connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`);
                 this.connectionState$.next('disconnected');
 
-                // Only auto-reconnect if close was not clean (unexpected disconnection)
-                if (!event.wasClean) {
+                // Only auto-reconnect if close was not clean (unexpected
+                // disconnection) - or if it was our own close of a stale link,
+                // which completes cleanly when the server is still there.
+                if (!event.wasClean || this.closingStale) {
+                    this.closingStale = false;
                     this.scheduleReconnect();
                 }
             };
@@ -112,10 +139,17 @@ export class MoosIvpWebsocketService {
      * Send message to WebSocket server
      */
     send(message: string): boolean {
+        if (this.ws?.readyState === WebSocket.OPEN && !this.isLinkFresh()) {
+            console.warn(`[MoosIvpWS] Not sent, no data from the USV for ${this.lastMessageAge()} ms: ${message}`);
+            this.refused$.next(message);
+            return false;
+        }
         if (this.ws?.readyState === WebSocket.OPEN) {
             try {
                 this.ws.send(message);
-                console.log(`[MoosIvpWS] Sent: ${message}`);
+                if (!message.startsWith('HEARTBEAT_PING=')) {
+                    console.log(`[MoosIvpWS] Sent: ${message}`);
+                }
                 return true;
             } catch (error) {
                 console.error('[MoosIvpWS] Error sending message:', error);
@@ -160,10 +194,11 @@ export class MoosIvpWebsocketService {
                 if (timeSinceLastMessage > this.heartbeatTimeout) {
                     console.warn(`[MoosIvpWS] No messages received for ${timeSinceLastMessage}ms, connection may be stale`);
                     // Force reconnect
+                    this.closingStale = true;
                     this.ws.close(4001, 'Heartbeat timeout');
                 }
             }
-        }, 10000); // Check every 10 seconds
+        }, 2000);
     }
 
     /**
@@ -171,11 +206,33 @@ export class MoosIvpWebsocketService {
      */
     private startHeartbeatSender(): void {
         this.heartbeatSendInterval = setInterval(() => {
-            if (this.ws?.readyState === WebSocket.OPEN) {
-                const heartbeatMessage = `HEARTBEAT_PING=${Date.now()}`;
-                this.send(heartbeatMessage);
+            if (Date.now() - this.lastHeartbeatSent >= this.heartbeatSendFrequency) {
+                this.sendHeartbeat();
             }
-        }, this.heartbeatSendFrequency); // Send every 30 seconds
+        }, 1000);
+    }
+
+    /**
+     * Heartbeat to iWebSocket, only while telemetry is coming in. With the
+     * link to the boat broken one way, the boat must not go on hearing from a
+     * UI that can no longer see it: going quiet lets its comms-loss watchdog
+     * take the boat home.
+     */
+    private sendHeartbeat(): void {
+        if (this.ws?.readyState === WebSocket.OPEN && this.isLinkFresh()) {
+            this.lastHeartbeatSent = Date.now();
+            this.send(`HEARTBEAT_PING=${this.lastHeartbeatSent}`);
+        }
+    }
+
+    /** milliseconds since the last message from the USV */
+    lastMessageAge(): number {
+        return this.lastMessageTime ? Date.now() - this.lastMessageTime : Infinity;
+    }
+
+    /** whether telemetry is arriving from the USV */
+    isLinkFresh(): boolean {
+        return this.lastMessageAge() <= MoosIvpWebsocketService.STALE_MS;
     }
 
     /**

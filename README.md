@@ -95,7 +95,9 @@ Variables published by the UI (commands):
 | REPEAT              | Repeat of the loaded route                     |
 | REGION              | Region (polygon) sent to the helm              |
 | STATION_KEEP / STATION_PT / STATION_KEEP_WAYPOINT | Station keep control and position |
-| AUTONOMOUS_STOP     | Stops the autonomous mission                   |
+| AUTONOMOUS_STOP     | Stops the autonomous mission (and a return to base) |
+| BASE_COORDS         | Base set on the chart (`lat,lon`), where the USV returns if the link is lost |
+| HEARTBEAT_PING      | Every 5 s while telemetry is arriving          |
 | TRAIL_FOLLOW        | Follow of an AIS contact (range and angle)     |
 | SERVICE_MODE        | Enables the live PID calibration mode          |
 | COLAV_DIST          | Collision avoidance engagement distances       |
@@ -103,9 +105,27 @@ Variables published by the UI (commands):
 
 Variables consumed by the UI (telemetry): `IVPHELM_STATE`, `IVPHELM_ALLSTOP`, `WPT_INDEX`, `WPT_DIST`, `WPT_ETA`,
 `WPT_STAT`, `WPT_RADII`, `WPT_PCT_COMPLETE`, `DESIRED_SPEED`, `ID_ROUTE`, `REGION`, `BASE_COORDS`, `CONTACT_INFO`,
-`TRAILING`, `TRAIL_UPDATES`, `SERVICE_MODE`, `PID_GAINS`, `CAN_SEND` and the `ENGINE_*` family coming from the
+`TRAILING`, `TRAIL_UPDATES`, `SERVICE_MODE`, `PID_GAINS`, `CAN_SEND`, `COMMS_LOSS` and the `ENGINE_*` family coming from the
 `iCANREC` application (RPM, oil pressure and temperature, coolant temperature, fuel rate, battery voltage, load,
 torque, pedal position, intake manifold pressure and active DTCs).
+
+# Comms-Loss Return to Base
+
+The UI runs ashore and the USV is out on the water, so the link between them can drop. When the USV hears nothing
+from any UI for 30 s, it returns to its base on its own and holds there - whenever pHelmIvP is in DRIVE (NothingToDo
+included) or the boat is underway; with the helm in PARK and the boat idle it stays put unless configured otherwise.
+This is done on the boat by `iWebSocket` and two helm behaviours; see the backend README for the configuration.
+
+- **Base**: shown on the chart as the base marker. Right click > Define base moves it; the new base is sent to the USV
+  (`BASE_COORDS`) and the chart only keeps it once the USV echoes it back. Without a link the base cannot be changed.
+  The default base is 29.72282, -91.21539.
+- **LINK** in the top bar: `OK`, `LOST n s` when no data has come from the USV for more than 3 s, or `ONE-WAY` when
+  the data arrives but the USV reports it is not hearing this station.
+- **Banner** over the chart while the link is in trouble - saying whether the USV will return to base or stay where it
+  is - and while it is returning to base or holding there (with when the link was lost and for how long). Its Stop button ends the return; so does any mission, station
+  keep, follow or rudder/thrust command.
+- While the link is stale the UI does not send commands, so they cannot be delivered late, and it stops its
+  heartbeat, so a link that only works towards the station still lets the USV come home.
 
 # Chart Files (.tif)
 

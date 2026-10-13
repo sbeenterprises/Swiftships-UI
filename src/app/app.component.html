@@ -283,6 +283,12 @@
           <div class="navLabel">MODE</div>
           <div class="navValue">{{ app.data.moosIvPServer.ivpHelmAllstop || 'UNKNOWN' }}</div>
         </div>
+
+        <div class="navItem" matTooltip="Link to the USV. Without contact it returns to base on its own."
+          [class.linkAlert]="usvLink.stale || app.data.moosIvPServer.commsLoss?.LOST">
+          <div class="navLabel">LINK</div>
+          <div class="navValue">{{ linkLabel() }}</div>
+        </div>
       </div>
     </div>
 
@@ -1689,6 +1695,21 @@
           <!-- *** Mission replay transport bar ***-->
           @if(replay.isReplaying()) {
           <replay-bar (exit)="exitMissionReplay()"></replay-bar>
+          }
+
+          <!-- *** Comms-loss failsafe: link in trouble, or returning / holding at base *** -->
+          @if(commsLossBanner(); as banner) {
+          <div class="commsLossBanner" [class.warn]="banner.warn">
+            <mat-icon>{{ banner.warn ? 'sync_problem' : 'home' }}</mat-icon>
+            <div class="commsLossText">
+              <b>{{ banner.title }}</b>
+              <span>{{ banner.detail }}</span>
+            </div>
+            @if(banner.stop) {
+            <button mat-raised-button (click)="stopCommsLossReturn()"
+              matTooltip="Stop the boat here (AUTONOMOUS_STOP)">Stop</button>
+            }
+          </div>
           }
 
           <!-- *** Alarm / Mode panel ***-->
