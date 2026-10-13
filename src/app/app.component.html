@@ -344,26 +344,19 @@
               <mat-icon class="ac-logo">sports_esports</mat-icon>
               <span class="ac-title">Remote control</span>
               <span class="ac-chip"
-                [class.linked]="remoteControl.canSend"
-                [class.offline]="!remoteControl.canSend">
+                [class.linked]="app.data.moosIvPServer.canSend"
+                [class.offline]="!app.data.moosIvPServer.canSend">
                 <span class="chip-dot"></span>
-                {{ remoteControl.canSend ? 'CAN · linked' : 'CAN · off' }}
+                {{ app.data.moosIvPServer.canSend ? 'CAN · linked' : 'CAN · off' }}
               </span>
               <a mat-icon-button (click)="closeRemoteControl()" class="ac-close">
                 <mat-icon>close</mat-icon>
               </a>
             </header>
-            <div class="ac-tabs">
-              <button type="button" class="ac-tab" [class.active]="remoteControlTab === 'helm'"
-                (click)="setRemoteControlTab('helm')">Helm</button>
-              <button type="button" class="ac-tab" [class.active]="remoteControlTab === 'system'"
-                (click)="setRemoteControlTab('system')">System</button>
-            </div>
-
             <div class="remote-control-content ac-panes">
-              @if(remoteControlTab === 'helm') {
-              <!-- Rudder, Thrust and Gear Controls (only shown when CAN Messages are enabled) -->
-              @if(remoteControl.canSend) {
+              <!-- Rudder, Thrust and Gear Controls (only shown when CAN sending is on;
+                   CAN is switched from the power button in the left toolbar) -->
+              @if(app.data.moosIvPServer.canSend) {
               <!-- Rudder Control -->
               <div class="remote-control-section">
                 <h3>Rudder Control</h3>
@@ -453,30 +446,42 @@
               </div>
               } @else {
               <div class="remote-control-section">
-                <div class="service-mode-hint">Enable CAN in the System tab to helm the boat.</div>
+                <div class="service-mode-hint">CAN sending is off. Enable CAN with the power button in the left
+                  toolbar to helm the boat.</div>
               </div>
-              }
               }
 
-              @if(remoteControlTab === 'system') {
-              <!-- CAN Messages Control -->
-              <div class="remote-control-section">
-                <h3>CAN Messages</h3>
+              <!-- Engine trim: kept apart from rudder/thrust so it is not mistaken for steering.
+                   Click-to-pulse only: one click = one TRIM message, the boat times the pulse.
+                   No hold-to-repeat, no trim angle (there is no position feedback). -->
+              <div class="remote-control-section trim-section">
+                <h3>Engine Trim</h3>
                 <div class="control-group">
                   <div class="control-display">
-                    <span class="control-label">Status:</span>
-                    <span class="control-value" [style.color]="remoteControl.canSend ? '#4caf50' : '#f44336'">
-                      {{ remoteControl.canSend ? 'Enabled' : 'Disabled' }}
+                    <span class="control-label">Trim:</span>
+                    <span class="control-value" [class.trim-moving]="trimControl.state !== 'idle'">
+                      {{ trimControl.state === 'up' ? 'Trimming up'
+                         : trimControl.state === 'down' ? 'Trimming down' : 'Idle' }}
                     </span>
                   </div>
-                  <button mat-raised-button (click)="toggleCanSendRemote()"
-                    [color]="remoteControl.canSend ? 'warn' : 'primary'" class="control-btn can-toggle-btn">
-                    <mat-icon>{{ remoteControl.canSend ? 'stop' : 'play_arrow' }}</mat-icon>
-                    {{ remoteControl.canSend ? 'Disable CAN' : 'Enable CAN' }}
-                  </button>
+                  <div class="control-buttons">
+                    <button mat-raised-button class="control-btn" (click)="sendTrim(1)"
+                      [class.trim-active]="trimControl.state === 'up'"
+                      [disabled]="!app.data.moosIvPServer.canSend">
+                      <mat-icon>arrow_upward</mat-icon>Trim up</button>
+                    <button mat-raised-button class="control-btn" (click)="sendTrim(-1)"
+                      [class.trim-active]="trimControl.state === 'down'"
+                      [disabled]="!app.data.moosIvPServer.canSend">
+                      <mat-icon>arrow_downward</mat-icon>Trim down</button>
+                    <button mat-raised-button class="control-btn" (click)="sendTrim(0)"
+                      [disabled]="!app.data.moosIvPServer.canSend">
+                      <mat-icon>stop</mat-icon>Stop</button>
+                  </div>
+                  @if(!app.data.moosIvPServer.canSend) {
+                  <div class="service-mode-hint">CAN sending is off</div>
+                  }
                 </div>
               </div>
-              }
 
             </div>
           </div>

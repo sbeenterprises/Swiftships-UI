@@ -2002,3 +2002,9 @@ mat-nav-list {
 .autonomous-control-sidenav .ac-sw.on { background: #e8912d; }
 .autonomous-control-sidenav .ac-sw.on::after { transform: translateX(16px); background: #fff; }
 .autonomous-control-sidenav .ac-sw:disabled { cursor: default; opacity: 0.85; }
+
+/* Remote control: engine trim, set apart from rudder/thrust */
+.remote-control-sidenav .trim-section { margin-top: 16px !important; border: 1px dashed rgba(232, 145, 45, 0.6) !important; }
+.remote-control-sidenav .trim-section .control-btn.trim-active { background: #e8912d !important; color: #0d1a2c !important; }
+.remote-control-sidenav .trim-section .trim-moving { color: #e8912d; }
+.remote-control-sidenav .trim-section .control-btn:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }

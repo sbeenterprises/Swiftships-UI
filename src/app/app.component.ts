@@ -142,10 +142,19 @@ export class AppComponent implements OnDestroy {
   public remoteControl = {
     rudder: 0,    // -50 to 50
     thrust: 0,    // -100 to 100%
-    gear: 'neutral',  // forward, neutral, reverse
-    canSend: false,   // CAN messages enabled/disabled
-    ignoreCanSendUpdates: false  // Temporarily ignore incoming CAN_SEND to avoid race conditions
+    gear: 'neutral'  // forward, neutral, reverse
   };
+
+  // Engine trim (manual remote control only). Each TRIM=1 / TRIM=-1 is one
+  // timed pulse that iCAN stops by itself; the UI never repeats it.
+  // `state` mirrors CAN_TRIM_STATE from the boat (missing = idle). There is
+  // no trim position feedback on these boats.
+  public trimControl = {
+    state: 'idle' as 'idle' | 'up' | 'down'
+  };
+  /** pending check that a trim click was answered by CAN_TRIM_STATE */
+  private trimAckTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly TRIM_ACK_MS = 1500;
 
   // Follow an AIS contact (BHV_Trail on the helm).
   //
@@ -192,9 +201,6 @@ export class AppComponent implements OnDestroy {
   /** which tab of the Autonomous Control sidenav is showing */
   protected autonomousPanelTab: 'mission' | 'follow' | 'pid' | 'colav' | 'test' =
     'mission';
-
-  /** which tab of the Remote Control sidenav is showing */
-  protected remoteControlTab: 'helm' | 'system' = 'helm';
 
   // Service mode: live PID calibration from the UI.
   // Gains are pushed to planchaPID through iWebSocket (HEADING_K* / SPEED_K*)
@@ -692,6 +698,7 @@ export class AppComponent implements OnDestroy {
     // ** clean up
     this.stopTimers();
     this.stopMoosContactCleanup();
+    this.clearTrimAckTimer();
 
     // Clean up TOA update timer
     if (this.toaUpdateTimer) {
@@ -770,10 +777,6 @@ export class AppComponent implements OnDestroy {
     tab: 'mission' | 'follow' | 'pid' | 'colav' | 'test'
   ) {
     this.autonomousPanelTab = tab;
-  }
-
-  protected setRemoteControlTab(tab: 'helm' | 'system') {
-    this.remoteControlTab = tab;
   }
 
   /** A right-side (end) control panel is open — shifts the floating nav bar
@@ -861,10 +864,8 @@ export class AppComponent implements OnDestroy {
   protected toggleCanSend(): void {
     const next = !this.app.data.moosIvPServer.canSend;
     const canValue = next ? 'true' : 'false';
-    this.remoteControl.ignoreCanSendUpdates = true;
     this.autonomousControl.ignoreCanSendUpdates = true;
     setTimeout(() => {
-      this.remoteControl.ignoreCanSendUpdates = false;
       this.autonomousControl.ignoreCanSendUpdates = false;
     }, 3000);
     if (
@@ -873,7 +874,6 @@ export class AppComponent implements OnDestroy {
     ) {
       this.app.data.moosIvPServer.socket.send(`CAN_SEND=${canValue}`);
       this.app.data.moosIvPServer.canSend = next;
-      this.remoteControl.canSend = next;
       this.autonomousControl.canSend = next;
       this.app.showMessage(
         `CAN Messages ${next ? 'Enabled' : 'Disabled'}`,
@@ -1305,31 +1305,53 @@ export class AppComponent implements OnDestroy {
     }
   }
 
-  protected sendTrimUp() {
-    // Send TRIM=1 to MOOS-IvP three times
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      for (let i = 0; i < 3; i++) {
-        this.app.data.moosIvPServer.socket.send('TRIM=1');
-        console.log(`Sent TRIM=1 to MOOS-IvP (${i + 1}/3)`);
-      }
-    } else {
-      console.log('MOOS-IvP not connected, cannot send trim up command');
+  /**
+   * Send one trim command: 1 = one trim-up pulse, -1 = one trim-down pulse,
+   * 0 = stop. Exactly one message per click — never repeat or hold: trim-up
+   * runs on into full tilt and trim-down onto the bottom stop, so the boat's
+   * pulse limit is the only safety and the UI must not extend it.
+   */
+  protected sendTrim(dir: 1 | -1 | 0) {
+    if (!this.app.data.moosIvPServer.canSend) {
+      return;
+    }
+    this.clearTrimAckTimer();
+    if (!this.sendMoos(`TRIM=${dir}`)) {
+      this.app.showMessage('Trim not sent: MOOS-IvP not connected', false, 2000);
+      return;
+    }
+    if (dir !== 0) {
+      // No retry: if the boat never reports the pulse, just say so.
+      this.trimAckTimer = setTimeout(() => {
+        this.trimAckTimer = null;
+        this.app.showMessage(
+          'Trim not available on this boat or blocked by the helm.',
+          false,
+          3000
+        );
+      }, AppComponent.TRIM_ACK_MS);
     }
   }
 
-  protected sendTrimDown() {
-    // Send TRIM=-1 to MOOS-IvP three times
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      for (let i = 0; i < 3; i++) {
-        this.app.data.moosIvPServer.socket.send('TRIM=-1');
-        console.log(`Sent TRIM=-1 to MOOS-IvP (${i + 1}/3)`);
-      }
-    } else {
-      console.log('MOOS-IvP not connected, cannot send trim down command');
+  private clearTrimAckTimer() {
+    if (this.trimAckTimer) {
+      clearTimeout(this.trimAckTimer);
+      this.trimAckTimer = null;
+    }
+  }
+
+  /** CAN_TRIM_STATE from iCAN: "up" | "down" | "idle" */
+  private updateTrimState(value: unknown) {
+    const state = String(value).trim().toLowerCase();
+    this.trimControl.state =
+      state === 'up' || state === 'down' ? state : 'idle';
+    if (this.trimControl.state !== 'idle') {
+      this.clearTrimAckTimer();
     }
   }
 
   protected closeRemoteControl() {
+    this.clearTrimAckTimer();
     this.display.remoteControlPanelOpen = false;
     this.app.config.selections.remoteControl = false;
     this.app.saveConfig();
@@ -1434,40 +1456,14 @@ export class AppComponent implements OnDestroy {
     console.log('Repeat route updated:', repeat ? 'continuous (1000x)' : 'once');
   }
 
-  // CAN messages toggle for remote control
-  protected toggleCanSendRemote() {
-    this.remoteControl.canSend = !this.remoteControl.canSend;
-    const canValue = this.remoteControl.canSend ? 'true' : 'false';
-
-    // Ignore incoming CAN_SEND updates for 3 seconds to avoid race conditions
-    this.remoteControl.ignoreCanSendUpdates = true;
-    this.autonomousControl.ignoreCanSendUpdates = true;
-    setTimeout(() => {
-      this.remoteControl.ignoreCanSendUpdates = false;
-      this.autonomousControl.ignoreCanSendUpdates = false;
-    }, 3000);
-
-    // Send CAN_SEND to MOOS-IvP
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      this.app.data.moosIvPServer.socket.send(`CAN_SEND=${canValue}`);
-      console.log(`[Remote Control] Sent CAN_SEND=${canValue} to MOOS-IvP`);
-      this.app.showMessage(`CAN Messages ${this.remoteControl.canSend ? 'Enabled' : 'Disabled'}`, false, 2000);
-    } else {
-      console.log('MOOS-IvP not connected, cannot send CAN_SEND value');
-      this.app.showMessage('MOOS-IvP not connected', true, 2000);
-    }
-  }
-
   // CAN messages toggle for autonomous control
   protected toggleCanSendAutonomous() {
     this.autonomousControl.canSend = !this.autonomousControl.canSend;
     const canValue = this.autonomousControl.canSend ? 'true' : 'false';
 
     // Ignore incoming CAN_SEND updates for 3 seconds to avoid race conditions
-    this.remoteControl.ignoreCanSendUpdates = true;
     this.autonomousControl.ignoreCanSendUpdates = true;
     setTimeout(() => {
-      this.remoteControl.ignoreCanSendUpdates = false;
       this.autonomousControl.ignoreCanSendUpdates = false;
     }, 3000);
 
@@ -3680,13 +3676,13 @@ export class AppComponent implements OnDestroy {
         // Store on moosIvPServer and update UI controls (unless recently toggled by user)
         const canEnabled = value === 'true' || value === '1';
         this.app.data.moosIvPServer.canSend = canEnabled;
-        if (!this.remoteControl.ignoreCanSendUpdates) {
-          this.remoteControl.canSend = canEnabled;
-        }
         if (!this.autonomousControl.ignoreCanSendUpdates) {
           this.autonomousControl.canSend = canEnabled;
         }
         console.log('[CAN_SEND] Received from MOOS-IvP:', value, '- Enabled:', canEnabled);
+        break;
+      case 'CAN_TRIM_STATE':
+        this.updateTrimState(value);
         break;
       case 'REGION':
         const regionEnabled = value === 'true' || value === '1';
@@ -3754,13 +3750,12 @@ export class AppComponent implements OnDestroy {
       //console.log('[CAN_SEND JSON] Raw value:', data.CAN_SEND, '- Type:', typeof data.CAN_SEND);
       const canSendEnabled = data.CAN_SEND === 'true' || data.CAN_SEND === '1' || data.CAN_SEND === true;
       this.app.data.moosIvPServer.canSend = canSendEnabled;
-      if (!this.remoteControl.ignoreCanSendUpdates) {
-        this.remoteControl.canSend = canSendEnabled;
-      }
       if (!this.autonomousControl.ignoreCanSendUpdates) {
         this.autonomousControl.canSend = canSendEnabled;
       }
     }
+    // Missing until iCAN first posts it: treat as idle.
+    this.updateTrimState(data.CAN_TRIM_STATE ?? 'idle');
     if (data.REGION !== undefined) {
       const regionEnabled = data.REGION === 'true' || data.REGION === '1' || data.REGION === true;
       this.app.data.moosIvPServer.regionActive = regionEnabled;
@@ -5384,7 +5379,8 @@ export class AppComponent implements OnDestroy {
 
     Object.assign(this.autonomousControl, initAutonomousControlData());
     this.engineStatus = initEngineStatus();
-    this.remoteControl.canSend = false;
+    this.trimControl.state = 'idle';
+    this.clearTrimAckTimer();
 
     this.servicePid.enabled = false;
     this.servicePid.applied = null;
