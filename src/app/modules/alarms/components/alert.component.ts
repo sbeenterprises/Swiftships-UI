@@ -27,6 +27,8 @@ export interface AlertData {
   sound: boolean;
   visual: boolean;
   properties?: { [index: string]: any };
+  // label / value pairs shown under the message in the Alert List
+  details?: Array<[string, string]>;
   icon: AppIconDef;
   type?: string;
   acknowledged: boolean;
@@ -193,6 +195,15 @@ export class AlertComponent {
       if (typeof this.doNotPlaySound() !== 'undefined') {
       }
       this.processAudio();
+      // An alert raised to alarm after its card timed out as a warning comes
+      // back on screen. Only a new alert object gets here with a new
+      // priority: alerts updated in place keep their card as it is.
+      if (['emergency', 'alarm'].includes(al.priority) && !al.acknowledged) {
+        clearInterval(this.timerRef);
+        this.timerRef = undefined;
+        this.progressValue.set(100);
+        this.hidden.set(false);
+      }
       if (
         !this.timerRef &&
         !['emergency', 'alarm'].includes(this.alert().priority) &&

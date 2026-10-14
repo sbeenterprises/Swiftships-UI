@@ -105,7 +105,7 @@ Variables published by the UI (commands):
 
 Variables consumed by the UI (telemetry): `IVPHELM_STATE`, `IVPHELM_ALLSTOP`, `WPT_INDEX`, `WPT_DIST`, `WPT_ETA`,
 `WPT_STAT`, `WPT_RADII`, `WPT_PCT_COMPLETE`, `DESIRED_SPEED`, `ID_ROUTE`, `REGION`, `BASE_COORDS`, `CONTACT_INFO`,
-`TRAILING`, `TRAIL_UPDATES`, `SERVICE_MODE`, `PID_GAINS`, `CAN_SEND`, `COMMS_LOSS` and the `ENGINE_*` family coming from the
+`TRAILING`, `TRAIL_UPDATES`, `SERVICE_MODE`, `PID_GAINS`, `CAN_SEND`, `COMMS_LOSS`, `COLAV_ALERTS` and the `ENGINE_*` family coming from the
 `iCANREC` application (RPM, oil pressure and temperature, coolant temperature, fuel rate, battery voltage, load,
 torque, pedal position, intake manifold pressure and active DTCs).
 
@@ -126,6 +126,26 @@ This is done on the boat by `iWebSocket` and two helm behaviours; see the backen
   keep, follow or rudder/thrust command.
 - While the link is stale the UI does not send commands, so they cannot be delivered late, and it stops its
   heartbeat, so a link that only works towards the station still lets the USV come home.
+
+# Collision Alerts
+
+Whenever pHelmIvP on the USV is steering around a contact, that contact is raised in the Alert List (Alarms button
+in the left toolbar), one entry per contact:
+
+- The message names the ship - its AIS name when Signal K has it, else its MMSI, else the name MOOS knows it by
+  (`contato_<n>` for radar) - and the COLREGS situation, e.g. "Avoiding PELICAN STATE: Head-on (Rule 14), altering
+  to starboard".
+- Under it: the contact's heading (HDG) and speed (SPD), range (RNG) and true bearing (BRG) from the USV, and the CPA
+  and time to it (TCPA) on present courses and speeds. "LAST REPORT n s ago" shows when the contact has stopped
+  reporting for 10 s or more. Clicking the entry shows the rest: MMSI, relative bearing, length, position, and how
+  long the avoidance has been going on.
+- It is raised as a warning, with a sound and a card on the chart, and has to be acknowledged. Stand-on in extremis
+  (Rule 17(b)) is an alarm: it sounds until acknowledged or muted. Coming out of extremis turns it back into a
+  warning and stops the sound.
+- When the avoidance ends the entry says "Clear of ..." for a few seconds and then goes away.
+
+The list comes from `iWebSocket` on the boat (`COLAV_ALERTS`), so it works on the real USV as well as in simulation.
+Speeds and distances follow the units chosen in Settings.
 
 # Chart Files (.tif)
 

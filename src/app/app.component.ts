@@ -42,6 +42,7 @@ import {
   WeatherForecastModal,
   CourseSettingsModal,
   NotificationManager,
+  ColavAlertSpec,
   GPXImportDialog,
   GPXExportDialog,
   CourseService,
@@ -55,6 +56,7 @@ import {
 } from 'src/app/modules';
 
 import { SignalKClient } from 'signalk-client-angular';
+import { ALARM_STATE } from '@signalk/server-api';
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
 import * as semver from 'semver';
@@ -73,6 +75,7 @@ import {
   FBRoute,
   Position,
   ErrorList,
+  ColavAlert,
   ColavEncounter,
   ColregsStatus,
   CommsLossStatus
@@ -1901,38 +1904,10 @@ export class AppComponent implements OnDestroy {
     });
 
     const mode = lead.mode || 'none';
-    const base = mode.split(':')[0];
-    const submode = mode.split(':')[1] ?? 'none';
-    const rule = this.colregsRules[base];
-
-    // Modes the behaviour has not classified yet ("none"), or has finished
-    // with ("complete"). Neither should normally be seen while active, so say
-    // what is known rather than inventing a rule.
-    let status: ColregsStatus = rule
-      ? { ...rule, icon: '', target: '', detail: '', others: 0, mode: mode }
-      : {
-        rule: '', name: 'Avoiding', action: 'classifying the encounter',
-        tone: 'act', icon: '', target: '', detail: '', others: 0, mode: mode
-      };
-
-    // Submodes worth putting in front of the operator. The rest ("unsure",
-    // "neither") are the behaviour still making its mind up and would only
-    // add noise to a box that is meant to be read at a glance.
-    if (base === 'giveway' && submode === 'stern') {
-      status.action = 'crossing astern';
-    } else if (base === 'giveway' && submode === 'bow') {
-      status.action = 'crossing ahead';
-    } else if (base === 'overtaking' && (submode === 'port' || submode === 'starboard')) {
-      status.action = `passing to ${submode}`;
-    } else if (base === 'standon' && submode === 'inextremis') {
-      status = {
-        ...status,
-        rule: 'Rule 17(b)',
-        name: 'Stand-on, in extremis',
-        action: 'taking avoiding action',
-        tone: 'urgent'
-      };
-    }
+    const status: ColregsStatus = {
+      ...this.colregsSituation(mode),
+      icon: '', target: '', detail: '', others: 0, mode: mode
+    };
 
     status.icon = status.tone === 'urgent'
       ? 'priority_high'
@@ -1942,6 +1917,46 @@ export class AppComponent implements OnDestroy {
     status.others = active.length - 1;
 
     this.app.data.moosIvPServer.colregs = status;
+  }
+
+  /**
+   * The COLREGS situation a mode stands for, as the operator reads it. Shared
+   * by the chart box and the collision alerts.
+   */
+  private colregsSituation(mode: string): {
+    rule: string; name: string; action: string; tone: 'act' | 'hold' | 'urgent';
+  } {
+    const base = (mode || 'none').split(':')[0];
+    const submode = (mode || 'none').split(':')[1] ?? 'none';
+    const rule = this.colregsRules[base];
+
+    // Modes the behaviour has not classified yet ("none"), or has finished
+    // with ("complete"). Neither should normally be seen while active, so say
+    // what is known rather than inventing a rule.
+    const situation = rule
+      ? { ...rule }
+      : { rule: '', name: 'Avoiding', action: 'classifying the encounter', tone: 'act' as const };
+
+    // Submodes worth putting in front of the operator. The rest ("unsure",
+    // "neither") are the behaviour still making its mind up and would only
+    // add noise to a box that is meant to be read at a glance.
+    if (base === 'giveway' && submode === 'stern') {
+      situation.action = 'crossing astern';
+    } else if (base === 'giveway' && submode === 'bow') {
+      situation.action = 'crossing ahead';
+    } else if (base === 'overtaking' && (submode === 'port' || submode === 'starboard')) {
+      situation.action = `passing to ${submode}`;
+    } else if ((base === 'standon' || base === 'standon_ot') && submode === 'inextremis') {
+      // The behaviour goes in extremis from either stand-on mode, crossing or
+      // being overtaken, and in both it is no longer holding course.
+      return {
+        rule: 'Rule 17(b)',
+        name: base === 'standon' ? 'Stand-on, in extremis' : 'Being overtaken, in extremis',
+        action: 'taking avoiding action',
+        tone: 'urgent'
+      };
+    }
+    return situation;
   }
 
   /** range and time to CPA, as the box shows them */
@@ -1963,7 +1978,7 @@ export class AppComponent implements OnDestroy {
    * simulated traffic). Trade it for the AIS vessel name when the chart has
    * one, so the box names the ship the operator can see.
    */
-  private colregsTargetName(enc: ColavEncounter): string {
+  private colregsTargetName(enc: { mmsi: number; cn: string }): string {
     if (enc.mmsi) {
       const mmsi = String(enc.mmsi);
       for (const v of this.app.data.vessels.aisTargets.values()) {
@@ -1991,6 +2006,105 @@ export class AppComponent implements OnDestroy {
       console.log('[COLREGS] no encounter update in 10s - clearing the chart box');
       this.app.data.moosIvPServer.colregs = null;
     }
+  }
+
+  // ****************** COLLISION ALERTS (Alert List) ******************
+
+  /**
+   * COLAV_ALERTS: the contacts the USV's helm is steering around. Each one is
+   * an alert in the Alert List, raised when the avoidance starts, with what
+   * the operator needs to judge it. iWebSocket keeps an alert for a few
+   * seconds after the avoidance ends and then drops it, which clears it here.
+   */
+  private processColavAlerts(raw: string) {
+    let list: ColavAlert[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        list = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.warn('[COLAV] could not parse COLAV_ALERTS', e);
+        return;
+      }
+    }
+    this.notiMgr.setColavAlerts(list.map((a) => this.colavAlertSpec(a)));
+  }
+
+  /** one contact being avoided, as the Alert List shows it */
+  private colavAlertSpec(a: ColavAlert): ColavAlertSpec {
+    const name = this.colregsTargetName(a);
+    const situation = this.colregsSituation(a.mode);
+    const label = situation.rule ? `${situation.name} (${situation.rule})` : situation.name;
+
+    const known = (v: number) => typeof v === 'number' && v >= 0;
+    const deg = (v: number) =>
+      known(v) ? `${String(Math.round(v) % 360).padStart(3, '0')}°` : '--';
+    const dist = (v: number) => (known(v) ? this.app.formatValueForDisplay(v, 'm') : '--');
+    const mmss = (s: number) => {
+      const t = Math.max(0, Math.round(s));
+      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    };
+    const speed = known(a.spd) ? this.app.formatValueForDisplay(a.spd, 'm/s') : '--';
+    // TCPA is 0 once the range is opening: the CPA is behind the boat
+    const tcpa = !known(a.cpa) ? '--' : a.tcpa > 0 ? mmss(a.tcpa) : 'passed';
+    let side = '';
+    if (known(a.relBng)) {
+      const rel = Math.round(a.relBng) % 360;
+      side = rel === 0 ? 'dead ahead'
+        : rel === 180 ? 'dead astern'
+        : rel < 180 ? `${rel}° to starboard` : `${360 - rel}° to port`;
+    }
+
+    const details: Array<[string, string]> = [
+      ['HDG', deg(a.hdg)],
+      ['SPD', speed],
+      ['RNG', dist(a.range)],
+      ['BRG', deg(a.bng)],
+      ['CPA', dist(a.cpa)],
+      ['TCPA', tcpa]
+    ];
+    // The figures are only as fresh as the contact's last report
+    if (known(a.age) && a.age >= 10) {
+      details.push(['LAST REPORT', `${Math.round(a.age)} s ago`]);
+    }
+
+    const properties: ColavAlertSpec['properties'] = {
+      contact: a.cn,
+      situation: label,
+      action: a.active ? situation.action : 'avoidance ended',
+      avoiding: a.active ? `for ${mmss(a.for)}` : 'no',
+      heading: deg(a.hdg),
+      speed: speed,
+      range: dist(a.range),
+      bearing: known(a.bng) ? `${deg(a.bng)} true, ${side}` : '--',
+      cpa: dist(a.cpa),
+      tcpa: tcpa,
+      lastReport: known(a.age) ? `${Math.round(a.age)} s ago` : '--'
+    };
+    if (a.mmsi) {
+      properties['mmsi'] = a.mmsi;
+    }
+    if (name !== a.cn && !name.startsWith('MMSI ')) {
+      properties['name'] = name;
+    }
+    if (a.len > 0) {
+      properties['length'] = `${Math.round(a.len)} m`;
+    }
+    if (typeof a.lat === 'number' && typeof a.lon === 'number') {
+      properties['position'] = { latitude: a.lat, longitude: a.lon };
+    }
+
+    return {
+      id: a.cn,
+      // Stand-on in extremis: the give-way vessel is not acting and the USV
+      // has had to - the one situation that is an alarm, not a warning.
+      priority: a.active && situation.tone === 'urgent' ? ALARM_STATE.alarm : ALARM_STATE.warn,
+      message: a.active
+        ? `Avoiding ${name}: ${label}, ${situation.action}`
+        : `Clear of ${name}: avoidance ended`,
+      details: details,
+      properties: properties
+    };
   }
 
   /** pTrafficSim refuses a spawn with a reason - surface it, do not swallow it */
@@ -3782,6 +3896,13 @@ export class AppComponent implements OnDestroy {
       this.app.data.moosIvPServer.colavMetrics = data.COLAV_METRICS;
       this.processColavMetrics(data.COLAV_METRICS);
     }
+    // Contacts the helm is steering around, for the Alert List. iWebSocket
+    // rebuilds the list at most once a second and sends it on every tick.
+    if (data.COLAV_ALERTS !== undefined &&
+        data.COLAV_ALERTS !== this.app.data.moosIvPServer.colavAlerts) {
+      this.app.data.moosIvPServer.colavAlerts = data.COLAV_ALERTS;
+      this.processColavAlerts(data.COLAV_ALERTS);
+    }
     if (data.TRAFFIC_SPAWNED !== undefined &&
         data.TRAFFIC_SPAWNED !== this.app.data.moosIvPServer.trafficSpawned) {
       this.app.data.moosIvPServer.trafficSpawned = data.TRAFFIC_SPAWNED;
@@ -3988,6 +4109,8 @@ export class AppComponent implements OnDestroy {
   private disconnectMoosIvPServer() {
     this.moosWsService.disconnect();
     this.app.data.moosIvPServer.colregs = null;
+    this.app.data.moosIvPServer.colavAlerts = '';
+    this.notiMgr.setColavAlerts([]);
     this.app.data.moosIvPServer.socket = null;
     this.app.data.moosIvPServer.connected = false;
     this.app.data.connectionState.moosIvP.connected = false;

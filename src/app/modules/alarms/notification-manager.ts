@@ -17,6 +17,27 @@ import { AlertPropertiesModal } from './components/alert-properties-modal';
 
 type AlertItems = Array<[string, AlertData]>;
 
+const PRIORITY_RANK = {
+  emergency: 1,
+  alarm: 2,
+  warn: 3,
+  alert: 4,
+  normal: 5,
+  nominal: 6
+};
+
+/** A collision alert, one per contact the USV's helm is steering around */
+export interface ColavAlertSpec {
+  id: string; // MOOS contact name
+  priority: ALARM_STATE.alarm | ALARM_STATE.warn;
+  message: string;
+  details: Array<[string, string]>;
+  // listed in the alert's sheet
+  properties:{ [key: string]: string | number | { latitude: number; longitude: number } };
+}
+
+const COLAV_PATH = 'notifications.navigation.collisionAvoidance.';
+
 @Injectable({ providedIn: 'root' })
 export class NotificationManager {
   private alertMap: Map<string, AlertData>;
@@ -46,18 +67,10 @@ export class NotificationManager {
    * @description Emit signals
    */
   private emitSignals() {
-    const rankings = {
-      emergency: 1,
-      alarm: 2,
-      warn: 3,
-      alert: 4,
-      normal: 5,
-      nominal: 6
-    };
     // sort based on priority and time raised
     const alerts = Array.from(this.alertMap).sort((a, b) => {
-      const ra = rankings[a[1].priority];
-      const rb = rankings[b[1].priority];
+      const ra = PRIORITY_RANK[a[1].priority];
+      const rb = PRIORITY_RANK[b[1].priority];
       if (ra === rb) {
         return b[1].createdAt - a[1].createdAt;
       } else {
@@ -353,6 +366,57 @@ export class NotificationManager {
       this.app.skApiVersion,
       `alarms/${alert.type}/${id}`
     );
+  }
+
+  /**
+   * @description Bring the collision alerts in line with the latest list from
+   * the USV (COLAV_ALERTS). One alert per contact, raised when the helm starts
+   * steering around it and cleared when the USV stops listing it.
+   *
+   * Updated in place, so a CPA that changes every second does not sound the
+   * alert again. Replaced only when its priority changes: a step up to alarm
+   * sounds again and has to be acknowledged again, a step down stops the
+   * sound and keeps the acknowledgement.
+   * @param specs Alerts to show, every other collision alert is cleared
+   */
+  public setColavAlerts(specs: ColavAlertSpec[]) {
+    const listed = new Set<string>();
+    specs.forEach((spec) => {
+      const path = COLAV_PATH + spec.id;
+      listed.add(path);
+      const current = this.alertMap.get(path);
+      if (current && current.priority === spec.priority) {
+        current.message = spec.message;
+        current.details = spec.details;
+        current.properties = spec.properties;
+        return;
+      }
+      const raised =
+        !current ||
+        PRIORITY_RANK[spec.priority] < PRIORITY_RANK[current.priority];
+      const alert: AlertData = {
+        path: path,
+        priority: spec.priority,
+        message: spec.message,
+        sound: raised,
+        visual: true,
+        properties: spec.properties,
+        details: spec.details,
+        acknowledged: raised ? false : current.acknowledged,
+        silenced: raised ? false : current.silenced,
+        icon: {},
+        type: 'colav',
+        canAcknowledge: true,
+        canCancel: false, // the USV clears it, a local clear would come straight back
+        createdAt: current ? current.createdAt : Date.now()
+      };
+      alert.icon = getAlertIcon(alert);
+      this.alertMap.set(path, alert);
+    });
+    Array.from(this.alertMap.keys())
+      .filter((path) => path.startsWith(COLAV_PATH) && !listed.has(path))
+      .forEach((path) => this.alertMap.delete(path));
+    this.emitSignals();
   }
 
   // parse ClosestApproach message data

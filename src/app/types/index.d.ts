@@ -84,6 +84,28 @@ export interface ColregsStatus {
   mode: string;        // raw $[FULL_MODE], e.g. "giveway:stern"
 }
 
+// One contact the helm is steering around, as iWebSocket reports it in
+// COLAV_ALERTS. -1 is unknown.
+export interface ColavAlert {
+  cn: string;          // MOOS contact name: AIS<mmsi>, contato_<n> from the radar
+  mmsi: number;        // 0 when the contact is not from AIS
+  active: boolean;     // the helm is avoiding it right now; false while held after
+  for: number;         // s since the avoidance started
+  mode: string;        // COLREGS mode, e.g. "giveway:stern"
+  hdg: number;         // contact heading, degrees true
+  spd: number;         // contact speed, m/s
+  range: number;       // m
+  bng: number;         // true bearing from the USV, degrees
+  relBng: number;      // bearing relative to the USV's heading, degrees
+  cpa: number;         // m, on present courses and speeds
+  tcpa: number;        // s; 0 once the range is opening
+  lat?: number;
+  lon?: number;
+  len?: number;        // m, 0 when not reported
+  type?: string;       // NODE_REPORT TYPE
+  age: number;         // s since the contact last reported
+}
+
 export interface ColavEncounter {
   id: string;
   cn: string;
@@ -446,6 +468,9 @@ export interface FBAppData {
     // live COLREGS state for the box over the boat, null when the behaviour
     // is not avoiding anything
     colregs?: ColregsStatus | null;
+    // contacts the helm is steering around (COLAV_ALERTS, a JSON array of
+    // ColavAlert), raised in the Alert List
+    colavAlerts?: string;
     // distances iWebSocket reports it has pushed into avdcol_
     colavDist?: string;
     // range (m) inside which contacts are engaged, as the backend reports it

@@ -58,8 +58,13 @@
     width:100%;
   }
 
-  .alert-text {
+  .alert-body {
     flex:2;
+    min-width: 0;
+    text-align:left;
+  }
+
+  .alert-text {
     text-align:left;
     overflow: hidden;
     display: -webkit-box;
@@ -67,6 +72,26 @@
     -webkit-line-clamp: 3;
     line-clamp: 3;
     text-overflow:ellipsis;
+  }
+
+  /* label / value pairs under the message, e.g. a collision alert's CPA */
+  .alert-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 14px;
+    margin-top: 4px;
+    font-size: 0.9em;
+    line-height: 1.5em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .alert-detail {
+    white-space: nowrap;
+  }
+
+  .alert-detail-label {
+    opacity: 0.65;
+    font-weight: 500;
   }
 
   .red-text {

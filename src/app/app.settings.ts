@@ -634,6 +634,7 @@ export function initMoosIvPData(): { [key: string]: any } {
     colavTestAck: false,
     colavMetrics: '',
     colregs: null,
+    colavAlerts: '',
     colavDist: '',
     aisRadius: 0,
     trafficSpawned: '',

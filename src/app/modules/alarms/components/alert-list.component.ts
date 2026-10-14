@@ -124,18 +124,32 @@ import { NotificationManager } from '../notification-manager';
                   >
                 </div>
                 <div
-                  class="alert-text"
+                  class="alert-body"
                   (click)="notiMgr.showAlertInfo(item[1].path)"
-                  [ngClass]="{
-                    'blink-text':
-                      item[1].canAcknowledge && !item[1].acknowledged,
-                    'red-text': ['emergency', 'alarm'].includes(
-                      item[1].priority
-                    ),
-                    'amber-text': item[1].priority === 'alert'
-                  }"
                 >
-                  {{ item[1].message }}
+                  <div
+                    class="alert-text"
+                    [ngClass]="{
+                      'blink-text':
+                        item[1].canAcknowledge && !item[1].acknowledged,
+                      'red-text': ['emergency', 'alarm'].includes(
+                        item[1].priority
+                      ),
+                      'amber-text': item[1].priority === 'alert'
+                    }"
+                  >
+                    {{ item[1].message }}
+                  </div>
+                  @if(item[1].details?.length) {
+                  <div class="alert-details">
+                    @for(d of item[1].details; track d[0]) {
+                    <span class="alert-detail"
+                      ><span class="alert-detail-label">{{ d[0] }}</span>
+                      {{ d[1] }}</span
+                    >
+                    }
+                  </div>
+                  }
                 </div>
                 <div style="width:90px;">
                   @if(item[1].sound) {

@@ -127,6 +127,13 @@ export const getAlertIcon = (alert: AlertData): AppIconDef => {
       svgIcon: `alarm-${alert.type}`,
       name: undefined
     };
+  } else if (alert.type === 'colav') {
+    // the USV's own collision avoidance at work
+    return {
+      class: 'ob',
+      svgIcon: 'alarm-cpa',
+      name: undefined
+    };
   } else if (alert.type === 'arrival') {
     return {
       class: undefined,
