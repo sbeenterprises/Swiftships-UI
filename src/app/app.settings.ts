@@ -777,7 +777,8 @@ export function initData(): FBAppData {
       }
     },
     showChecklist: false,
-    showEngineStatus: false
+    showEngineStatus: false,
+    showCalibration: false
   };
 }
 

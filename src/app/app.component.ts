@@ -1219,6 +1219,12 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
+  /** Route-tracking calibration card (pRouteTuner operator controls). */
+  protected toggleCalibration() {
+    this.app.data.showCalibration = !this.app.data.showCalibration;
+    this.focusMap();
+  }
+
   // Remote control methods
   protected updateRudder(value: number) {
     this.remoteControl.rudder = Math.max(-50, Math.min(50, value));

@@ -1570,6 +1570,15 @@
               </button>
             </div>
             <div class="buttonPanelItem">
+              <button mat-mini-fab [ngClass]="{
+                  'button-primary': app.data.showCalibration,
+                  'button-toolbar': !app.data.showCalibration
+                }" (click)="toggleCalibration()" matTooltip="Route Calibration" matTooltipPosition="right"
+                aria-label="Route Calibration">
+                <mat-icon>tune</mat-icon>
+              </button>
+            </div>
+            <div class="buttonPanelItem">
               <button class="button-toolbar" mat-mini-fab [disabled]="isInteracting" matTooltip="More actions"
                 matTooltipPosition="right" [matMenuTriggerFor]="settingsmenu">
                 <mat-icon>more_horiz</mat-icon>
@@ -1891,6 +1900,9 @@
           }
           @if(app.data.showEngineStatus) {
           <engine-status [engineData]="engineStatus" (closed)="toggleEngineStatus()"></engine-status>
+          }
+          @if(app.data.showCalibration) {
+          <calibration-card (closed)="toggleCalibration()"></calibration-card>
           }
 
           <div class="alarmPanel">

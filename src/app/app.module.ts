@@ -32,6 +32,7 @@ import {
   AlertListComponent,
   SystemChecklistComponent,
   EngineStatusComponent,
+  CalibrationCardComponent,
   AutopilotComponent,
   RouteNextPointComponent,
   RouteListComponent,
@@ -102,6 +103,7 @@ import {
     AlertListComponent,
     SystemChecklistComponent,
     EngineStatusComponent,
+    CalibrationCardComponent,
     RouteNextPointComponent,
     RadarDisplayComponent,
     ReplayBarComponent
