@@ -2014,3 +2014,42 @@ mat-nav-list {
 
 /* Remote control: boat gear differs from the selected gear (shift in progress) */
 .remote-control-sidenav .gear-shifting { color: #e8912d !important; }
+
+/* ===== Autonomous panel: Plan / Live / Tuning layout ===== */
+.autonomous-control-sidenav .ac-checks { display: flex; flex-direction: column; gap: 4px; }
+.autonomous-control-sidenav .ac-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #f08080; }
+.autonomous-control-sidenav .ac-check mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.autonomous-control-sidenav .ac-check.ok { color: #d7e1ec; }
+.autonomous-control-sidenav .ac-check.ok mat-icon { color: #4bd694; }
+.autonomous-control-sidenav .ac-check.warn { color: #f0b45c; }
+.autonomous-control-sidenav .ac-summary { font-size: 12px; color: #c0c9d4; margin: -8px 0 4px; }
+.autonomous-control-sidenav .ac-route-name { font-weight: 700; font-size: 15px; color: #fff; }
+.autonomous-control-sidenav .ac-colregs { border-color: #e8912d !important; background: #3a2a12 !important; gap: 4px; }
+.autonomous-control-sidenav .ac-colregs[data-tone="urgent"] { border-color: #e5484d !important; background: #3d1416 !important; }
+.autonomous-control-sidenav .ac-colregs[data-tone="hold"] { border-color: #2f6fb3 !important; background: #12263f !important; }
+.autonomous-control-sidenav .ac-colregs-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: #ffd9a1; }
+.autonomous-control-sidenav .ac-colregs-line { font-size: 12px; color: #f3e2c7; }
+.autonomous-control-sidenav .ac-hold { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(11, 22, 38, 0.6); color: #7fc4ff; }
+.autonomous-control-sidenav .ac-hold-txt { flex: 1; display: flex; flex-direction: column; font-size: 13px; font-weight: 700; color: #fff; }
+.autonomous-control-sidenav .ac-hold-txt small { font-weight: 400; font-size: 11px; color: #c0c9d4; }
+.autonomous-control-sidenav .ac-colav-idle { flex-direction: row !important; align-items: center; gap: 8px; font-size: 12px; color: #d7e1ec; }
+.autonomous-control-sidenav .ac-colav-idle .chip-dot { background: #4bd694; }
+.autonomous-control-sidenav .ac-statusline { display: flex; justify-content: space-between; padding: 0 4px; font-size: 11px; color: #9fb7cf; }
+.autonomous-control-sidenav .ac-speed { display: flex; align-items: center; gap: 8px; }
+.autonomous-control-sidenav .ac-speed-val { flex: 1; text-align: center; font: 700 28px 'Roboto Mono', monospace; color: #fff; }
+.autonomous-control-sidenav .ac-speed-val em { font: 400 13px Roboto, sans-serif; font-style: normal; color: #c0c9d4; margin-left: 3px; }
+.autonomous-control-sidenav .control-btn.ac-preset-on { border-color: #e8912d !important; color: #e8912d !important; }
+.autonomous-control-sidenav .ac-tuning-note { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; font-size: 12px; color: #f0d3a4; background: rgba(240, 180, 92, 0.08); border: 1px solid rgba(240, 180, 92, 0.35); }
+.autonomous-control-sidenav .ac-acc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 48px; padding: 8px 12px; border-radius: 12px; cursor: pointer; text-align: left; background: rgba(20, 37, 62, 0.55); border: 1px solid rgba(46, 74, 110, 0.55); color: #fff; font: 700 13px Roboto, sans-serif; }
+.autonomous-control-sidenav .ac-acc-head > span { display: flex; flex-direction: column; gap: 2px; }
+.autonomous-control-sidenav .ac-acc-head small { font-weight: 400; font-size: 11px; color: #c0c9d4; }
+.autonomous-control-sidenav .ac-footer { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #0d1a2c; border-top: 1px solid rgba(46, 74, 110, 0.5); }
+.autonomous-control-sidenav .ac-footer .mission-btn { margin: 0 !important; }
+.autonomous-control-sidenav .ac-footer .ac-btn-lg { min-height: 52px; font-size: 15px !important; }
+.autonomous-control-sidenav .ac-link-btn { border: 0; background: transparent; color: #9fb7cf; font: 600 12px Roboto, sans-serif; min-height: 32px; cursor: pointer; }
+.autonomous-control-sidenav .ac-missionbar-info { display: flex; justify-content: space-between; font-size: 12px; color: #c0c9d4; }
+.autonomous-control-sidenav .ac-missionbar-info strong { color: #4bd694; }
+.autonomous-control-sidenav .ac-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.autonomous-control-sidenav .ac-speed + .control-buttons { grid-template-columns: repeat(4, 1fr); }
+.autonomous-control-sidenav .ac-speed + .control-buttons .control-btn { flex: 1 1 0; min-width: 0 !important; padding: 8px 4px !important; }
+.autonomous-control-sidenav .ac-acc-head + .autonomous-control-section > h3 { display: none; }

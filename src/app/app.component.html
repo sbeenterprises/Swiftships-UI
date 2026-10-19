@@ -650,46 +650,65 @@
         <mat-sidenav #sideautonomouscontrol mode="side" position="end" [opened]="display.autonomousControlPanelOpen"
           class="autonomous-control-sidenav" style="width: 350px;">
           <div class="ac-root" style="position: relative;">
-            <!-- Header: logo + title + live connection chip (dev usv01 design) -->
+            <!-- Header: mission state. CAN is switched from the left toolbar only. -->
             <header class="ac-header">
               <mat-icon class="ac-logo">directions_boat</mat-icon>
               <span class="ac-title">Autonomous control</span>
-              <span class="ac-chip"
-                [class.linked]="autonomousControl.canSend"
-                [class.offline]="!autonomousControl.canSend">
+              <span class="ac-chip" [class.linked]="autonomousControl.waypointActive">
                 <span class="chip-dot"></span>
-                {{ autonomousControl.waypointActive ? 'Active' : 'Standby' }} &middot;
-                {{ autonomousControl.canSend ? 'linked' : 'offline' }}
+                {{ autonomousControl.waypointActive ? 'Mission active' : 'Standby' }}
               </span>
               <a mat-icon-button (click)="closeAutonomousControl()" class="ac-close">
                 <mat-icon>close</mat-icon>
               </a>
             </header>
-            <!-- tab switch: Mission / Follow / PID / COLAV / Test -->
-            <div class="ac-tabs wrap">
+            <!-- tab switch: Mission / Follow / Tuning -->
+            <div class="ac-tabs">
               <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'mission'"
                 (click)="setAutonomousPanelTab('mission')">Mission</button>
               <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'follow'"
                 (click)="setAutonomousPanelTab('follow')">Follow</button>
-              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'pid'"
-                (click)="setAutonomousPanelTab('pid')">
-                PID
+              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'tuning'"
+                (click)="setAutonomousPanelTab('tuning')">
+                Tuning
                 <!-- service mode ON means the boat is on hand-entered gains: flag it from any tab -->
                 @if(servicePid.enabled) {
                 <span class="ac-tab-dot"></span>
                 }
               </button>
-              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'colav'"
-                (click)="setAutonomousPanelTab('colav')">COLAV</button>
-              <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'test'"
-                (click)="setAutonomousPanelTab('test')">Test</button>
             </div>
 
             <div class="autonomous-control-content ac-panes">
               @if(autonomousPanelTab === 'mission') {
-              <!-- Route Selection -->
+              @if(!autonomousControl.waypointActive) {
+              <!-- ===== Plan (standby) ===== -->
               <div class="autonomous-control-section">
-                <h3>Route Selection</h3>
+                <h3>Ready to start</h3>
+                <div class="ac-checks">
+                  <div class="ac-check" [class.ok]="app.data.moosIvPServer.connected && app.data.moosIvPServer.canSend">
+                    <mat-icon>{{ app.data.moosIvPServer.connected && app.data.moosIvPServer.canSend ? 'check' : 'close' }}</mat-icon>
+                    {{ !app.data.moosIvPServer.connected ? 'No boat link'
+                       : app.data.moosIvPServer.canSend ? 'Boat link and CAN sending on'
+                       : 'CAN sending is off (left toolbar power button)' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="app.data.moosIvPServer.ivpHelmState !== 'DRIVE'">
+                    <mat-icon>{{ app.data.moosIvPServer.ivpHelmState !== 'DRIVE' ? 'check' : 'close' }}</mat-icon>
+                    {{ app.data.moosIvPServer.ivpHelmState !== 'DRIVE' ? 'Helm parked' : 'Helm is driving' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="!!autonomousControl.selectedRoute">
+                    <mat-icon>{{ autonomousControl.selectedRoute ? 'check' : 'close' }}</mat-icon>
+                    {{ autonomousControl.selectedRoute ? 'Route selected' : 'Select a route' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="!!app.data.map.basePosition" [class.warn]="!app.data.map.basePosition">
+                    <mat-icon>{{ app.data.map.basePosition ? 'check' : 'priority_high' }}</mat-icon>
+                    {{ app.data.map.basePosition ? 'Base set' : 'No base set: Return to base unavailable' }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Route -->
+              <div class="autonomous-control-section">
+                <h3>Route</h3>
                 <div class="control-group">
                   <mat-form-field appearance="outline" class="route-select-field">
                     <mat-label>Select Route</mat-label>
@@ -701,18 +720,50 @@
                       </mat-option>
                     </mat-select>
                   </mat-form-field>
-                  <mat-checkbox [checked]="autonomousControl.repeatRoute" (change)="updateRepeatRoute($event.checked)"
-                    style="margin-top: -16px; margin-bottom: 8px;">
-                    <span class="control-label">Repeat route continuously</span>
-                  </mat-checkbox>
-                  <div class="control-display">
-                    <span class="control-label">Selected Route:</span>
-                    <span class="control-value">{{ getSelectedRouteName() }}</span>
+                  @if(autonomousControl.selectedRoute) {
+                  <div class="ac-summary">
+                    {{ selectedRoutePointCount }} waypoints · {{ (autonomousControl.totalDistance / 1852).toFixed(1) }} nm
+                    @if(autonomousControl.totalTimeOfArrival > 0) {
+                    · about {{ formatTime(autonomousControl.totalTimeOfArrival) }}
+                    }
+                  </div>
+                  }
+                  <div class="ac-togrow">
+                    <div class="ac-tog-txt">Repeat route
+                      <small>Loop the mission on completion</small>
+                    </div>
+                    <button type="button" class="ac-sw" [class.on]="autonomousControl.repeatRoute"
+                      role="switch" [attr.aria-checked]="autonomousControl.repeatRoute"
+                      (click)="toggleRepeatRoute()" aria-label="Repeat route"></button>
                   </div>
                 </div>
               </div>
 
-              <!-- Region Selection -->
+              <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
+
+              <!-- Base (return-to-base point). Set from the map: right-click > Define Base -->
+              <div class="autonomous-control-section">
+                <h3>Base</h3>
+                <div class="control-group">
+                  <div class="control-display">
+                    <span class="control-label">Position:</span>
+                    <span class="control-value">
+                      {{ app.data.map.basePosition
+                         ? (app.data.map.basePosition[1] | number: '1.5-5') + ', ' + (app.data.map.basePosition[0] | number: '1.5-5')
+                         : 'Not set' }}
+                    </span>
+                  </div>
+                  @if(!app.data.map.basePosition) {
+                  <div class="service-mode-hint">Right-click the map and choose Define Base.</div>
+                  }
+                  <button mat-raised-button (click)="deleteBase()" [disabled]="!app.data.map.basePosition"
+                    class="control-btn">
+                    <mat-icon>delete</mat-icon>
+                    Delete Base
+                  </button>
+                </div>
+              </div>
+
               <div class="autonomous-control-section">
                 <h3>Region Selection</h3>
                 <div class="control-group">
@@ -733,15 +784,6 @@
                 </div>
               </div>
 
-              <!-- ===== ENC autonomy planner (usv01 design) ===== -->
-              <div class="ac-phasebar">
-                <span class="ac-phase-lbl">Phase follows status</span>
-                <div class="ac-phase-tabs">
-                  <span class="ac-phase-tab" [class.on]="!autonomousControl.waypointActive">Standby &middot; Plan</span>
-                  <span class="ac-phase-tab" [class.on]="autonomousControl.waypointActive">Active &middot; Control</span>
-                </div>
-              </div>
-
               @if(depthReferencePosture() !== 'ok') {
               <div class="autonomous-control-section ac-depthref"
                 [class.no-enc]="depthReferencePosture() === 'no-enc'"
@@ -756,102 +798,67 @@
                 </span>
               </div>
               }
-
-              <div class="autonomous-control-section">
-                <h3>Route Planning</h3>
-                <div class="ac-row corridor-row">
-                  <button mat-stroked-button class="corridor-btn"
-                    [disabled]="planningRoute || !autonomousControl.selectedRoute"
-                    (click)="planSafeRoute()">
-                    <mat-icon>{{ planningRoute ? 'hourglass_empty' : 'alt_route' }}</mat-icon>
-                    {{ planningRoute ? 'Planning…' : 'Plan Safe Route' }}
-                  </button>
+              } @else {
+              <!-- ===== Live (mission running): critical information only ===== -->
+              @if(app.data.moosIvPServer.colregs; as cr) {
+              <div class="autonomous-control-section ac-colregs" [attr.data-tone]="cr.tone">
+                <div class="ac-colregs-head">
+                  <mat-icon>{{ cr.icon || 'warning' }}</mat-icon>
+                  <span>{{ cr.name }}@if(cr.rule) { · {{ cr.rule }} }</span>
                 </div>
-                <div class="ac-row corridor-row">
-                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.active"
-                    (click)="corridor.active ? clearCorridor() : sendCorridor()">
-                    <mat-icon>{{ corridor.active ? 'linear_scale' : 'route' }}</mat-icon>
-                    {{ corridor.active ? 'Clear Route Corridor' : 'Send Route Corridor' }}
-                  </button>
-                  <span *ngIf="corridor.active" class="corridor-status" [attr.data-status]="corridor.status">
-                    {{ corridorStatusText() }}
+                <div class="ac-colregs-line">{{ cr.action }}</div>
+                <div class="ac-colregs-line"><strong>{{ cr.target }}</strong> · {{ cr.detail }}
+                  @if(cr.others > 0) { · +{{ cr.others }} more }
+                </div>
+              </div>
+              }
+
+              <div class="autonomous-control-section ac-status-card">
+                <div class="ac-status-row">
+                  <span class="ac-route-name">{{ getSelectedRouteName() }}</span>
+                  <span class="ac-wp">WP {{ autonomousControl.currentWaypoint + 1 }}@if(selectedRoutePointCount) { / {{ selectedRoutePointCount }} }</span>
+                </div>
+                <div class="ac-progress">
+                  <div class="ac-progress-fill" [style.width.%]="autonomousControl.progress"></div>
+                </div>
+                @if(activeWaypointStationKeep.active) {
+                <div class="ac-hold">
+                  <mat-icon>adjust</mat-icon>
+                  <span class="ac-hold-txt">Holding at waypoint
+                    <small>Inner {{ activeWaypointStationKeep.innerRadius }} m · outer {{ activeWaypointStationKeep.outerRadius }} m</small>
                   </span>
+                  <span class="ac-metric-val">{{ formatTime(activeWaypointStationKeep.timeRemaining) }}</span>
+                </div>
+                }
+                <div class="ac-metrics">
+                  <div class="ac-metric">
+                    <span class="ac-metric-lbl">Remaining</span>
+                    <span class="ac-metric-val">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }}<em>nm</em></span>
+                  </div>
+                  <div class="ac-metric">
+                    <span class="ac-metric-lbl">TOA</span>
+                    <span class="ac-metric-val">{{ autonomousControl.totalTimeOfArrival > 0 ? formatTime(autonomousControl.totalTimeOfArrival) : 'N/A' }}</span>
+                  </div>
+                  <div class="ac-metric">
+                    <span class="ac-metric-lbl">SOG</span>
+                    <span class="ac-metric-val">{{ app.data.vessels.self.sog ? app.formatSpeed(app.data.vessels.self.sog, true) : '--' }}</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="autonomous-control-section ac-planner">
-                <h3>Planner</h3>
-                <div class="ac-seg" role="group" aria-label="Planner algorithm">
-                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'theta'"
-                    (click)="plannerAlgorithm = 'theta'">Theta*<small>any-angle</small></button>
-                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'astar'"
-                    (click)="plannerAlgorithm = 'astar'">A* grid</button>
-                  <button type="button" class="ac-seg-btn" disabled>Medial<small>soon</small></button>
-                </div>
-                <div class="ac-slider-row">
-                  <span class="ac-slider-lbl">Hazard clearance</span>
-                  <span class="ac-slider-val">{{ planClearanceM }} m</span>
-                </div>
-                <mat-slider min="5" max="60" step="1" class="clearance-slider">
-                  <input matSliderThumb [value]="planClearanceM" (input)="planClearanceM = +$any($event.target).value">
-                </mat-slider>
-                <div class="ac-slider-row">
-                  <span class="ac-slider-lbl">Corridor width</span>
-                  <span class="ac-slider-val">{{ corridorWidthM }} m</span>
-                </div>
-                <mat-slider min="20" max="150" step="5" class="clearance-slider">
-                  <input matSliderThumb [value]="corridorWidthM" (input)="corridorWidthM = +$any($event.target).value">
-                </mat-slider>
+              @if(!app.data.moosIvPServer.colregs) {
+              <div class="autonomous-control-section ac-colav-idle">
+                <span class="chip-dot"></span>
+                Collision avoidance: monitoring, no active encounter
               </div>
+              }
 
-              <div class="autonomous-control-section ac-planner">
-                <h3>Rules</h3>
-                <div class="ac-togrow">
-                  <div class="ac-tog-txt">Keep to channel centre
-                    <small>Always on — keeps the route clear of edges</small>
-                  </div>
-                  <button type="button" class="ac-sw on" disabled role="switch" aria-checked="true"
-                    aria-label="Keep to channel centre (always on)"></button>
-                </div>
-                <div class="ac-togrow">
-                  <div class="ac-tog-txt">Repeat route
-                    <small>Loop the mission on completion</small>
-                  </div>
-                  <button type="button" class="ac-sw" [class.on]="autonomousControl.repeatRoute"
-                    role="switch" [attr.aria-checked]="autonomousControl.repeatRoute"
-                    (click)="toggleRepeatRoute()" aria-label="Repeat route"></button>
-                </div>
-              </div>
+              <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
 
-              <!-- Speed Control (only shown when CAN Messages are enabled) -->
-              @if(autonomousControl.canSend) {
-              <div class="autonomous-control-section">
-                <h3>Speed Control</h3>
-                <div class="control-group">
-                  <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 8px;">
-                    <button mat-icon-button (click)="updateSpeed(autonomousControl.speed - 1)"
-                      [disabled]="autonomousControl.speed <= 0" class="slider-btn minus-btn">
-                      <mat-icon>remove</mat-icon>
-                    </button>
-                    <mat-slider min="0" max="50" step="1" class="speed-slider" style="flex: 1;">
-                      <input matSliderThumb [value]="autonomousControl.speed"
-                        (input)="updateSpeed($any($event.target).value)">
-                    </mat-slider>
-                    <button mat-icon-button (click)="updateSpeed(autonomousControl.speed + 1)"
-                      [disabled]="autonomousControl.speed >= 50" class="slider-btn plus-btn">
-                      <mat-icon>add</mat-icon>
-                    </button>
-                  </div>
-                  <div class="control-display">
-                    <span class="control-label">Target Speed:</span>
-                    <span class="control-value">{{ autonomousControl.speed }} knots</span>
-                  </div>
-                  <div class="control-buttons">
-                    <button mat-raised-button (click)="updateSpeed(0)" class="control-btn">Stop 0kn</button>
-                    <button mat-raised-button (click)="updateSpeed(10)" class="control-btn">Cruise 10kn</button>
-                    <button mat-raised-button (click)="updateSpeed(20)" class="control-btn">Fast 20kn</button>
-                  </div>
-                </div>
+              <div class="ac-statusline">
+                <span>Helm {{ app.data.moosIvPServer.ivpHelmState || '--' }}</span>
+                <span>CAN {{ app.data.moosIvPServer.canSend ? 'on' : 'off' }}</span>
+                <span>{{ app.data.map.basePosition ? 'Base set' : 'No base' }}</span>
               </div>
               }
               }
@@ -906,135 +913,264 @@
               </div>
               }
 
-              @if(autonomousPanelTab === 'mission') {
-              <!-- Mission Status -->
-              <div class="autonomous-control-section ac-status-card">
-                <h3>Mission Status</h3>
-                <div class="control-group">
-                  <div class="ac-status-row">
-                    <span class="status-chip" [class.active]="autonomousControl.waypointActive">
-                      <mat-icon>{{ autonomousControl.waypointActive ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
-                      {{ autonomousControl.waypointActive ? 'Mission active' : 'Standby' }}
-                    </span>
-                    <span class="ac-wp" *ngIf="autonomousControl.waypointActive">
-                      WP {{ autonomousControl.currentWaypoint + 1 }} · {{ autonomousControl.progress }}%
-                    </span>
-                  </div>
-                  <div class="ac-progress" *ngIf="autonomousControl.waypointActive">
-                    <div class="ac-progress-fill" [style.width.%]="autonomousControl.progress"></div>
-                  </div>
-                  <div class="ac-metrics">
-                    <div class="ac-metric">
-                      <span class="ac-metric-lbl">Remaining</span>
-                      <span class="ac-metric-val">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }}<em>nm</em></span>
-                    </div>
-                    <div class="ac-metric">
-                      <span class="ac-metric-lbl">Total</span>
-                      <span class="ac-metric-val">{{ (autonomousControl.totalDistance / 1852).toFixed(2) }}<em>nm</em></span>
-                    </div>
-                    <div class="ac-metric">
-                      <span class="ac-metric-lbl">Total TOA</span>
-                      <span class="ac-metric-val">{{ autonomousControl.totalTimeOfArrival > 0 ? formatTime(autonomousControl.totalTimeOfArrival) : 'N/A' }}</span>
-                    </div>
-                  </div>
-                </div>
+              @if(autonomousPanelTab === 'tuning') {
+              <div class="ac-tuning-note">
+                <mat-icon>info</mat-icon>
+                Engineering settings. Changes reach the boat immediately.
               </div>
 
-              <!-- Base (return-to-base point). Set from the map: right-click > Define Base -->
-              <div class="autonomous-control-section">
-                <h3>Base</h3>
-                <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">Position:</span>
-                    <span class="control-value">
-                      {{ app.data.map.basePosition
-                         ? (app.data.map.basePosition[1] | number: '1.5-5') + ', ' + (app.data.map.basePosition[0] | number: '1.5-5')
-                         : 'Not set' }}
-                    </span>
-                  </div>
-                  @if(!app.data.map.basePosition) {
-                  <div class="service-mode-hint">Right-click the map and choose Define Base.</div>
-                  }
-                  <button mat-raised-button (click)="deleteBase()" [disabled]="!app.data.map.basePosition"
-                    class="control-btn">
-                    <mat-icon>delete</mat-icon>
-                    Delete Base
-                  </button>
-                </div>
-              </div>
+              <!-- Heading & speed PID (service mode) -->
+              <button type="button" class="ac-acc-head" (click)="toggleTuning('pid')" [attr.aria-expanded]="tuningOpen.pid">
+                <span>Heading &amp; speed PID
+                  <small>{{ servicePid.enabled ? 'Service mode ON · hand-entered gains' : 'Service mode off · boat gain schedule' }}</small>
+                </span>
+                <mat-icon>{{ tuningOpen.pid ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if(tuningOpen.pid) {
+                  <!-- Service Mode: live PID calibration -->
+                  <div class="autonomous-control-section" [class.service-mode-active]="servicePid.enabled">
+                    <h3>Service Mode</h3>
+                    <div class="control-group">
+                      <div class="control-display">
+                        <span class="control-label">PID Calibration:</span>
+                        <mat-slide-toggle class="service-mode-toggle" [checked]="servicePid.enabled"
+                          (change)="toggleServiceMode($event.checked)">
+                          <span class="control-value" [style.color]="servicePid.enabled ? '#ffb74d' : '#87ceeb'">
+                            {{ servicePid.enabled ? 'ON' : 'OFF' }}
+                          </span>
+                        </mat-slide-toggle>
+                      </div>
 
-              <!-- Mission Controls (only shown when CAN Messages are enabled) -->
-              @if(autonomousControl.canSend) {
-              <div class="autonomous-control-section">
-                <h3>Mission Controls</h3>
-                <div class="control-group">
-                  <div class="mission-buttons-row">
-                    <button mat-raised-button (click)="startMission()"
-                      [disabled]="!autonomousControl.selectedRoute || autonomousControl.waypointActive"
-                      class="mission-btn start-btn">
-                      <mat-icon>play_arrow</mat-icon>
-                      Start
-                    </button>
-                    <button mat-raised-button (click)="stopMission()" [disabled]="!autonomousControl.waypointActive"
-                      class="mission-btn stop-btn">
-                      <mat-icon>pause</mat-icon>
-                      Stop
-                    </button>
+                      @if(servicePid.enabled) {
+                      <div class="service-mode-warning">
+                        <mat-icon>warning</mat-icon>
+                        <span>Gain scheduling bypassed. The boat is running on the values below.</span>
+                      </div>
+
+                      @for(loop of pidLoops; track loop.id) {
+                      <div class="pid-loop">
+                        <div class="pid-loop-title">{{ loop.title }} <span>&rarr; {{ loop.output }}</span></div>
+
+                        @for(spec of pidGainSpecs[loop.id]; track spec.key) {
+                        <div class="pid-gain">
+                          <div class="pid-gain-head">
+                            <span class="control-label">{{ spec.label }}</span>
+                            <input class="pid-gain-input" type="number" [min]="spec.min" [max]="spec.max"
+                              [step]="spec.step" [value]="servicePid[loop.id][spec.key]"
+                              (change)="onPidGainInput(loop.id, spec.key, $event)">
+                          </div>
+                          <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
+                            <button mat-icon-button class="slider-btn minus-btn"
+                              (click)="nudgePidGain(loop.id, spec.key, -1)"
+                              [disabled]="servicePid[loop.id][spec.key] <= spec.min">
+                              <mat-icon>remove</mat-icon>
+                            </button>
+                            <mat-slider [min]="spec.min" [max]="spec.max" [step]="spec.step" class="pid-slider"
+                              style="flex: 1;">
+                              <input matSliderThumb [value]="servicePid[loop.id][spec.key]"
+                                (input)="updatePidGain(loop.id, spec.key, $any($event.target).value)">
+                            </mat-slider>
+                            <button mat-icon-button class="slider-btn plus-btn"
+                              (click)="nudgePidGain(loop.id, spec.key, 1)"
+                              [disabled]="servicePid[loop.id][spec.key] >= spec.max">
+                              <mat-icon>add</mat-icon>
+                            </button>
+                          </div>
+                        </div>
+                        }
+
+                        <div class="control-display pid-applied">
+                          <span class="control-label">Applied:</span>
+                          <span class="control-value pid-applied-value">
+                            {{ appliedPidGain(loop.id, 'kp') }} / {{ appliedPidGain(loop.id, 'ki') }} /
+                            {{ appliedPidGain(loop.id, 'kd') }}
+                          </span>
+                        </div>
+                      </div>
+                      }
+
+                      <div class="control-buttons">
+                        <button mat-raised-button (click)="resetPidGains()" class="control-btn">
+                          <mat-icon>restart_alt</mat-icon>
+                          Reset
+                        </button>
+                        <button mat-raised-button (click)="sendAllPidGains()" class="control-btn center-btn">
+                          <mat-icon>upload</mat-icon>
+                          Re-send
+                        </button>
+                      </div>
+                      }
+                    </div>
                   </div>
-                  <div class="mission-buttons-row">
-                    <button mat-raised-button (click)="clearPath()" class="mission-btn clear-btn">
-                      <mat-icon>clear</mat-icon>
-                      Clear Path
-                    </button>
-                    <button mat-raised-button (click)="returnToBase()" [disabled]="!autonomousControl.selectedRoute"
-                      class="mission-btn return-btn">
-                      <mat-icon>home</mat-icon>
-                      Return to Base
-                    </button>
-                  </div>
-                  <button mat-raised-button color="warn" (click)="abortMission()"
-                    [disabled]="!autonomousControl.waypointActive" class="mission-btn abort-btn">
-                    <mat-icon>warning</mat-icon>
-                    ABORT MISSION
-                  </button>
-                </div>
-              </div>
               }
 
-              <!-- CAN Messages Control -->
-              <div class="autonomous-control-section">
-                <h3>CAN Messages</h3>
-                <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">Status:</span>
-                    <span class="control-value" [style.color]="autonomousControl.canSend ? '#4caf50' : '#f44336'">
-                      {{ autonomousControl.canSend ? 'Enabled' : 'Disabled' }}
-                    </span>
+              <!-- Collision-avoidance distances -->
+              <button type="button" class="ac-acc-head" (click)="toggleTuning('colav')" [attr.aria-expanded]="tuningOpen.colav">
+                <span>Collision-avoidance distances
+                  <small>
+                    @if(colavDist.applied; as a) {
+                    {{ a.outer }} / {{ a.inner }} m · release {{ a.completed }} m · CPA {{ a.minCpa }}–{{ a.maxCpa }} m
+                    } @else { Not confirmed by the boat }
+                  </small>
+                </span>
+                <mat-icon>{{ tuningOpen.colav ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if(tuningOpen.colav) {
+                  <!-- Collision Avoidance Distances: the engagement envelope the
+                       running avdcol_ behaviour (BHV_AvdColregsV22) is configured
+                       with, editable live so it can be trimmed on the water -->
+                  <div class="autonomous-control-section" [class.service-mode-active]="colavDistPending">
+                    <h3>Collision Avoidance Distances</h3>
+                    <div class="control-group">
+                      @for(group of colavDistGroups; track group.id) {
+                      <div class="pid-loop">
+                        <div class="pid-loop-title">{{ group.title }} <span>&rarr; {{ group.output }}</span></div>
+
+                        @for(spec of colavDistSpecsFor(group.id); track spec.key) {
+                        <div class="pid-gain">
+                          <div class="pid-gain-head">
+                            <span class="control-label">{{ spec.label }} (m)</span>
+                            <input class="pid-gain-input" type="number" [min]="spec.min" [max]="spec.max"
+                              [step]="spec.step" [value]="colavDist[spec.key]"
+                              (change)="onColavDistInput(spec.key, $event)">
+                          </div>
+                          <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
+                            <button mat-icon-button class="slider-btn minus-btn"
+                              (click)="nudgeColavDist(spec.key, -1)"
+                              [disabled]="colavDist[spec.key] <= spec.min">
+                              <mat-icon>remove</mat-icon>
+                            </button>
+                            <mat-slider [min]="spec.min" [max]="spec.max" [step]="spec.step" class="pid-slider"
+                              style="flex: 1;">
+                              <input matSliderThumb [value]="colavDist[spec.key]"
+                                (input)="updateColavDist(spec.key, $any($event.target).value)">
+                            </mat-slider>
+                            <button mat-icon-button class="slider-btn plus-btn"
+                              (click)="nudgeColavDist(spec.key, 1)"
+                              [disabled]="colavDist[spec.key] >= spec.max">
+                              <mat-icon>add</mat-icon>
+                            </button>
+                          </div>
+                        </div>
+                        }
+
+                        <div class="control-display pid-applied">
+                          <span class="control-label">Applied:</span>
+                          <span class="control-value pid-applied-value">
+                            @if(group.id === 'envelope') {
+                            {{ appliedColavDist('outer') }} / {{ appliedColavDist('inner') }} /
+                            {{ appliedColavDist('completed') }} m
+                            } @else {
+                            {{ appliedColavDist('minCpa') }} &ndash; {{ appliedColavDist('maxCpa') }} m
+                            }
+                          </span>
+                        </div>
+                      </div>
+                      }
+
+                      @if(colavDistPending) {
+                      <div class="service-mode-warning">
+                        <mat-icon>sync_problem</mat-icon>
+                        <span>The helm has not confirmed these values yet. Re-send if it stays this way.</span>
+                      </div>
+                      }
+
+                      <div class="control-buttons">
+                        <button mat-raised-button (click)="resetColavDist()" class="control-btn">
+                          <mat-icon>restart_alt</mat-icon>
+                          Reset
+                        </button>
+                        <button mat-raised-button (click)="sendColavDist()" class="control-btn center-btn">
+                          <mat-icon>upload</mat-icon>
+                          Re-send
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <button mat-raised-button (click)="toggleCanSendAutonomous()"
-                    [color]="autonomousControl.canSend ? 'warn' : 'primary'" class="control-btn can-toggle-btn">
-                    <mat-icon>{{ autonomousControl.canSend ? 'stop' : 'play_arrow' }}</mat-icon>
-                    {{ autonomousControl.canSend ? 'Disable CAN' : 'Enable CAN' }}
-                  </button>
-                </div>
-              </div>
+
               }
 
-              @if(autonomousPanelTab === 'pid') {
-              <!-- Service Mode: live PID calibration -->
-              <div class="autonomous-control-section" [class.service-mode-active]="servicePid.enabled">
-                <h3>Service Mode</h3>
-                <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">PID Calibration:</span>
-                    <mat-slide-toggle class="service-mode-toggle" [checked]="servicePid.enabled"
-                      (change)="toggleServiceMode($event.checked)">
-                      <span class="control-value" [style.color]="servicePid.enabled ? '#ffb74d' : '#87ceeb'">
-                        {{ servicePid.enabled ? 'ON' : 'OFF' }}
-                      </span>
-                    </mat-slide-toggle>
-                  </div>
+              <!-- Limit AIS contacts -->
+              <button type="button" class="ac-acc-head" (click)="toggleTuning('ais')" [attr.aria-expanded]="tuningOpen.ais">
+                <span>Limit AIS contacts
+                  <small>{{ aisLimit.enabled ? 'On · ' + aisLimit.radius + ' m' : 'Off · all contacts engaged' }}</small>
+                </span>
+                <mat-icon>{{ tuningOpen.ais ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if(tuningOpen.ais) {
+                  <!-- Limit AIS contacts: cap how many contacts the avoidance
+                       engages at once, so a single manoeuvre can be watched -->
+                  <div class="autonomous-control-section" [class.service-mode-active]="aisLimit.enabled">
+                    <h3>Limit AIS Contacts</h3>
+                    <div class="control-group">
+                      <div class="control-display">
+                        <span class="control-label">Limit:</span>
+                        <mat-slide-toggle class="service-mode-toggle" [checked]="aisLimit.enabled"
+                          (change)="toggleAisLimit($event.checked)">
+                          <span class="control-value" [style.color]="aisLimit.enabled ? '#ffb74d' : '#87ceeb'">
+                            {{ aisLimit.enabled ? 'ON' : 'OFF' }}
+                          </span>
+                        </mat-slide-toggle>
+                      </div>
 
+                      @if(aisLimit.enabled) {
+                      <div class="pid-loop">
+                        <div class="pid-loop-title">Range of action <span>&rarr; avdcol_</span></div>
+
+                        <div class="pid-gain">
+                          <div class="pid-gain-head">
+                            <span class="control-label">Radius (m)</span>
+                            <input class="pid-gain-input" type="number" [min]="aisLimitSpec.min"
+                              [max]="aisLimitSpec.max" [step]="aisLimitSpec.step" [value]="aisLimit.radius"
+                              (change)="onAisLimitInput($event)">
+                          </div>
+                          <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
+                            <button mat-icon-button class="slider-btn minus-btn" (click)="nudgeAisLimit(-1)"
+                              [disabled]="aisLimit.radius <= aisLimitSpec.min">
+                              <mat-icon>remove</mat-icon>
+                            </button>
+                            <mat-slider [min]="aisLimitSpec.min" [max]="aisLimitSpec.max" [step]="aisLimitSpec.step"
+                              class="pid-slider" style="flex: 1;">
+                              <input matSliderThumb [value]="aisLimit.radius"
+                                (input)="updateAisLimitMax($any($event.target).value)">
+                            </mat-slider>
+                            <button mat-icon-button class="slider-btn plus-btn" (click)="nudgeAisLimit(1)"
+                              [disabled]="aisLimit.radius >= aisLimitSpec.max">
+                              <mat-icon>add</mat-icon>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="control-display pid-applied">
+                          <span class="control-label">Engaged:</span>
+                          <span class="control-value pid-applied-value">
+                            {{ aisLimit.engaged }} of {{ aisLimit.tracked }}
+                            @if(aisLimit.held > 0) {
+                            &nbsp;&middot;&nbsp; {{ aisLimit.held }} held off
+                            }
+                          </span>
+                        </div>
+
+                        @if(aisLimit.next >= 0) {
+                        <div class="colav-note">
+                          Nearest contact outside the ring: {{ colavNum(aisLimit.next, 0, ' m') }}
+                        </div>
+                        }
+                      </div>
+
+                      @if(aisLimit.waiting) {
+                      <div class="service-mode-warning">
+                        <mat-icon>warning</mat-icon>
+                        <span>No position fix yet - contacts cannot be ranged, so none are held off.</span>
+                      </div>
+                      }
+                      }
+                    </div>
+                  </div>
+              }
+
+              <!-- Waypoint radii on the chart -->
+              <div class="autonomous-control-section">
                   <div class="control-display">
                     <span class="control-label">Waypoint Radii:</span>
                     <mat-slide-toggle class="service-mode-toggle" [checked]="showWaypointRadii"
@@ -1044,380 +1180,73 @@
                       </span>
                     </mat-slide-toggle>
                   </div>
-
-                  @if(servicePid.enabled) {
-                  <div class="service-mode-warning">
-                    <mat-icon>warning</mat-icon>
-                    <span>Gain scheduling bypassed. The boat is running on the values below.</span>
-                  </div>
-
-                  @for(loop of pidLoops; track loop.id) {
-                  <div class="pid-loop">
-                    <div class="pid-loop-title">{{ loop.title }} <span>&rarr; {{ loop.output }}</span></div>
-
-                    @for(spec of pidGainSpecs[loop.id]; track spec.key) {
-                    <div class="pid-gain">
-                      <div class="pid-gain-head">
-                        <span class="control-label">{{ spec.label }}</span>
-                        <input class="pid-gain-input" type="number" [min]="spec.min" [max]="spec.max"
-                          [step]="spec.step" [value]="servicePid[loop.id][spec.key]"
-                          (change)="onPidGainInput(loop.id, spec.key, $event)">
-                      </div>
-                      <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
-                        <button mat-icon-button class="slider-btn minus-btn"
-                          (click)="nudgePidGain(loop.id, spec.key, -1)"
-                          [disabled]="servicePid[loop.id][spec.key] <= spec.min">
-                          <mat-icon>remove</mat-icon>
-                        </button>
-                        <mat-slider [min]="spec.min" [max]="spec.max" [step]="spec.step" class="pid-slider"
-                          style="flex: 1;">
-                          <input matSliderThumb [value]="servicePid[loop.id][spec.key]"
-                            (input)="updatePidGain(loop.id, spec.key, $any($event.target).value)">
-                        </mat-slider>
-                        <button mat-icon-button class="slider-btn plus-btn"
-                          (click)="nudgePidGain(loop.id, spec.key, 1)"
-                          [disabled]="servicePid[loop.id][spec.key] >= spec.max">
-                          <mat-icon>add</mat-icon>
-                        </button>
-                      </div>
-                    </div>
-                    }
-
-                    <div class="control-display pid-applied">
-                      <span class="control-label">Applied:</span>
-                      <span class="control-value pid-applied-value">
-                        {{ appliedPidGain(loop.id, 'kp') }} / {{ appliedPidGain(loop.id, 'ki') }} /
-                        {{ appliedPidGain(loop.id, 'kd') }}
-                      </span>
-                    </div>
-                  </div>
-                  }
-
-                  <div class="control-buttons">
-                    <button mat-raised-button (click)="resetPidGains()" class="control-btn">
-                      <mat-icon>restart_alt</mat-icon>
-                      Reset
-                    </button>
-                    <button mat-raised-button (click)="sendAllPidGains()" class="control-btn center-btn">
-                      <mat-icon>upload</mat-icon>
-                      Re-send
-                    </button>
-                  </div>
-                  }
-                </div>
-              </div>
-              }
-
-              @if(autonomousPanelTab === 'colav') {
-              <!-- Collision Avoidance Distances: the engagement envelope the
-                   running avdcol_ behaviour (BHV_AvdColregsV22) is configured
-                   with, editable live so it can be trimmed on the water -->
-              <div class="autonomous-control-section" [class.service-mode-active]="colavDistPending">
-                <h3>Collision Avoidance Distances</h3>
-                <div class="control-group">
-                  @for(group of colavDistGroups; track group.id) {
-                  <div class="pid-loop">
-                    <div class="pid-loop-title">{{ group.title }} <span>&rarr; {{ group.output }}</span></div>
-
-                    @for(spec of colavDistSpecsFor(group.id); track spec.key) {
-                    <div class="pid-gain">
-                      <div class="pid-gain-head">
-                        <span class="control-label">{{ spec.label }} (m)</span>
-                        <input class="pid-gain-input" type="number" [min]="spec.min" [max]="spec.max"
-                          [step]="spec.step" [value]="colavDist[spec.key]"
-                          (change)="onColavDistInput(spec.key, $event)">
-                      </div>
-                      <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
-                        <button mat-icon-button class="slider-btn minus-btn"
-                          (click)="nudgeColavDist(spec.key, -1)"
-                          [disabled]="colavDist[spec.key] <= spec.min">
-                          <mat-icon>remove</mat-icon>
-                        </button>
-                        <mat-slider [min]="spec.min" [max]="spec.max" [step]="spec.step" class="pid-slider"
-                          style="flex: 1;">
-                          <input matSliderThumb [value]="colavDist[spec.key]"
-                            (input)="updateColavDist(spec.key, $any($event.target).value)">
-                        </mat-slider>
-                        <button mat-icon-button class="slider-btn plus-btn"
-                          (click)="nudgeColavDist(spec.key, 1)"
-                          [disabled]="colavDist[spec.key] >= spec.max">
-                          <mat-icon>add</mat-icon>
-                        </button>
-                      </div>
-                    </div>
-                    }
-
-                    <div class="control-display pid-applied">
-                      <span class="control-label">Applied:</span>
-                      <span class="control-value pid-applied-value">
-                        @if(group.id === 'envelope') {
-                        {{ appliedColavDist('outer') }} / {{ appliedColavDist('inner') }} /
-                        {{ appliedColavDist('completed') }} m
-                        } @else {
-                        {{ appliedColavDist('minCpa') }} &ndash; {{ appliedColavDist('maxCpa') }} m
-                        }
-                      </span>
-                    </div>
-                  </div>
-                  }
-
-                  @if(colavDistPending) {
-                  <div class="service-mode-warning">
-                    <mat-icon>sync_problem</mat-icon>
-                    <span>The helm has not confirmed these values yet. Re-send if it stays this way.</span>
-                  </div>
-                  }
-
-                  <div class="control-buttons">
-                    <button mat-raised-button (click)="resetColavDist()" class="control-btn">
-                      <mat-icon>restart_alt</mat-icon>
-                      Reset
-                    </button>
-                    <button mat-raised-button (click)="sendColavDist()" class="control-btn center-btn">
-                      <mat-icon>upload</mat-icon>
-                      Re-send
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Limit AIS contacts: cap how many contacts the avoidance
-                   engages at once, so a single manoeuvre can be watched -->
-              <div class="autonomous-control-section" [class.service-mode-active]="aisLimit.enabled">
-                <h3>Limit AIS Contacts</h3>
-                <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">Limit:</span>
-                    <mat-slide-toggle class="service-mode-toggle" [checked]="aisLimit.enabled"
-                      (change)="toggleAisLimit($event.checked)">
-                      <span class="control-value" [style.color]="aisLimit.enabled ? '#ffb74d' : '#87ceeb'">
-                        {{ aisLimit.enabled ? 'ON' : 'OFF' }}
-                      </span>
-                    </mat-slide-toggle>
-                  </div>
-
-                  @if(aisLimit.enabled) {
-                  <div class="pid-loop">
-                    <div class="pid-loop-title">Range of action <span>&rarr; avdcol_</span></div>
-
-                    <div class="pid-gain">
-                      <div class="pid-gain-head">
-                        <span class="control-label">Radius (m)</span>
-                        <input class="pid-gain-input" type="number" [min]="aisLimitSpec.min"
-                          [max]="aisLimitSpec.max" [step]="aisLimitSpec.step" [value]="aisLimit.radius"
-                          (change)="onAisLimitInput($event)">
-                      </div>
-                      <div class="slider-with-buttons" style="display: flex; align-items: center; gap: 4px;">
-                        <button mat-icon-button class="slider-btn minus-btn" (click)="nudgeAisLimit(-1)"
-                          [disabled]="aisLimit.radius <= aisLimitSpec.min">
-                          <mat-icon>remove</mat-icon>
-                        </button>
-                        <mat-slider [min]="aisLimitSpec.min" [max]="aisLimitSpec.max" [step]="aisLimitSpec.step"
-                          class="pid-slider" style="flex: 1;">
-                          <input matSliderThumb [value]="aisLimit.radius"
-                            (input)="updateAisLimitMax($any($event.target).value)">
-                        </mat-slider>
-                        <button mat-icon-button class="slider-btn plus-btn" (click)="nudgeAisLimit(1)"
-                          [disabled]="aisLimit.radius >= aisLimitSpec.max">
-                          <mat-icon>add</mat-icon>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="control-display pid-applied">
-                      <span class="control-label">Engaged:</span>
-                      <span class="control-value pid-applied-value">
-                        {{ aisLimit.engaged }} of {{ aisLimit.tracked }}
-                        @if(aisLimit.held > 0) {
-                        &nbsp;&middot;&nbsp; {{ aisLimit.held }} held off
-                        }
-                      </span>
-                    </div>
-
-                    @if(aisLimit.next >= 0) {
-                    <div class="colav-note">
-                      Nearest contact outside the ring: {{ colavNum(aisLimit.next, 0, ' m') }}
-                    </div>
-                    }
-                  </div>
-
-                  @if(aisLimit.waiting) {
-                  <div class="service-mode-warning">
-                    <mat-icon>warning</mat-icon>
-                    <span>No position fix yet - contacts cannot be ranged, so none are held off.</span>
-                  </div>
-                  }
-                  }
-                </div>
-              </div>
-              }
-
-              @if(autonomousPanelTab === 'test') {
-              <!-- Collision Avoidance Test: place an AIS target and measure the
-                   avoidance the helm actually performs -->
-              <div class="autonomous-control-section" [class.service-mode-active]="colavTest.enabled">
-                <h3>Collision Avoidance Test</h3>
-                <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">Test Mode:</span>
-                    <mat-slide-toggle class="service-mode-toggle" [checked]="colavTest.enabled"
-                      (change)="toggleColavTest($event.checked)">
-                      <span class="control-value" [style.color]="colavTest.enabled ? '#ffb74d' : '#87ceeb'">
-                        {{ colavTest.enabled ? 'ON' : 'OFF' }}
-                      </span>
-                    </mat-slide-toggle>
-                  </div>
-
-                  @if(colavTest.enabled) {
-
-                  <!-- avdcol_ carries condition = WAYPOINT = true. Without a
-                       mission the behaviour is idle and nothing is measured,
-                       which reads as a broken avoidance system. -->
-                  @if(!autonomousControl.waypointActive) {
-                  <div class="service-mode-warning">
-                    <mat-icon>warning</mat-icon>
-                    <span>Avoidance only runs during a mission. Start a route before placing targets.</span>
-                  </div>
-                  } @else {
-                  <div class="colav-hint">
-                    <mat-icon>ads_click</mat-icon>
-                    <span>Right-click the chart &rarr; <b>Put Target</b></span>
-                  </div>
-                  }
-
-                  @if(colavTest.lastError) {
-                  <div class="service-mode-warning">
-                    <mat-icon>error_outline</mat-icon>
-                    <span>Last target refused: {{ colavTest.lastError }}</span>
-                  </div>
-                  }
-
-                  <!-- Target parameters -->
-                  <div class="pid-loop">
-                    <div class="pid-loop-title">Target <span>&rarr; simulated AIS</span></div>
-
-                    <div class="control-display">
-                      <span class="control-label">Speed (kn):</span>
-                      <input class="pid-gain-input" type="number" min="0" max="30" step="0.5"
-                        [value]="colavTest.speed"
-                        (change)="updateColavParam('speed', $any($event.target).value)">
-                    </div>
-
-                    <div class="control-display">
-                      <span class="control-label">Course:</span>
-                      <mat-button-toggle-group class="colav-toggle-group" [value]="colavTest.courseMode"
-                        (change)="setColavCourseMode($event.value)">
-                        <mat-button-toggle value="at_usv">At USV</mat-button-toggle>
-                        <mat-button-toggle value="fixed">Fixed</mat-button-toggle>
-                      </mat-button-toggle-group>
-                    </div>
-
-                    @if(colavTest.courseMode === 'fixed') {
-                    <div class="control-display">
-                      <span class="control-label">Bearing (&deg;):</span>
-                      <input class="pid-gain-input" type="number" min="0" max="359" step="1"
-                        [value]="colavTest.course"
-                        (change)="updateColavParam('course', $any($event.target).value)">
-                    </div>
-                    }
-
-                    <div class="control-display">
-                      <span class="control-label">Vessel:</span>
-                      <mat-form-field appearance="outline" class="colav-type-field">
-                        <mat-select [value]="colavTest.vesselType"
-                          (selectionChange)="setColavVesselType($event.value)">
-                          <mat-option *ngFor="let t of colavVesselTypes" [value]="t">{{ t }}</mat-option>
-                        </mat-select>
-                      </mat-form-field>
-                    </div>
-
-                    <div class="control-display">
-                      <span class="control-label">Placed:</span>
-                      <span class="control-value">{{ colavTest.targets.length }}</span>
-                    </div>
-                  </div>
-
-                  <!-- Active encounter only (no-scroll); total shown below -->
-                  @for(enc of colavTest.encounters; track enc.id; let i = $index) {
-                  @if(i === 0) {
-                  <div class="colav-card" [class.live]="enc.state === 'live'"
-                    [class.past]="enc.state === 'past_cpa'" [class.done]="enc.state === 'done'"
-                    [class.bad]="enc.verdict === 'collision' || enc.verdict === 'near_miss'">
-
-                    <div class="colav-card-head">
-                      <span class="colav-cn">{{ enc.cn }}</span>
-                      @if(enc.test) { <span class="colav-badge">test</span> }
-                      <span class="colav-state">
-                        @if(enc.state === 'live') { closing }
-                        @else if(enc.state === 'past_cpa') { past CPA }
-                        @else { {{ enc.verdict }} }
-                      </span>
-                    </div>
-
-                    <div class="colav-mode">{{ enc.mode }}</div>
-
-                    <div class="colav-grid">
-                      @if(enc.state !== 'done') {
-                      <div><span>range</span><b>{{ colavNum(enc.range, 0, ' m') }}</b></div>
-                      <div><span>CPA now</span><b>{{ colavNum(enc.cpaLive, 0, ' m') }}</b></div>
-                      <div><span>TCPA</span><b>{{ colavNum(enc.tcpa, 0, ' s') }}</b></div>
-                      }
-                      <div><span>closest</span><b>{{ colavNum(enc.minRange, 1, ' m') }}</b></div>
-                      <div><span>CPA if held</span><b>{{ colavNum(enc.cpaPred, 1, ' m') }}</b></div>
-                      <div><span>reaction</span><b>{{ colavNum(enc.reaction, 1, ' s') }}</b></div>
-                      <div><span>seen at</span><b>{{ colavNum(enc.rngDetect, 0, ' m') }}</b></div>
-                      <div><span>acted at</span><b>{{ colavNum(enc.rngActive, 0, ' m') }}</b></div>
-                      <div>
-                        <span>deflection</span>
-                        <b [class.colav-doubt]="!enc.deflectionValid">
-                          {{ colavNum(enc.deflection, 0, '°') }}
-                        </b>
-                      </div>
-                      <div><span>min speed</span><b>{{ colavNum(enc.spdMin, 1, ' m/s') }}</b></div>
-                      <div><span>priority</span><b>{{ colavNum(enc.apwtMax, 0) }}</b></div>
-                      <!-- only when uFldCollisionDetect is running as a
-                           second opinion; absent in the stock mission -->
-                      @if(enc.ucdCpa >= 0) {
-                      <div><span>CPA (2nd)</span><b>{{ colavNum(enc.ucdCpa, 1, ' m') }}</b></div>
-                      }
-                    </div>
-
-                    @if(!enc.deflectionValid) {
-                    <div class="colav-note">waypoint changed while avoiding - deflection is not just avoidance</div>
-                    }
-                    @if(enc.state === 'done' && enc.modes) {
-                    <div class="colav-note">modes: {{ enc.modes }}</div>
-                    }
-                    @if(enc.state === 'done' && enc.postMortem) {
-                    <div class="colav-note">ended: {{ enc.postMortem }}</div>
-                    }
-                  </div>
-                  }
-                  }
-
-                  @if(colavTest.encounters.length > 0) {
-                  <div class="count-cap">Showing the active encounter · <b>{{ colavTest.encounters.length }} total</b> this run</div>
-                  }
-
-                  @if(colavTest.encounters.length === 0) {
-                  <div class="colav-note colav-empty">
-                    No encounters yet. Targets are only picked up inside 300 m,
-                    or on a predicted CPA under 300 m.
-                  </div>
-                  }
-
-                  <div class="control-buttons">
-                    <button mat-raised-button (click)="clearColavTargets()" class="control-btn">
-                      <mat-icon>delete_sweep</mat-icon>
-                      Clear targets
-                    </button>
-                  </div>
-                  }
-                </div>
               </div>
               }
             </div>
+
+            <!-- Fixed footer: the mission's critical actions never scroll away -->
+            @if(autonomousPanelTab === 'mission' || autonomousControl.waypointActive) {
+            <footer class="ac-footer">
+              @if(!autonomousControl.waypointActive) {
+              <button mat-raised-button (click)="startMission()"
+                [disabled]="!autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected"
+                class="mission-btn start-btn ac-btn-lg">
+                <mat-icon>play_arrow</mat-icon>
+                Start mission
+              </button>
+              <button type="button" class="ac-link-btn" (click)="clearPath()">Clear path on map</button>
+              } @else {
+              @if(autonomousPanelTab !== 'mission') {
+              <div class="ac-missionbar-info">
+                <span><strong>Mission active</strong> · {{ getSelectedRouteName() }}</span>
+                <span>WP {{ autonomousControl.currentWaypoint + 1 }} · {{ autonomousControl.speed }} kn</span>
+              </div>
+              }
+              <div class="mission-buttons-row">
+                <button mat-raised-button (click)="stopMission()" class="mission-btn stop-btn">
+                  <mat-icon>stop</mat-icon>
+                  Stop
+                </button>
+                <button mat-raised-button (click)="returnToBase()" [disabled]="!app.data.map.basePosition"
+                  class="mission-btn return-btn">
+                  <mat-icon>home</mat-icon>
+                  {{ autonomousPanelTab === 'mission' ? 'Return to base' : 'To base' }}
+                </button>
+              </div>
+              <button mat-raised-button color="warn" (click)="abortMission()" class="mission-btn abort-btn">
+                <mat-icon>warning</mat-icon>
+                Abort mission
+              </button>
+              }
+            </footer>
+            }
           </div>
+
+          <!-- Target speed: shared by the Plan and Live views -->
+          <ng-template #acSpeed>
+            <div class="autonomous-control-section">
+              <h3>Target speed</h3>
+              <div class="control-group">
+                <div class="ac-speed">
+                  <button mat-icon-button (click)="updateSpeed(autonomousControl.speed - 1)"
+                    [disabled]="autonomousControl.speed <= 0" class="slider-btn minus-btn" aria-label="Decrease speed by 1 knot">
+                    <mat-icon>remove</mat-icon>
+                  </button>
+                  <span class="ac-speed-val">{{ autonomousControl.speed }}<em>kn</em></span>
+                  <button mat-icon-button (click)="updateSpeed(autonomousControl.speed + 1)"
+                    [disabled]="autonomousControl.speed >= 50" class="slider-btn plus-btn" aria-label="Increase speed by 1 knot">
+                    <mat-icon>add</mat-icon>
+                  </button>
+                </div>
+                <div class="control-buttons">
+                  @for(p of speedPresets; track p) {
+                  <button mat-raised-button (click)="updateSpeed(p)" class="control-btn"
+                    [class.ac-preset-on]="autonomousControl.speed === p">{{ p }} kn</button>
+                  }
+                </div>
+              </div>
+            </div>
+          </ng-template>
         </mat-sidenav>
         }
         <mat-sidenav-content style="overflow: hidden">

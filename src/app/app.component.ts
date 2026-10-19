@@ -206,8 +206,13 @@ export class AppComponent implements OnDestroy {
   };
 
   /** which tab of the Autonomous Control sidenav is showing */
-  protected autonomousPanelTab: 'mission' | 'follow' | 'pid' | 'colav' | 'test' =
-    'mission';
+  protected autonomousPanelTab: 'mission' | 'follow' | 'tuning' = 'mission';
+
+  /** which groups of the Tuning tab are expanded */
+  protected tuningOpen = { pid: false, colav: false, ais: false };
+
+  /** target-speed shortcuts (knots); no 0 kn preset, Stop ends a mission */
+  protected readonly speedPresets = [5, 10, 15, 20];
 
   // Service mode: live PID calibration from the UI.
   // Gains are pushed to planchaPID through iWebSocket (HEADING_K* / SPEED_K*)
@@ -783,10 +788,20 @@ export class AppComponent implements OnDestroy {
     this.focusMap();
   }
 
-  protected setAutonomousPanelTab(
-    tab: 'mission' | 'follow' | 'pid' | 'colav' | 'test'
-  ) {
+  protected setAutonomousPanelTab(tab: 'mission' | 'follow' | 'tuning') {
     this.autonomousPanelTab = tab;
+  }
+
+  protected toggleTuning(group: 'pid' | 'colav' | 'ais') {
+    this.tuningOpen[group] = !this.tuningOpen[group];
+  }
+
+  /** number of waypoints in the selected route, 0 when none */
+  protected get selectedRoutePointCount(): number {
+    const route = this.availableRoutes.find(
+      (r) => r[0] === this.autonomousControl.selectedRoute
+    );
+    return route?.[1]?.feature?.geometry?.coordinates?.length ?? 0;
   }
 
   /** A right-side (end) control panel is open — shifts the floating nav bar
@@ -1498,28 +1513,6 @@ export class AppComponent implements OnDestroy {
     }
 
     console.log('Repeat route updated:', repeat ? 'continuous (1000x)' : 'once');
-  }
-
-  // CAN messages toggle for autonomous control
-  protected toggleCanSendAutonomous() {
-    this.autonomousControl.canSend = !this.autonomousControl.canSend;
-    const canValue = this.autonomousControl.canSend ? 'true' : 'false';
-
-    // Ignore incoming CAN_SEND updates for 3 seconds to avoid race conditions
-    this.autonomousControl.ignoreCanSendUpdates = true;
-    setTimeout(() => {
-      this.autonomousControl.ignoreCanSendUpdates = false;
-    }, 3000);
-
-    // Send CAN_SEND to MOOS-IvP
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      this.app.data.moosIvPServer.socket.send(`CAN_SEND=${canValue}`);
-      console.log(`[Autonomous Control] Sent CAN_SEND=${canValue} to MOOS-IvP`);
-      this.app.showMessage(`CAN Messages ${this.autonomousControl.canSend ? 'Enabled' : 'Disabled'}`, false, 2000);
-    } else {
-      console.log('MOOS-IvP not connected, cannot send CAN_SEND value');
-      this.app.showMessage('MOOS-IvP not connected', true, 2000);
-    }
   }
 
   // ***************** SERVICE MODE (PID CALIBRATION) ******************
