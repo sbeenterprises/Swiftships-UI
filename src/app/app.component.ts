@@ -209,7 +209,7 @@ export class AppComponent implements OnDestroy {
   protected autonomousPanelTab: 'mission' | 'follow' | 'tuning' = 'mission';
 
   /** which groups of the Tuning tab are expanded */
-  protected tuningOpen = { pid: false, colav: false, ais: false };
+  protected tuningOpen = { pid: false, colav: false, ais: false, enc: false };
 
   /** target-speed shortcuts (knots); no 0 kn preset, Stop ends a mission */
   protected readonly speedPresets = [5, 10, 15, 20];
@@ -792,7 +792,7 @@ export class AppComponent implements OnDestroy {
     this.autonomousPanelTab = tab;
   }
 
-  protected toggleTuning(group: 'pid' | 'colav' | 'ais') {
+  protected toggleTuning(group: 'pid' | 'colav' | 'ais' | 'enc') {
     this.tuningOpen[group] = !this.tuningOpen[group];
   }
 

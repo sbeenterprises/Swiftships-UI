@@ -739,6 +739,51 @@
                 </div>
               </div>
 
+              @if(depthReferencePosture() !== 'ok') {
+              <div class="autonomous-control-section ac-depthref"
+                [class.no-enc]="depthReferencePosture() === 'no-enc'"
+                [class.no-data]="depthReferencePosture() === 'no-data'">
+                <mat-icon class="ac-depthref-ic">{{ depthReferencePosture() === 'no-enc' ? 'explore_off' : 'layers_clear' }}</mat-icon>
+                <span class="ac-depthref-txt">
+                  @if(depthReferencePosture() === 'no-enc') {
+                  <strong>No ENC chart selected</strong> &mdash; running unrestricted. Select an ENC chart to enable safe-water planning.
+                  } @else {
+                  <strong>ENC selected, no safe-water data</strong> &mdash; route gating can't be applied for this area.
+                  }
+                </span>
+              </div>
+              }
+
+              <!-- ENC safe-water planning: re-plan the selected route through safe
+                   water and send a corridor with it. Needs ENC safe-water data. -->
+              <div class="autonomous-control-section">
+                <h3>ENC safe-water planning</h3>
+                <div class="ac-row corridor-row">
+                  <button mat-stroked-button class="corridor-btn"
+                    [disabled]="depthReferencePosture() !== 'ok' || planningRoute || !autonomousControl.selectedRoute"
+                    (click)="planSafeRoute()">
+                    <mat-icon>{{ planningRoute ? 'hourglass_empty' : 'alt_route' }}</mat-icon>
+                    {{ planningRoute ? 'Planning…' : 'Plan Safe Route' }}
+                  </button>
+                </div>
+                <div class="ac-row corridor-row">
+                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.active"
+                    [disabled]="depthReferencePosture() !== 'ok' && !corridor.active"
+                    (click)="corridor.active ? clearCorridor() : sendCorridor()">
+                    <mat-icon>{{ corridor.active ? 'linear_scale' : 'route' }}</mat-icon>
+                    {{ corridor.active ? 'Clear Route Corridor' : 'Send Route Corridor' }}
+                  </button>
+                  <span *ngIf="corridor.active" class="corridor-status" [attr.data-status]="corridor.status">
+                    {{ corridorStatusText() }}
+                  </span>
+                </div>
+                @if(depthReferencePosture() !== 'ok') {
+                <div class="service-mode-hint">Available once an ENC chart with safe-water data is loaded.</div>
+                } @else if(!autonomousControl.selectedRoute) {
+                <div class="service-mode-hint">Select a route to plan.</div>
+                }
+              </div>
+
               <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
 
               <!-- Base (return-to-base point). Set from the map: right-click > Define Base -->
@@ -784,20 +829,6 @@
                 </div>
               </div>
 
-              @if(depthReferencePosture() !== 'ok') {
-              <div class="autonomous-control-section ac-depthref"
-                [class.no-enc]="depthReferencePosture() === 'no-enc'"
-                [class.no-data]="depthReferencePosture() === 'no-data'">
-                <mat-icon class="ac-depthref-ic">{{ depthReferencePosture() === 'no-enc' ? 'explore_off' : 'layers_clear' }}</mat-icon>
-                <span class="ac-depthref-txt">
-                  @if(depthReferencePosture() === 'no-enc') {
-                  <strong>No ENC chart selected</strong> &mdash; running unrestricted. Select an ENC chart to enable safe-water planning.
-                  } @else {
-                  <strong>ENC selected, no safe-water data</strong> &mdash; route gating can't be applied for this area.
-                  }
-                </span>
-              </div>
-              }
               } @else {
               <!-- ===== Live (mission running): critical information only ===== -->
               @if(app.data.moosIvPServer.colregs; as cr) {
@@ -850,6 +881,13 @@
               <div class="autonomous-control-section ac-colav-idle">
                 <span class="chip-dot"></span>
                 Collision avoidance: monitoring, no active encounter
+              </div>
+              }
+
+              @if(corridor.active) {
+              <div class="autonomous-control-section ac-colav-idle">
+                <mat-icon>linear_scale</mat-icon>
+                Route corridor: <span class="corridor-status" [attr.data-status]="corridor.status">{{ corridorStatusText() }}</span>
               </div>
               }
 
@@ -1167,6 +1205,39 @@
                       }
                     </div>
                   </div>
+              }
+
+              <!-- ENC planner settings (used by Plan Safe Route / route corridor) -->
+              <button type="button" class="ac-acc-head" (click)="toggleTuning('enc')" [attr.aria-expanded]="tuningOpen.enc">
+                <span>ENC planner
+                  <small>{{ plannerAlgorithm === 'theta' ? 'Theta*' : 'A* grid' }} · clearance {{ planClearanceM }} m · corridor {{ corridorWidthM }} m</small>
+                </span>
+                <mat-icon>{{ tuningOpen.enc ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if(tuningOpen.enc) {
+              <div class="autonomous-control-section ac-planner">
+                <div class="ac-seg" role="group" aria-label="Planner algorithm">
+                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'theta'"
+                    (click)="plannerAlgorithm = 'theta'">Theta*<small>any-angle</small></button>
+                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'astar'"
+                    (click)="plannerAlgorithm = 'astar'">A* grid</button>
+                  <button type="button" class="ac-seg-btn" disabled>Medial<small>soon</small></button>
+                </div>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Hazard clearance</span>
+                  <span class="ac-slider-val">{{ planClearanceM }} m</span>
+                </div>
+                <mat-slider min="5" max="60" step="1" class="clearance-slider">
+                  <input matSliderThumb [value]="planClearanceM" (input)="planClearanceM = +$any($event.target).value">
+                </mat-slider>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Corridor width</span>
+                  <span class="ac-slider-val">{{ corridorWidthM }} m</span>
+                </div>
+                <mat-slider min="20" max="150" step="5" class="clearance-slider">
+                  <input matSliderThumb [value]="corridorWidthM" (input)="corridorWidthM = +$any($event.target).value">
+                </mat-slider>
+              </div>
               }
 
               <!-- Waypoint radii on the chart -->

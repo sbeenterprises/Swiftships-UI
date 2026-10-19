@@ -2053,3 +2053,4 @@ mat-nav-list {
 .autonomous-control-sidenav .ac-speed + .control-buttons { grid-template-columns: repeat(4, 1fr); }
 .autonomous-control-sidenav .ac-speed + .control-buttons .control-btn { flex: 1 1 0; min-width: 0 !important; padding: 8px 4px !important; }
 .autonomous-control-sidenav .ac-acc-head + .autonomous-control-section > h3 { display: none; }
+.autonomous-control-sidenav .corridor-btn:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }
