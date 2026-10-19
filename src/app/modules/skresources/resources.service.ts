@@ -644,9 +644,11 @@ export class SKResourceService {
       chart.type = chart.serverType;
     }
     if (chart.type) {
-      // ** ensure host is in url
+      // ** ensure host is in url: relative tile urls belong to the Signal K
+      // server (serverOrigin), not necessarily the host the UI page came from
       if (chart.url.startsWith('/') || !chart.url.startsWith('http')) {
-        chart.url = this.app.hostDef.url + chart.url;
+        chart.url =
+          this.app.serverOrigin + (chart.url.startsWith('/') ? '' : '/') + chart.url;
       }
     }
     return new SKChart(chart);
