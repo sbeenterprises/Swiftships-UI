@@ -84,7 +84,20 @@ export class AppFacade extends InfoService {
    */
   public get serverOrigin(): string {
     const origin = (window.location.origin || '').replace(/\/$/, '');
+    // Same server the stream and REST calls use: the Signal K endpoint from
+    // Settings when enabled. Without this, a UI served by a plain static
+    // server (no reverse proxy) sends plugin requests to itself and gets 404.
     let base = this.hostDef?.url;
+    const sk = this.config?.signalk;
+    if (sk?.enabled && sk.url) {
+      try {
+        const u = new URL(sk.url);
+        base = `${u.protocol}//${u.hostname}${sk.port ? ':' + sk.port : ''}`;
+      } catch {
+        const host = sk.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        base = `${sk.url.startsWith('https://') ? 'https' : 'http'}://${host}${sk.port ? ':' + sk.port : ''}`;
+      }
+    }
     if (!base) return origin;
     try {
       const b = new URL(base);

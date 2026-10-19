@@ -180,13 +180,20 @@ export class EncUploadDialog {
         },
         error: (e) => {
           this.uploading = false;
+          // Only use strings: Signal K can return { error: {...} }, which
+          // would otherwise show as "[object Object]".
+          const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+          const http = e?.status ? `HTTP ${e.status} ${e.statusText || ''}`.trim() : '';
+          const hint =
+            e?.status === 404
+              ? ' — the SwiftShips UI plugin on the Signal K server has no ENC upload route (not installed, not enabled, or an old version).'
+              : e?.status === 401 || e?.status === 403
+                ? ' — log in to Signal K as an admin.'
+                : '';
           const detail =
-            (typeof e?.error === 'string' && e.error) ||
-            e?.error?.message ||
-            e?.error?.error ||
-            e?.message ||
-            (e?.status ? `HTTP ${e.status} ${e.statusText || ''}`.trim() : '') ||
-            'unknown error';
+            (str(e?.error?.message) || str(e?.error?.error?.message) || str(e?.error?.error) ||
+              (str(e?.error) && !str(e?.error).startsWith('<') ? str(e?.error) : '') ||
+              http || str(e?.message) || 'unknown error') + hint;
           this.job = {
             status: 'error',
             message: `Upload failed: ${detail}`,
