@@ -3,8 +3,17 @@
 // Global route planner over the ENC navigable water. Self-contained (pure math,
 // no imports) so it bundles cleanly as a web worker.
 //
-//   in : { viaPoints: [lon,lat][], rings: [lon,lat][][], resM?, clearanceM?, algorithm? }
-//   out: { ok: boolean, route?: [lon,lat][], error?: string }
+//   in : { viaPoints: [lon,lat][], resM?, clearanceM?, algorithm?, centreBias?,
+//          and either
+//          rings: [lon,lat][][]                 (legacy: navigable outer rings), or
+//          layers: { coverage, safe, blocked, blockedPts, blockedLines }[]
+//            (most detailed chart first; Poly = [outer, ...holes] rings of [lon,lat]) }
+//   out: { ok, route?: [lon,lat][], minClearanceM?, relaxed?, error? }
+//
+// A cell is navigable when the first layer (chart) whose coverage contains it
+// has safe water there and none of that chart's blocked areas covers it. Point
+// and line hazards (wrecks, obstructions, piers, seawalls) are burnt into the
+// grid on top, but only where their own chart is the one deciding.
 //
 // Plans a path between each consecutive via-point, staying inside the navigable
 // polygons. Two algorithms share the same grid + cost model:
@@ -20,6 +29,87 @@
 // free space for that leg so a route is still produced.
 
 type Pt = number[];
+type Ring = Pt[];
+type Poly = Ring[]; // [outer, ...holes]
+
+interface PPoly { rings: Ring[]; bb: number[]; } // with bbox [minX,minY,maxX,maxY]
+interface WLayer { coverage: PPoly[] | null; safe: PPoly[]; blocked: PPoly[]; }
+interface World {
+  layers: WLayer[];
+  pts: Pt[]; // point hazards kept where their chart decides
+  lines: Pt[][]; // line hazards (segments) kept where their chart decides
+}
+
+function ringBBox(r: Ring): number[] {
+  let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+  for (const p of r) {
+    if (p[0] < a) a = p[0];
+    if (p[1] < b) b = p[1];
+    if (p[0] > c) c = p[0];
+    if (p[1] > d) d = p[1];
+  }
+  return [a, b, c, d];
+}
+function prep(polys: Poly[] | undefined): PPoly[] {
+  return (polys || [])
+    .filter((p) => Array.isArray(p) && p.length && p[0].length >= 3)
+    .map((p) => ({ rings: p, bb: ringBBox(p[0]) }));
+}
+function inPoly(x: number, y: number, p: PPoly): boolean {
+  if (x < p.bb[0] || y < p.bb[1] || x > p.bb[2] || y > p.bb[3]) return false;
+  if (!pointInRing(x, y, p.rings[0])) return false;
+  for (let h = 1; h < p.rings.length; h++) if (pointInRing(x, y, p.rings[h])) return false;
+  return true;
+}
+function inAny(x: number, y: number, ps: PPoly[]): boolean {
+  for (const p of ps) if (inPoly(x, y, p)) return true;
+  return false;
+}
+/** navigable by the area data (point / line hazards are handled separately) */
+/** index of the layer (chart) that decides this spot, -1 when none covers it */
+function decider(x: number, y: number, layers: WLayer[]): number {
+  for (let k = 0; k < layers.length; k++) {
+    const L = layers[k];
+    if (!L.coverage || inAny(x, y, L.coverage)) return k;
+  }
+  return -1;
+}
+function isWater(x: number, y: number, w: World): boolean {
+  const k = decider(x, y, w.layers);
+  if (k < 0) return false;
+  const L = w.layers[k];
+  return inAny(x, y, L.safe) && !inAny(x, y, L.blocked);
+}
+interface InLayer {
+  coverage?: Poly[];
+  safe?: Poly[];
+  blocked?: Poly[];
+  blockedPts?: Pt[];
+  blockedLines?: Pt[][];
+}
+function buildWorld(data: { layers?: InLayer[]; rings?: Ring[] }): World {
+  if (Array.isArray(data.layers) && data.layers.length) {
+    const layers: WLayer[] = data.layers.map((l) => ({
+      coverage: l.coverage && l.coverage.length ? prep(l.coverage) : null,
+      safe: prep(l.safe),
+      blocked: prep(l.blocked)
+    }));
+    const pts: Pt[] = [];
+    const lines: Pt[][] = [];
+    data.layers.forEach((l, k) => {
+      for (const p of l.blockedPts || []) if (decider(p[0], p[1], layers) === k) pts.push(p);
+      for (const line of l.blockedLines || [])
+        for (let i = 0; i + 1 < line.length; i++) {
+          const a = line[i], b = line[i + 1];
+          if (decider((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, layers) === k) lines.push([a, b]);
+        }
+    });
+    return { layers, pts, lines };
+  }
+  // legacy: plain navigable outer rings, no hazards
+  const rings: Ring[] = data.rings || [];
+  return { layers: [{ coverage: null, safe: prep(rings.map((r) => [r])), blocked: [] }], pts: [], lines: [] };
+}
 
 function pointInRing(x: number, y: number, r: Pt[]): boolean {
   let inside = false;
@@ -30,20 +120,18 @@ function pointInRing(x: number, y: number, r: Pt[]): boolean {
   }
   return inside;
 }
-function inSafe(x: number, y: number, rings: Pt[][]): boolean {
-  for (const r of rings) if (pointInRing(x, y, r)) return true;
-  return false;
-}
+
+interface Leg { path: Pt[]; minClearanceM: number; relaxed: boolean; }
 
 function planLeg(
   start: Pt,
   goal: Pt,
-  rings: Pt[][],
+  world: World,
   resM: number,
   clearanceM: number,
   theta: boolean,
   centreBias: boolean
-): Pt[] | null {
+): Leg | null {
   const marginDeg = 1200 / 111320; // ~1.2 km window pad
   const minLon = Math.min(start[0], goal[0]) - marginDeg;
   const maxLon = Math.max(start[0], goal[0]) + marginDeg;
@@ -62,7 +150,30 @@ function planLeg(
   // occupancy: 1 = navigable water
   const free = new Uint8Array(nx * ny);
   for (let j = 0; j < ny; j++)
-    for (let i = 0; i < nx; i++) free[idx(i, j)] = inSafe(cx(i), cy(j), rings) ? 1 : 0;
+    for (let i = 0; i < nx; i++) free[idx(i, j)] = isWater(cx(i), cy(j), world) ? 1 : 0;
+
+  // burn point and line hazards into the grid (the cell plus its neighbours)
+  const burn = (lon: number, lat: number) => {
+    const ci = Math.floor((lon - minLon) / dLon), cj = Math.floor((lat - minLat) / dLat);
+    for (let dj = -1; dj <= 1; dj++)
+      for (let di = -1; di <= 1; di++) {
+        const i = ci + di, j = cj + dj;
+        if (i >= 0 && j >= 0 && i < nx && j < ny) free[idx(i, j)] = 0;
+      }
+  };
+  const inWin = (p: Pt) => p[0] >= minLon && p[0] <= maxLon && p[1] >= minLat && p[1] <= maxLat;
+  for (const p of world.pts) if (inWin(p)) burn(p[0], p[1]);
+  for (const line of world.lines)
+    for (let k = 0; k + 1 < line.length; k++) {
+      const a = line[k], b = line[k + 1];
+      if (!inWin(a) && !inWin(b)) continue;
+      const lenM = Math.hypot((b[0] - a[0]) * mLon, (b[1] - a[1]) * 110540);
+      const steps = Math.max(1, Math.ceil(lenM / (resM / 2)));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        burn(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+      }
+    }
 
   // distance transform: metres from each free cell to the nearest blocked cell
   const INF = 1e9;
@@ -253,8 +364,28 @@ function planLeg(
     return path.reverse();
   };
 
-  // clearance + centre-bias first; fall back to raw free space if it disconnects.
-  return attempt(clearanceM, centreBias) || attempt(0, false);
+  // clearance + centre-bias first; fall back to raw free space if it disconnects
+  // (reported as relaxed, so the operator knows the clearance was not kept).
+  let relaxed = false;
+  let path = attempt(clearanceM, centreBias);
+  if (!path) {
+    path = attempt(0, false);
+    relaxed = true;
+  }
+  if (!path) return null;
+
+  // closest approach to non-navigable water along the path (cell distances)
+  let minClear = Infinity;
+  for (let k = 0; k + 1 < path.length; k++) {
+    const a = toCell(path[k]), b = toCell(path[k + 1]);
+    const n = Math.max(1, Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+    for (let s = 0; s <= n; s++) {
+      const i = Math.round(a[0] + ((b[0] - a[0]) * s) / n);
+      const j = Math.round(a[1] + ((b[1] - a[1]) * s) / n);
+      if (i >= 0 && j >= 0 && i < nx && j < ny) minClear = Math.min(minClear, dist[idx(i, j)]);
+    }
+  }
+  return { path, minClearanceM: minClear === Infinity ? 0 : minClear, relaxed };
 }
 
 function perp(p: Pt, a: Pt, b: Pt): number {
@@ -290,7 +421,7 @@ function simplify(
 addEventListener('message', ({ data }) => {
   try {
     const via: Pt[] = data.viaPoints || [];
-    const rings: Pt[][] = data.rings || [];
+    const world = buildWorld(data);
     const resM: number = data.resM || 25;
     const clearanceM: number = data.clearanceM ?? 20; // keep off the shore
     // 'theta' (default) = any-angle Theta*; 'astar' = 8-connected grid A*.
@@ -301,13 +432,15 @@ addEventListener('message', ({ data }) => {
       postMessage({ ok: false, error: 'Need at least 2 waypoints.' });
       return;
     }
-    if (!rings.length) {
-      postMessage({ ok: false, error: 'No navigable-water data loaded — is the ENC safe-water asset present?' });
+    if (!world.layers.some((l) => l.safe.length)) {
+      postMessage({ ok: false, error: 'No safe water on the selected ENC charts around this route.' });
       return;
     }
     let full: Pt[] = [];
+    let minClearanceM = Infinity;
+    let relaxed = false;
     for (let k = 0; k < via.length - 1; k++) {
-      const leg = planLeg(via[k], via[k + 1], rings, resM, clearanceM, theta, centreBias);
+      const leg = planLeg(via[k], via[k + 1], world, resM, clearanceM, theta, centreBias);
       if (!leg) {
         postMessage({
           ok: false,
@@ -315,7 +448,9 @@ addEventListener('message', ({ data }) => {
         });
         return;
       }
-      full = k === 0 ? leg : full.concat(leg.slice(1));
+      full = k === 0 ? leg.path : full.concat(leg.path.slice(1));
+      minClearanceM = Math.min(minClearanceM, leg.minClearanceM);
+      relaxed = relaxed || leg.relaxed;
     }
     // Simplify (Douglas-Peucker), but never collapse a segment that would run
     // outside navigable water — sample the candidate chord and require every
@@ -323,17 +458,36 @@ addEventListener('message', ({ data }) => {
     const cosLat = Math.cos((via[0][1] * Math.PI) / 180) || 1;
     const tolM = Math.max(4, clearanceM / 3);
     const stepDeg = 5 / 111320; // ~5 m — fine enough to catch a thin corner clip
+    // a simplified chord must also stay clear of point / line hazards
+    const mLon = 111320 * cosLat;
+    const hazardNear = (x: number, y: number): boolean => {
+      const r = resM;
+      for (const p of world.pts)
+        if (Math.hypot((p[0] - x) * mLon, (p[1] - y) * 110540) < r) return true;
+      for (const line of world.lines)
+        for (let k = 0; k + 1 < line.length; k++) {
+          const a = [line[k][0] * mLon, line[k][1] * 110540];
+          const b = [line[k + 1][0] * mLon, line[k + 1][1] * 110540];
+          if (perp([x * mLon, y * 110540], a, b) < r) return true;
+        }
+      return false;
+    };
     const okSeg = (a: Pt, b: Pt): boolean => {
       const lenDeg = Math.hypot((b[0] - a[0]) * cosLat, b[1] - a[1]);
       const steps = Math.max(2, Math.min(4000, Math.ceil(lenDeg / stepDeg)));
       for (let s = 0; s <= steps; s++) {
         const t = s / steps;
-        if (!inSafe(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, rings))
-          return false;
+        const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+        if (!isWater(x, y, world) || hazardNear(x, y)) return false;
       }
       return true;
     };
-    postMessage({ ok: true, route: simplify(full, tolM / (111320 * cosLat), okSeg) });
+    postMessage({
+      ok: true,
+      route: simplify(full, tolM / (111320 * cosLat), okSeg),
+      minClearanceM: minClearanceM === Infinity ? 0 : Math.round(minClearanceM),
+      relaxed
+    });
   } catch (e) {
     postMessage({ ok: false, error: String(e) });
   }

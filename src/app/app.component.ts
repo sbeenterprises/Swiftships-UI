@@ -58,6 +58,8 @@ import { SignalKClient } from 'signalk-client-angular';
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
 import { RoutePlannerService } from 'src/app/lib/services/route-planner.service';
+import { EncSafeWaterService, chartsAlong } from 'src/app/lib/services/enc-safe-water.service';
+import { SKRoute } from 'src/app/modules/skresources/resource-classes';
 import * as semver from 'semver';
 import { MoosIvpWebsocketService } from './lib/moos-ivp-websocket.service';
 import {
@@ -441,17 +443,29 @@ export class AppComponent implements OnDestroy {
   public operatingRegion = { selectedId: '', activeId: '' };
   // Route-relative safe corridor (CORRIDOR_STATUS / XTE_NOW driven).
   public corridor = {
-    active: false,
-    status: 'none' as 'none' | 'slow' | 'stop' | 'recovering',
+    active: false, // the boat reports CORRIDOR=true
+    sent: false, // sent from this UI, not confirmed yet
+    status: 'none' as 'none' | 'in' | 'slow' | 'stop' | 'recovering',
     xte: null as number | null
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private corridorAckTimer: any = null;
   // Boat held in comms-loss failsafe — needs explicit operator re-arm.
   protected awaitingRearm = false;
   private corridorAlertTimer: any = null;
   private corridorAlerted = false;
-  // ENC safe navigable water rings + coverage hull (from loadSafeWater()).
-  private safeWaterRings: number[][][] = [];
-  private encCoverageHull: number[][] = [];
+  // ENC planner: minimum charted depth treated as navigable (USV-722 default 5 m)
+  protected safetyDepthM = 5;
+  protected safeRoutePlan: {
+    route?: number[][];
+    distanceM?: number;
+    turns?: number;
+    minClearanceM?: number;
+    relaxed?: boolean;
+    error?: string;
+    warnings: string[];
+    charts: string[];
+  } | null = null;
   // Global planner settings.
   protected planningRoute = false;
   protected plannerAlgorithm: 'theta' | 'astar' = 'theta';
@@ -487,6 +501,7 @@ export class AppComponent implements OnDestroy {
     protected radarService: RadarService,
     private moosWsService: MoosIvpWebsocketService,
     private routePlanner: RoutePlannerService,
+    private encSafeWater: EncSafeWaterService,
     protected replay: ReplayService,
     private dom: DomSanitizer,
     private overlayContainer: OverlayContainer,
@@ -814,12 +829,12 @@ export class AppComponent implements OnDestroy {
     );
   }
 
-  // ===== ENC autonomy console (usv01 look) — GUARDED =====
-  // The planner / corridor / ENC-gating UI is present and styled like the dev
-  // boat, but full route planning, corridor enforcement and region gating need
-  // the dev runtime-config + MOOS/ENC backend, which is not yet ported. These
-  // keep the console safe: they act where self-contained, otherwise they tell
-  // the operator the backend is unavailable instead of doing nothing silently.
+  // ===== ENC safe-route planning + route corridor =====
+  // Plan Safe Route reads the navigable water around the selected route from
+  // the ENC vector tiles (EncSafeWaterService), plans through it in the
+  // route-planner worker and shows the result as a preview; the operator saves
+  // it as a new route. Send Route Corridor hands the selected route and a
+  // corridor width to the boat (CORRIDOR=..., enforced by pCorridor).
 
   /** An ENC / depth-reference chart is on screen (any non-base-raster chart). */
   protected encDepthReferenceShown(): boolean {
@@ -828,54 +843,200 @@ export class AppComponent implements OnDestroy {
     return sel.some((id) => !BASE.includes(id));
   }
 
-  protected safeWaterEnforced(): boolean {
-    return this.encDepthReferenceShown() && this.safeWaterRings.length > 0;
-  }
-
+  /** 'ok' when a selected chart is an S-57 ENC the planner can read */
   protected depthReferencePosture(): 'ok' | 'no-enc' | 'no-data' {
     if (!this.encDepthReferenceShown()) return 'no-enc';
-    if (this.safeWaterRings.length === 0) return 'no-data';
-    return 'ok';
+    return this.encSafeWater.encCharts().length ? 'ok' : 'no-data';
   }
 
-  /** Plan Safe Route — needs ENC safe-water data (loaded by the ENC backend). */
+  /** [lon,lat][] of the route selected in the Mission tab */
+  private selectedRouteCoords(): number[][] {
+    const rte = this.availableRoutes.find(
+      (r) => r[0] === this.autonomousControl.selectedRoute
+    );
+    const c = rte?.[1]?.feature?.geometry?.coordinates;
+    return Array.isArray(c) ? c : [];
+  }
+
   protected async planSafeRoute(): Promise<void> {
-    if (!this.autonomousControl.selectedRoute) {
-      this.app.showMessage('Select a route to plan', true, 3000);
+    const via = this.selectedRouteCoords();
+    if (via.length < 2) {
+      this.app.showMessage('Select a route with at least 2 waypoints to plan', true, 3000);
       return;
     }
-    this.app.showMessage(
-      'Safe-route planning needs ENC safe-water data — the ENC autonomy backend is not yet available.',
-      true,
-      4500
-    );
+    this.discardSafeRoute();
+    this.planningRoute = true;
+    try {
+      // the planner searches up to ~1.2 km around each leg
+      const pad = (1500 + this.planClearanceM) / 111320;
+      const lons = via.map((p) => p[0]);
+      const lats = via.map((p) => p[1]);
+      const bbox = [
+        Math.min(...lons) - pad,
+        Math.min(...lats) - pad,
+        Math.max(...lons) + pad,
+        Math.max(...lats) + pad
+      ];
+      const water = await this.encSafeWater.load(bbox, this.safetyDepthM);
+      if (!water.layers.length) {
+        this.safeRoutePlan = {
+          error: water.warnings[0] || 'No ENC data around this route.',
+          warnings: water.warnings.slice(1),
+          charts: []
+        };
+        return;
+      }
+      const r = await this.routePlanner.planRoute(
+        via,
+        { layers: water.layers },
+        25,
+        this.planClearanceM,
+        this.plannerAlgorithm,
+        this.planCentreBias
+      );
+      if (!r.ok || !r.route) {
+        this.safeRoutePlan = {
+          error: `${r.error || 'Planning failed.'} Safety depth ${this.safetyDepthM} m.`,
+          warnings: water.warnings,
+          charts: water.charts
+        };
+        return;
+      }
+      const distM = r.route.reduce(
+        (sum, p, i) => (i ? sum + metresBetween(r.route[i - 1], p) : 0),
+        0
+      );
+      // only the charts the route actually relies on, and their cautions
+      const used = chartsAlong(r.route, water.layers);
+      this.safeRoutePlan = {
+        route: r.route,
+        distanceM: distM,
+        turns: countTurns(r.route, 20),
+        minClearanceM: r.minClearanceM ?? 0,
+        relaxed: !!r.relaxed,
+        warnings: water.warnings.filter((w) => used.some((c) => w.startsWith(c))),
+        charts: used
+      };
+      this.app.data.map.safeRoutePreview = r.route;
+    } catch (e) {
+      this.safeRoutePlan = { error: `Planning failed: ${e}`, warnings: [], charts: [] };
+    } finally {
+      this.planningRoute = false;
+    }
   }
 
-  /** Send the route corridor — needs the MOOS corridor backend. */
+  /** Save the planned route as a new Signal K route and select it */
+  protected async useSafeRoute(): Promise<void> {
+    const plan = this.safeRoutePlan;
+    if (!plan?.route) return;
+    const baseName = this.getSelectedRouteName();
+    const route = new SKRoute({
+      name: `${baseName} (safe)`,
+      description: `Planned in water >= ${this.safetyDepthM} m with ${this.planClearanceM} m clearance from "${baseName}" (${plan.charts.join(', ')}).`,
+      distance: Math.round(plan.distanceM),
+      feature: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: plan.route },
+        properties: {},
+        id: ''
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    try {
+      const res = await this.skres.postToServer('routes', route);
+      if (res?.id) {
+        this.skres.selectionAdd('routes', res.id);
+        this.skres.refreshRoutes();
+      }
+      this.discardSafeRoute();
+      await this.loadAvailableRoutes();
+      if (res?.id) this.selectRoute(res.id);
+      this.app.showMessage(`Saved route "${route.name}"`, false, 3000);
+    } catch (err) {
+      this.app.showMessage(`Could not save the route: ${err?.message || err}`, true, 4000);
+    }
+  }
+
+  protected discardSafeRoute(): void {
+    this.safeRoutePlan = null;
+    this.app.data.map.safeRoutePreview = null;
+  }
+
+  /** CORRIDOR=width=<m>#pts=lat,lon:... for the selected route */
   protected sendCorridor(): void {
-    this.app.showMessage(
-      'Route corridor needs the MOOS corridor backend (not configured on this boat).',
-      true,
-      4000
-    );
+    const pts = this.selectedRouteCoords();
+    if (pts.length < 2) {
+      this.app.showMessage('Select a route with at least 2 waypoints first', true, 3000);
+      return;
+    }
+    const msg = `CORRIDOR=width=${this.corridorWidthM}#pts=${pts
+      .map((p) => `${p[1].toFixed(7)},${p[0].toFixed(7)}`)
+      .join(':')}`;
+    if (!this.sendMoos(msg)) {
+      this.app.showMessage('MOOS-IvP not connected, corridor not sent', true, 3000);
+      return;
+    }
+    this.app.data.map.corridor = { pts, width: this.corridorWidthM };
+    this.corridor.sent = true;
+    clearTimeout(this.corridorAckTimer);
+    this.corridorAckTimer = setTimeout(() => {
+      if (this.corridor.sent && !this.corridor.active) {
+        this.app.showMessage(
+          'The boat did not confirm the route corridor (is pCorridor running?).',
+          true,
+          5000
+        );
+      }
+    }, 3000);
   }
 
   protected clearCorridor(): void {
+    this.sendMoos('CORRIDOR=off');
+    clearTimeout(this.corridorAckTimer);
+    this.corridor.sent = false;
     this.corridor.active = false;
     this.corridor.status = 'none';
     this.corridor.xte = null;
+    this.app.data.map.corridor = null;
+  }
+
+  /** CORRIDOR / CORRIDOR_STATUS / XTE_NOW from the boat */
+  private updateCorridorTelemetry(data: {
+    CORRIDOR?: unknown;
+    CORRIDOR_STATUS?: unknown;
+    XTE_NOW?: unknown;
+  }) {
+    if (data.CORRIDOR !== undefined) {
+      const on = data.CORRIDOR === true || data.CORRIDOR === 'true' || data.CORRIDOR === '1';
+      this.corridor.active = on;
+      if (!on && !this.corridor.sent) this.app.data.map.corridor = null;
+      if (on) this.corridor.sent = false;
+    }
+    if (data.CORRIDOR_STATUS !== undefined) {
+      const st = `${data.CORRIDOR_STATUS}`.toLowerCase();
+      this.corridor.status = (['in', 'slow', 'stop', 'recovering'].includes(st)
+        ? st
+        : 'none') as typeof this.corridor.status;
+    }
+    if (data.XTE_NOW !== undefined) {
+      const x = Number(data.XTE_NOW);
+      this.corridor.xte = Number.isFinite(x) ? x : null;
+    }
   }
 
   protected corridorStatusText(): string {
+    const xte = this.corridor.xte !== null ? ` · ${Math.round(this.corridor.xte)} m off track` : '';
     switch (this.corridor.status) {
+      case 'in':
+        return `In corridor${xte}`;
       case 'slow':
-        return 'In corridor — slowing';
-      case 'stop':
-        return 'At corridor edge — holding';
+        return `Near the edge — slowing${xte}`;
       case 'recovering':
-        return 'Outside corridor — recovering';
+        return `Outside — steering back${xte}`;
+      case 'stop':
+        return `Far outside — stopped${xte}`;
       default:
-        return 'In corridor';
+        return this.corridor.active ? 'Active (waiting for a mission)' : 'Sent, waiting for the boat';
     }
   }
 
@@ -3822,6 +3983,7 @@ export class AppComponent implements OnDestroy {
     }
     // Missing until iCAN first posts it: treat as idle.
     this.updateTrimState(data.CAN_TRIM_STATE ?? 'idle');
+    this.updateCorridorTelemetry(data);
     if (data.CAN_TX_GEAR !== undefined) {
       this.updateBoatGear(data.CAN_TX_GEAR);
     }
@@ -5862,4 +6024,29 @@ export class AppComponent implements OnDestroy {
       ? 'Autopilot: ' + this.app.data.vessels.self.autopilot.default
       : '';
   }
+}
+
+/** great-circle distance in metres between two [lon,lat] points */
+function metresBetween(a: number[], b: number[]): number {
+  const R = 6371000;
+  const toRad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * toRad;
+  const dLon = (b[0] - a[0]) * toRad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** heading changes larger than minDeg along a [lon,lat] polyline */
+function countTurns(pts: number[][], minDeg: number): number {
+  const brg = (a: number[], b: number[]) =>
+    (Math.atan2((b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), b[1] - a[1]) * 180) / Math.PI;
+  let n = 0;
+  for (let i = 1; i + 1 < pts.length; i++) {
+    let d = Math.abs(brg(pts[i], pts[i + 1]) - brg(pts[i - 1], pts[i]));
+    if (d > 180) d = 360 - d;
+    if (d > minDeg) n++;
+  }
+  return n;
 }

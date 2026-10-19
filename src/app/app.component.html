@@ -748,14 +748,14 @@
                   @if(depthReferencePosture() === 'no-enc') {
                   <strong>No ENC chart selected</strong> &mdash; running unrestricted. Select an ENC chart to enable safe-water planning.
                   } @else {
-                  <strong>ENC selected, no safe-water data</strong> &mdash; route gating can't be applied for this area.
+                  <strong>No ENC (S-57) chart selected</strong> &mdash; the selected charts carry no depth data for planning.
                   }
                 </span>
               </div>
               }
 
-              <!-- ENC safe-water planning: re-plan the selected route through safe
-                   water and send a corridor with it. Needs ENC safe-water data. -->
+              <!-- ENC safe-water planning: re-plan the selected route through water at
+                   least the safety depth deep, and send a corridor around a route. -->
               <div class="autonomous-control-section">
                 <h3>ENC safe-water planning</h3>
                 <div class="ac-row corridor-row">
@@ -766,21 +766,54 @@
                     {{ planningRoute ? 'Planning…' : 'Plan Safe Route' }}
                   </button>
                 </div>
+
+                @if(safeRoutePlan; as plan) {
+                <div class="ac-plan" [class.ac-plan-error]="!!plan.error">
+                  @if(plan.error) {
+                  <div class="ac-plan-head"><mat-icon>block</mat-icon>{{ plan.error }}</div>
+                  } @else {
+                  <div class="ac-plan-head"><mat-icon>alt_route</mat-icon>Safe route found</div>
+                  <div class="ac-plan-stats">
+                    <span>{{ (plan.distanceM / 1852).toFixed(2) }} nm</span>
+                    <span>{{ plan.turns }} turns</span>
+                    <span>closest {{ plan.minClearanceM }} m</span>
+                  </div>
+                  @if(plan.relaxed) {
+                  <div class="ac-plan-warn">Could not keep {{ planClearanceM }} m clearance everywhere; the route passes closer.</div>
+                  }
+                  }
+                  @for(w of plan.warnings; track w) {
+                  <div class="ac-plan-warn">{{ w }}</div>
+                  }
+                  @if(plan.charts.length) {
+                  <div class="ac-plan-note">Water ≥ {{ safetyDepthM }} m · charts: {{ plan.charts.join(', ') }}</div>
+                  }
+                  <div class="ac-plan-actions">
+                    @if(!plan.error) {
+                    <button mat-raised-button class="control-btn ac-preset-on" (click)="useSafeRoute()">Use this route</button>
+                    }
+                    <button mat-raised-button class="control-btn" (click)="discardSafeRoute()">{{ plan.error ? 'Close' : 'Discard' }}</button>
+                  </div>
+                </div>
+                }
+
                 <div class="ac-row corridor-row">
-                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.active"
-                    [disabled]="depthReferencePosture() !== 'ok' && !corridor.active"
-                    (click)="corridor.active ? clearCorridor() : sendCorridor()">
-                    <mat-icon>{{ corridor.active ? 'linear_scale' : 'route' }}</mat-icon>
-                    {{ corridor.active ? 'Clear Route Corridor' : 'Send Route Corridor' }}
+                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.active || corridor.sent"
+                    [disabled]="!(corridor.active || corridor.sent) && (!autonomousControl.selectedRoute || !app.data.moosIvPServer.connected)"
+                    (click)="(corridor.active || corridor.sent) ? clearCorridor() : sendCorridor()">
+                    <mat-icon>{{ (corridor.active || corridor.sent) ? 'linear_scale' : 'route' }}</mat-icon>
+                    {{ (corridor.active || corridor.sent) ? 'Clear Route Corridor' : 'Send Route Corridor' }}
                   </button>
-                  <span *ngIf="corridor.active" class="corridor-status" [attr.data-status]="corridor.status">
-                    {{ corridorStatusText() }}
-                  </span>
+                  @if(corridor.active || corridor.sent) {
+                  <span class="corridor-status" [attr.data-status]="corridor.status">{{ corridorStatusText() }}</span>
+                  }
                 </div>
                 @if(depthReferencePosture() !== 'ok') {
-                <div class="service-mode-hint">Available once an ENC chart with safe-water data is loaded.</div>
+                <div class="service-mode-hint">Safe-route planning needs an ENC (S-57) chart selected in the chart list.</div>
                 } @else if(!autonomousControl.selectedRoute) {
-                <div class="service-mode-hint">Select a route to plan.</div>
+                <div class="service-mode-hint">Select a route to plan or to send a corridor.</div>
+                } @else {
+                <div class="service-mode-hint">Corridor: {{ corridorWidthM }} m wide around the selected route. The boat slows near its edge and steers back if it leaves.</div>
                 }
               </div>
 
@@ -1210,7 +1243,7 @@
               <!-- ENC planner settings (used by Plan Safe Route / route corridor) -->
               <button type="button" class="ac-acc-head" (click)="toggleTuning('enc')" [attr.aria-expanded]="tuningOpen.enc">
                 <span>ENC planner
-                  <small>{{ plannerAlgorithm === 'theta' ? 'Theta*' : 'A* grid' }} · clearance {{ planClearanceM }} m · corridor {{ corridorWidthM }} m</small>
+                  <small>depth ≥ {{ safetyDepthM }} m · {{ plannerAlgorithm === 'theta' ? 'Theta*' : 'A* grid' }} · clearance {{ planClearanceM }} m · corridor {{ corridorWidthM }} m</small>
                 </span>
                 <mat-icon>{{ tuningOpen.enc ? 'expand_less' : 'expand_more' }}</mat-icon>
               </button>
@@ -1223,6 +1256,13 @@
                     (click)="plannerAlgorithm = 'astar'">A* grid</button>
                   <button type="button" class="ac-seg-btn" disabled>Medial<small>soon</small></button>
                 </div>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Safety depth</span>
+                  <span class="ac-slider-val">{{ safetyDepthM }} m</span>
+                </div>
+                <mat-slider min="1" max="15" step="0.5" class="clearance-slider">
+                  <input matSliderThumb [value]="safetyDepthM" (input)="safetyDepthM = +$any($event.target).value">
+                </mat-slider>
                 <div class="ac-slider-row">
                   <span class="ac-slider-lbl">Hazard clearance</span>
                   <span class="ac-slider-val">{{ planClearanceM }} m</span>

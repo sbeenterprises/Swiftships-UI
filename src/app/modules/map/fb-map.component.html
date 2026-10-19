@@ -389,6 +389,12 @@
   }
 
   <!-- Base Marker (Return to Base position) -->
+  <!-- ENC planner preview + route corridor -->
+  @if(app.data.map.safeRoutePreview || app.data.map.corridor) {
+  <fb-route-preview [route]="app.data.map.safeRoutePreview" [corridor]="app.data.map.corridor" [zIndex]="332">
+  </fb-route-preview>
+  }
+
   @if(app.data.map.basePosition) {
   <fb-base-marker [position]="app.data.map.basePosition" [zIndex]="338" [visible]="true">
   </fb-base-marker>

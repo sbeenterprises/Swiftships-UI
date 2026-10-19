@@ -336,6 +336,10 @@ export interface FBAppData {
     };
     stationKeepPosition?: Position;
     basePosition?: Position;
+    /** safe route proposed by the ENC planner, not yet saved ([lon,lat][]) */
+    safeRoutePreview?: number[][] | null;
+    /** route corridor sent to the boat */
+    corridor?: { pts: number[][]; width: number } | null;
     colavTargetPosition?: Position;
   };
   vessels: {
