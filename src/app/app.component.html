@@ -1300,10 +1300,10 @@
             <footer class="ac-footer">
               @if(!autonomousControl.waypointActive) {
               <button mat-raised-button (click)="startMission()"
-                [disabled]="!autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected"
+                [disabled]="startingMission || !autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected"
                 class="mission-btn start-btn ac-btn-lg">
-                <mat-icon>play_arrow</mat-icon>
-                Start mission
+                <mat-icon>{{ startingMission ? 'hourglass_empty' : 'play_arrow' }}</mat-icon>
+                {{ startingMission ? 'Planning approach…' : 'Start mission' }}
               </button>
               <button type="button" class="ac-link-btn" (click)="clearPath()">Clear path on map</button>
               } @else {

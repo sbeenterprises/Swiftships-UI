@@ -446,7 +446,8 @@ export class AppComponent implements OnDestroy {
     active: false, // the boat reports CORRIDOR=true
     sent: false, // sent from this UI, not confirmed yet
     status: 'none' as 'none' | 'in' | 'slow' | 'stop' | 'recovering',
-    xte: null as number | null
+    xte: null as number | null,
+    turn: false // the boat is slowing for a sharp corner (CORRIDOR_TURN)
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private corridorAckTimer: any = null;
@@ -962,13 +963,25 @@ export class AppComponent implements OnDestroy {
     this.app.data.map.safeRoutePreview = null;
   }
 
-  /** CORRIDOR=width=<m>#pts=lat,lon:... for the selected route */
+  /**
+   * Send Route Corridor: during a mission the corridor follows everything the
+   * boat drives (approach + route + loop closing); before Start it follows the
+   * route and is re-sent with the full mission path when the mission starts.
+   */
   protected sendCorridor(): void {
-    const pts = this.selectedRouteCoords();
+    const pts =
+      this.autonomousControl.waypointActive && this.missionCorridorPath?.length > 1
+        ? this.missionCorridorPath
+        : this.selectedRouteCoords();
     if (pts.length < 2) {
       this.app.showMessage('Select a route with at least 2 waypoints first', true, 3000);
       return;
     }
+    this.sendCorridorPath(pts);
+  }
+
+  /** CORRIDOR=width=<m>#pts=lat,lon:... */
+  private sendCorridorPath(pts: number[][]): void {
     const msg = `CORRIDOR=width=${this.corridorWidthM}#pts=${pts
       .map((p) => `${p[1].toFixed(7)},${p[0].toFixed(7)}`)
       .join(':')}`;
@@ -1005,7 +1018,11 @@ export class AppComponent implements OnDestroy {
     CORRIDOR?: unknown;
     CORRIDOR_STATUS?: unknown;
     XTE_NOW?: unknown;
+    CORRIDOR_TURN?: unknown;
   }) {
+    if (data.CORRIDOR_TURN !== undefined) {
+      this.corridor.turn = data.CORRIDOR_TURN === true || data.CORRIDOR_TURN === 'true';
+    }
     if (data.CORRIDOR !== undefined) {
       const on = data.CORRIDOR === true || data.CORRIDOR === 'true' || data.CORRIDOR === '1';
       this.corridor.active = on;
@@ -1028,7 +1045,7 @@ export class AppComponent implements OnDestroy {
     const xte = this.corridor.xte !== null ? ` · ${Math.round(this.corridor.xte)} m off track` : '';
     switch (this.corridor.status) {
       case 'in':
-        return `In corridor${xte}`;
+        return this.corridor.turn ? `In corridor — slowing for a turn${xte}` : `In corridor${xte}`;
       case 'slow':
         return `Near the edge — slowing${xte}`;
       case 'recovering':
@@ -2683,11 +2700,114 @@ export class AppComponent implements OnDestroy {
     }
   }
 
-  protected startMission() {
+  /** true while Start mission plans the approach / loop closing */
+  protected startingMission = false;
+  /** centreline the corridor follows during the running mission (approach + loop) */
+  private missionCorridorPath: number[][] | null = null;
+
+  /**
+   * The waypoints actually driven, built at Start:
+   *   approach (boat -> waypoint 1, planned through safe water, driven once)
+   *   + the route
+   *   + closing path (last -> first waypoint, planned, only when repeating).
+   * loopStart is where repeats restart (LOOP_START), so the approach is not
+   * repeated. Without an ENC chart the approach / closing stay straight lines.
+   */
+  private async buildMissionPath(
+    route: number[][],
+    repeat: boolean
+  ): Promise<{ path: number[][]; loopStart: number; corridorPath: number[][]; notes: string[] }> {
+    const MIN_GAP_M = 30;
+    const notes: string[] = [];
+    const canPlan = this.depthReferencePosture() === 'ok';
+    const pos = this.app.data.vessels?.self?.position;
+    const boat =
+      Array.isArray(pos) && Number.isFinite(pos[0]) && Number.isFinite(pos[1]) && (pos[0] || pos[1])
+        ? [pos[0], pos[1]]
+        : null;
+
+    const planLeg = async (a: number[], b: number[]): Promise<number[][] | null> => {
+      const pad = (1500 + this.planClearanceM) / 111320;
+      const bbox = [
+        Math.min(a[0], b[0]) - pad,
+        Math.min(a[1], b[1]) - pad,
+        Math.max(a[0], b[0]) + pad,
+        Math.max(a[1], b[1]) + pad
+      ];
+      const water = await this.encSafeWater.load(bbox, this.safetyDepthM);
+      if (!water.layers.length) return null;
+      const r = await this.routePlanner.planRoute(
+        [a, b],
+        { layers: water.layers },
+        25,
+        this.planClearanceM,
+        this.plannerAlgorithm,
+        this.planCentreBias
+      );
+      return r.ok && r.route?.length > 1 ? r.route : null;
+    };
+
+    let approach: number[][] = [];
+    if (boat && metresBetween(boat, route[0]) > MIN_GAP_M) {
+      if (!canPlan) {
+        notes.push('Approach to waypoint 1 not planned (no ENC chart selected): the boat heads straight for it.');
+      } else {
+        const leg = await planLeg(boat, route[0]);
+        if (leg) approach = leg.slice(0, -1); // ends at waypoint 1 itself
+        else notes.push('No safe approach found from the boat to waypoint 1: the boat heads straight for it.');
+      }
+    } else if (!boat) {
+      notes.push('Boat position unknown: approach to waypoint 1 not planned.');
+    }
+
+    let closing: number[][] = [];
+    const last = route[route.length - 1];
+    if (repeat && route.length > 1 && metresBetween(last, route[0]) > MIN_GAP_M) {
+      if (!canPlan) {
+        notes.push('Loop closing not planned (no ENC chart selected): last to first waypoint is a straight line.');
+      } else {
+        const leg = await planLeg(last, route[0]);
+        if (leg) closing = leg.slice(1, -1); // between the last and first waypoints
+        else notes.push('No safe path from the last waypoint back to the first: the loop closes in a straight line.');
+      }
+    }
+
+    const path = [...approach, ...route, ...closing];
+    const corridorPath = repeat ? [...path, route[0]] : path;
+    return { path, loopStart: approach.length, corridorPath, notes };
+  }
+
+  protected async startMission() {
     if (!this.autonomousControl.selectedRoute) {
       this.app.showMessage('Please select a route first', true, 3000);
       return;
     }
+    const route = this.selectedRouteCoords();
+    if (route.length < 1 || this.startingMission) return;
+
+    // The route list keeps re-sending the plain route (AUTONOMOUS_WAYPOINTS)
+    // until the helm clears its all-stop; that would replace the planned
+    // mission points, so stop it now.
+    if (this.autonomousControl.waypointSendTimer) {
+      clearInterval(this.autonomousControl.waypointSendTimer);
+      this.autonomousControl.waypointSendTimer = null;
+    }
+
+    this.startingMission = true;
+    let mission: Awaited<ReturnType<AppComponent['buildMissionPath']>>;
+    try {
+      mission = await this.buildMissionPath(route, this.autonomousControl.repeatRoute);
+    } catch (e) {
+      mission = {
+        path: route,
+        loopStart: 0,
+        corridorPath: route,
+        notes: [`Approach / loop planning failed (${e}); starting on the route as drawn.`]
+      };
+    } finally {
+      this.startingMission = false;
+    }
+
     this.autonomousControl.status = 'active';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
@@ -2695,36 +2815,43 @@ export class AppComponent implements OnDestroy {
     // Ignore STATUS updates until we see DRIVE→PARK transition (mission complete)
     this.autonomousControl.ignoreStatusUpdates = true;
     this.autonomousControl.lastStatus = '';
-    console.log('[START MISSION] Ignoring STATUS updates until DRIVE→PARK transition');
 
-    // Get waypoints from selected route
-    const selectedRoute = this.availableRoutes.find(r => r[0] === this.autonomousControl.selectedRoute);
-    if (selectedRoute && selectedRoute[1].feature && selectedRoute[1].feature.geometry && selectedRoute[1].feature.geometry.coordinates) {
-      const waypoints = selectedRoute[1].feature.geometry.coordinates;
+    // Format waypoints as lat1,lon1:lat2,lon2:lat3,lon3...
+    const waypointString = mission.path.map((point) => `${point[1]},${point[0]}`).join(':');
+    const repeatValue = this.autonomousControl.repeatRoute ? 'true' : 'false';
+    const routeId = this.autonomousControl.selectedRoute;
 
-      // Format waypoints as lat1,lon1:lat2,lon2:lat3,lon3...
-      const waypointString = waypoints.map(point => {
-        const lat = point[1]; // Latitude is at index 1
-        const lon = point[0]; // Longitude is at index 0
-        return `${lat},${lon}`;
-      }).join(':');
-
-      // Send combined message: AUTONOMOUS_START=true#SPEED#WAYPOINTS#REPEAT=true/false#ID_ROUTE=route-id
-      if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-        const repeatValue = this.autonomousControl.repeatRoute ? 'true' : 'false';
-        const routeId = this.autonomousControl.selectedRoute;
-        const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}#REPEAT=${repeatValue}#ID_ROUTE=${routeId}`;
-        this.app.data.moosIvPServer.socket.send(message);
-        console.log(`[START MISSION] Sent combined message with ${waypoints.length} waypoints, speed ${this.autonomousControl.speed}, repeat ${repeatValue}, route ID ${routeId}`);
-        console.log(`[START MISSION] Message: ${message.substring(0, 150)}...`);
-      }
+    // LOOP_START first: repeats restart after the approach (0 = from the first point)
+    this.sendMoos(`LOOP_START=${mission.loopStart}`);
+    // AUTONOMOUS_START=true#SPEED#WAYPOINTS#REPEAT=true/false#ID_ROUTE=route-id
+    if (
+      !this.sendMoos(
+        `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}#REPEAT=${repeatValue}#ID_ROUTE=${routeId}`
+      )
+    ) {
+      this.app.showMessage('MOOS-IvP not connected, mission not started', true, 3000);
+      return;
     }
 
-    this.app.showMessage('Mission Started', false, 3000);
-    console.log('Mission started:', this.autonomousControl);
+    // A corridor that was sent (or is on) now has to cover the whole mission
+    this.missionCorridorPath = mission.corridorPath;
+    if (this.corridor.active || this.corridor.sent) {
+      this.sendCorridorPath(mission.corridorPath);
+    }
+
+    const legs = [
+      mission.loopStart ? `approach ${mission.loopStart} pts` : '',
+      mission.path.length - mission.loopStart - route.length > 0 ? 'planned loop closing' : ''
+    ].filter((x) => x);
+    this.app.showMessage(
+      `Mission Started${legs.length ? ' (' + legs.join(', ') + ')' : ''}${mission.notes.length ? '. ' + mission.notes.join(' ') : ''}`,
+      mission.notes.length > 0,
+      mission.notes.length ? 8000 : 3000
+    );
   }
 
   protected stopMission() {
+    this.missionCorridorPath = null;
     this.autonomousControl.status = 'paused';
 
     // Send stop command to MOOS-IvP
@@ -2808,6 +2935,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected abortMission() {
+    this.missionCorridorPath = null;
     this.autonomousControl.status = 'aborted';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
