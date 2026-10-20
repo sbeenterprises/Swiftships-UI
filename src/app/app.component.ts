@@ -839,8 +839,8 @@ export class AppComponent implements OnDestroy {
   // ===== ENC safe-route planning + route corridor =====
   // Plan Safe Route reads the navigable water around the selected route from
   // the ENC vector tiles (EncSafeWaterService), plans through it in the
-  // route-planner worker and shows the result as a preview; the operator saves
-  // it as a new route. Send Route Corridor hands the selected route and a
+  // route-planner worker and shows the result as a preview; "Update route"
+  // writes it into the selected route (same route, new waypoints). Send Route Corridor hands the selected route and a
   // corridor width to the boat (CORRIDOR=..., enforced by pCorridor).
 
   /** An ENC / depth-reference chart is on screen (any non-base-raster chart). */
@@ -932,35 +932,45 @@ export class AppComponent implements OnDestroy {
     }
   }
 
-  /** Save the planned route as a new Signal K route and select it */
+  /**
+   * Write the planned route into the selected Signal K route: same id and
+   * name, new waypoints. Planning a route again adjusts it again instead of
+   * piling up "(safe)" copies.
+   */
   protected async useSafeRoute(): Promise<void> {
     const plan = this.safeRoutePlan;
     if (!plan?.route) return;
-    const baseName = this.getSelectedRouteName();
-    const route = new SKRoute({
-      name: `${baseName} (safe)`,
-      description: `Planned in water >= ${this.safetyDepthM} m with ${this.planClearanceM} m clearance from "${baseName}" (${plan.charts.join(', ')}).`,
-      distance: Math.round(plan.distanceM),
-      feature: {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: plan.route },
-        properties: {},
-        id: ''
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const id = this.autonomousControl.selectedRoute;
+    const entry = this.availableRoutes.find((r) => r[0] === id);
+    if (!entry?.[1]?.feature?.geometry) {
+      this.app.showMessage('The selected route is no longer available', true, 3000);
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const route: any = JSON.parse(JSON.stringify(entry[1]));
+    route.feature.geometry.coordinates = plan.route;
+    // per-waypoint names / station-keep settings belong to the old points
+    const hadMeta = !!route.feature.properties?.coordinatesMeta;
+    if (hadMeta) delete route.feature.properties.coordinatesMeta;
+    route.distance = Math.round(plan.distanceM);
+    // keep the operator's description, replace the previous planner note
+    const note = `Planned in water >= ${this.safetyDepthM} m with ${this.planClearanceM} m clearance (${plan.charts.join(', ')}).`;
+    const prev = String(route.description || '').replace(/\s*Planned in water >=[\s\S]*$/, '').trim();
+    route.description = prev ? `${prev} ${note}` : note;
     try {
-      const res = await this.skres.postToServer('routes', route);
-      if (res?.id) {
-        this.skres.selectionAdd('routes', res.id);
-        this.skres.refreshRoutes();
-      }
+      await this.skres.putToServer('routes', id, route as SKRoute);
+      this.skres.refreshRoutes();
       this.discardSafeRoute();
       await this.loadAvailableRoutes();
-      if (res?.id) this.selectRoute(res.id);
-      this.app.showMessage(`Saved route "${route.name}"`, false, 3000);
+      this.selectRoute(id);
+      this.app.showMessage(
+        `Updated route "${route.name}"` +
+          (hadMeta ? ' (waypoint names / station-keep settings cleared)' : ''),
+        false,
+        4000
+      );
     } catch (err) {
-      this.app.showMessage(`Could not save the route: ${err?.message || err}`, true, 4000);
+      this.app.showMessage(`Could not update the route: ${err?.message || err}`, true, 4000);
     }
   }
 
