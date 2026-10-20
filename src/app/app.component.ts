@@ -447,7 +447,11 @@ export class AppComponent implements OnDestroy {
     sent: false, // sent from this UI, not confirmed yet
     status: 'none' as 'none' | 'in' | 'slow' | 'stop' | 'recovering',
     xte: null as number | null,
-    turn: false // the boat is slowing for a sharp corner (CORRIDOR_TURN)
+    turn: false, // the boat is slowing for a sharp corner (CORRIDOR_TURN)
+    // Operator wants a corridor: it is (re)sent before every Start and
+    // Return to Base until cleared. The boat clears its own corridor at the
+    // end of a route and on Stop, so this is what carries it to the next one.
+    armed: false
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private corridorAckTimer: any = null;
@@ -599,6 +603,8 @@ export class AppComponent implements OnDestroy {
     // ** restore last calibrated PID gains (service mode)
     this.loadPidSettings();
     this.loadColavSettings();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.corridor.armed = !!(this.app.config.selections as any).corridorArmed;
     this.loadColavDistSettings();
     this.loadAisLimitSettings();
     this.showAisRing();
@@ -969,6 +975,7 @@ export class AppComponent implements OnDestroy {
    * route and is re-sent with the full mission path when the mission starts.
    */
   protected sendCorridor(): void {
+    this.setCorridorArmed(true);
     const pts =
       this.autonomousControl.waypointActive && this.missionCorridorPath?.length > 1
         ? this.missionCorridorPath
@@ -1004,6 +1011,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected clearCorridor(): void {
+    this.setCorridorArmed(false);
     this.sendMoos('CORRIDOR=off');
     clearTimeout(this.corridorAckTimer);
     this.corridor.sent = false;
@@ -1011,6 +1019,28 @@ export class AppComponent implements OnDestroy {
     this.corridor.status = 'none';
     this.corridor.xte = null;
     this.app.data.map.corridor = null;
+  }
+
+  private setCorridorArmed(armed: boolean) {
+    this.corridor.armed = armed;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.app.config.selections as any).corridorArmed = armed;
+    this.app.saveConfig();
+  }
+
+  /**
+   * Corridor for a mission about to start: sent BEFORE the mission so the
+   * boat never measures the new mission against the previous corridor (it
+   * flashed "stop 180 m" / "recovering 41 m" at each start, 19 Oct log).
+   * Not armed: clear any corridor still on the boat.
+   */
+  private prepareCorridorFor(path: number[][]) {
+    if (this.corridor.armed && path.length > 1) {
+      this.sendCorridorPath(path);
+    } else if (!this.corridor.armed) {
+      this.sendMoos('CORRIDOR=off');
+      this.app.data.map.corridor = null;
+    }
   }
 
   /** CORRIDOR / CORRIDOR_STATUS / XTE_NOW from the boat */
@@ -1053,7 +1083,9 @@ export class AppComponent implements OnDestroy {
       case 'stop':
         return `Far outside — stopped${xte}`;
       default:
-        return this.corridor.active ? 'Active (waiting for a mission)' : 'Sent, waiting for the boat';
+        if (this.corridor.active) return 'Active (waiting for a mission)';
+        if (this.corridor.sent) return 'Sent, waiting for the boat';
+        return this.corridor.armed ? 'Armed: sent with the next Start / Return to Base' : 'Off';
     }
   }
 
@@ -2715,7 +2747,8 @@ export class AppComponent implements OnDestroy {
    */
   private async buildMissionPath(
     route: number[][],
-    repeat: boolean
+    repeat: boolean,
+    target = 'waypoint 1'
   ): Promise<{ path: number[][]; loopStart: number; corridorPath: number[][]; notes: string[] }> {
     const MIN_GAP_M = 30;
     const notes: string[] = [];
@@ -2750,14 +2783,14 @@ export class AppComponent implements OnDestroy {
     let approach: number[][] = [];
     if (boat && metresBetween(boat, route[0]) > MIN_GAP_M) {
       if (!canPlan) {
-        notes.push('Approach to waypoint 1 not planned (no ENC chart selected): the boat heads straight for it.');
+        notes.push(`Approach to ${target} not planned (no ENC chart selected): the boat heads straight for it.`);
       } else {
         const leg = await planLeg(boat, route[0]);
         if (leg) approach = leg.slice(0, -1); // ends at waypoint 1 itself
-        else notes.push('No safe approach found from the boat to waypoint 1: the boat heads straight for it.');
+        else notes.push(`No safe approach found from the boat to ${target}: the boat heads straight for it.`);
       }
     } else if (!boat) {
-      notes.push('Boat position unknown: approach to waypoint 1 not planned.');
+      notes.push(`Boat position unknown: approach to ${target} not planned.`);
     }
 
     let closing: number[][] = [];
@@ -2782,8 +2815,12 @@ export class AppComponent implements OnDestroy {
       this.app.showMessage('Please select a route first', true, 3000);
       return;
     }
+    if (this.startingMission) return;
     const route = this.selectedRouteCoords();
-    if (route.length < 1 || this.startingMission) return;
+    if (route.length < 1) {
+      this.app.showMessage('The selected route has no waypoints (was it deleted?). Select it again.', true, 4000);
+      return;
+    }
 
     // The route list keeps re-sending the plain route (AUTONOMOUS_WAYPOINTS)
     // until the helm clears its all-stop; that would replace the planned
@@ -2821,7 +2858,10 @@ export class AppComponent implements OnDestroy {
     const repeatValue = this.autonomousControl.repeatRoute ? 'true' : 'false';
     const routeId = this.autonomousControl.selectedRoute;
 
-    // LOOP_START first: repeats restart after the approach (0 = from the first point)
+    // Corridor first (or off), then LOOP_START, then the mission
+    this.missionCorridorPath = mission.corridorPath;
+    this.prepareCorridorFor(mission.corridorPath);
+    // LOOP_START: repeats restart after the approach (0 = from the first point)
     this.sendMoos(`LOOP_START=${mission.loopStart}`);
     // AUTONOMOUS_START=true#SPEED#WAYPOINTS#REPEAT=true/false#ID_ROUTE=route-id
     if (
@@ -2833,11 +2873,6 @@ export class AppComponent implements OnDestroy {
       return;
     }
 
-    // A corridor that was sent (or is on) now has to cover the whole mission
-    this.missionCorridorPath = mission.corridorPath;
-    if (this.corridor.active || this.corridor.sent) {
-      this.sendCorridorPath(mission.corridorPath);
-    }
 
     const legs = [
       mission.loopStart ? `approach ${mission.loopStart} pts` : '',
@@ -2880,42 +2915,63 @@ export class AppComponent implements OnDestroy {
     console.log('Path cleared');
   }
 
-  protected returnToBase() {
+  protected async returnToBase() {
     // Check if base position is defined
     if (!this.app.data.map.basePosition) {
       this.app.showMessage('Please define a base position first by right-clicking on the map', true, 3000);
-      console.log('[RETURN TO BASE] No base position defined');
       return;
+    }
+    if (this.startingMission) return;
+
+    // Same as Start: a safe path from the boat through ENC water (straight
+    // with a warning when that is not possible), the corridor around it
+    // when armed - and never the previous mission's corridor.
+    const base = [this.app.data.map.basePosition[0], this.app.data.map.basePosition[1]];
+    if (this.autonomousControl.waypointSendTimer) {
+      clearInterval(this.autonomousControl.waypointSendTimer);
+      this.autonomousControl.waypointSendTimer = null;
+    }
+    this.startingMission = true;
+    let mission: Awaited<ReturnType<AppComponent['buildMissionPath']>>;
+    try {
+      mission = await this.buildMissionPath([base], false, 'the base');
+    } catch (e) {
+      mission = { path: [base], loopStart: 0, corridorPath: [base], notes: [`Path planning failed (${e}): heading straight to base.`] };
+    } finally {
+      this.startingMission = false;
     }
 
     this.autonomousControl.status = 'returning';
     this.autonomousControl.currentWaypoint = 0;
     this.autonomousControl.progress = 0;
-
     // Ignore STATUS updates until we see DRIVE→PARK transition (mission complete)
     this.autonomousControl.ignoreStatusUpdates = true;
     this.autonomousControl.lastStatus = '';
-    console.log('[RETURN TO BASE] Ignoring STATUS updates until DRIVE→PARK transition');
 
-    // Format base position as waypoint (lat,lon)
-    const basePos = this.app.data.map.basePosition;
-    const lat = basePos[1]; // Latitude is at index 1
-    const lon = basePos[0]; // Longitude is at index 0
-    const waypointString = `${lat},${lon}`;
-
-    // Send AUTONOMOUS_START message with base position as the only waypoint
-    if (this.app.data.moosIvPServer.connected && this.app.data.moosIvPServer.socket) {
-      const message = `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}#REPEAT=false#ID_ROUTE=return_to_base`;
-      this.app.data.moosIvPServer.socket.send(message);
-      console.log(`[RETURN TO BASE] Sent AUTONOMOUS_START with base waypoint at ${waypointString}`);
-      console.log(`[RETURN TO BASE] Message: ${message}`);
-    } else {
-      console.log('[RETURN TO BASE] MOOS-IvP not connected, cannot send command');
+    // corridor from the boat's position (the planned path starts there)
+    const pos = this.app.data.vessels?.self?.position;
+    const corridorPath =
+      mission.path.length > 1 ? mission.path
+        : Array.isArray(pos) && Number.isFinite(pos[0]) ? [[pos[0], pos[1]], base] : [];
+    this.missionCorridorPath = corridorPath;
+    this.prepareCorridorFor(corridorPath);
+    this.sendMoos('LOOP_START=0');
+    const waypointString = mission.path.map((p) => `${p[1]},${p[0]}`).join(':');
+    if (
+      !this.sendMoos(
+        `AUTONOMOUS_START=true#${this.autonomousControl.speed}#${waypointString}#REPEAT=false#ID_ROUTE=return_to_base`
+      )
+    ) {
+      this.app.showMessage('MOOS-IvP not connected, cannot return to base', true, 3000);
+      return;
     }
-
-    this.app.showMessage('Returning to Base', false, 3000);
-    console.log('[RETURN TO BASE] Initiated return to base');
+    this.app.showMessage(
+      `Returning to Base${mission.path.length > 1 ? ` (planned path, ${mission.path.length - 1} legs)` : ''}${mission.notes.length ? '. ' + mission.notes.join(' ') : ''}`,
+      mission.notes.length > 0,
+      mission.notes.length ? 8000 : 3000
+    );
   }
+
 
   /**
    * Remove the return-to-base point. The boat is told too (empty BASE_COORDS),
@@ -3148,9 +3204,12 @@ export class AppComponent implements OnDestroy {
       console.log(`[ROUTE CALC] Calculated total distance from vessel position: ${totalDistance.toFixed(0)}m`);
     }
 
-    // Calculate time of arrival using SOG (Speed Over Ground) from topbar
-    // SOG is in m/s
-    const sog = this.app.data.vessels.self.sog;
+    // Time of arrival: SOG (m/s) while the boat is underway on a mission,
+    // otherwise the target speed (knots). From SOG alone a boat at the dock
+    // showed e.g. "47 h" for a 0.5 nm route.
+    const sogNow = this.app.data.vessels.self.sog;
+    const underway = this.autonomousControl.status === 'active' && sogNow > 0.5;
+    const sog = underway ? sogNow : (this.autonomousControl.speed || 0) * 0.514444;
     if (sog && sog > 0) {
       this.autonomousControl.totalTimeOfArrival = totalDistance / sog;
       console.log(`[ROUTE CALC] Total TOA: ${this.autonomousControl.totalTimeOfArrival.toFixed(0)}s (${this.formatTime(this.autonomousControl.totalTimeOfArrival)}) at ${(sog / 0.514444).toFixed(2)} knots SOG for ${totalDistance.toFixed(0)}m`);
@@ -4414,6 +4473,15 @@ export class AppComponent implements OnDestroy {
 
   /** send waypoints to MOOS-IvP server */
   private sendWaypointsToMOOS(waypoints: any[]) {
+    // While a mission runs the boat drives the planned mission (approach +
+    // route + loop closing, LOOP_START). Re-sending the plain route - e.g.
+    // when the panel reopens and re-selects the running route - replaced
+    // that list mid-mission (19 Oct log, t=1053). Route changes apply at
+    // the next Start.
+    if (this.app.data.moosIvPServer?.waypointActive) {
+      console.log('[ROUTE] Mission running: route not re-sent (applies at next Start)');
+      return;
+    }
     if (
       this.app.data.moosIvPServer &&
       this.app.data.moosIvPServer.connected &&

@@ -1861,6 +1861,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ** Send waypoints to MOOS-IvP as AUTONOMOUS_WAYPOINTS **
   private sendWaypointsToMOOS(waypoints: Position[]) {
+    // Never replace the waypoints of a running mission (see AppComponent)
+    if (this.app.data.moosIvPServer?.waypointActive) {
+      console.log('[ADD POINT] Mission running: route not re-sent (applies at next Start)');
+      return;
+    }
     if (
       this.app.data.moosIvPServer &&
       this.app.data.moosIvPServer.connected &&

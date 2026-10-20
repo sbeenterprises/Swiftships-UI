@@ -798,13 +798,13 @@
                 }
 
                 <div class="ac-row corridor-row">
-                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.active || corridor.sent"
-                    [disabled]="!(corridor.active || corridor.sent) && (!autonomousControl.selectedRoute || !app.data.moosIvPServer.connected)"
-                    (click)="(corridor.active || corridor.sent) ? clearCorridor() : sendCorridor()">
-                    <mat-icon>{{ (corridor.active || corridor.sent) ? 'linear_scale' : 'route' }}</mat-icon>
-                    {{ (corridor.active || corridor.sent) ? 'Clear Route Corridor' : 'Send Route Corridor' }}
+                  <button mat-stroked-button class="corridor-btn" [class.on]="corridor.armed"
+                    [disabled]="!corridor.armed && (!autonomousControl.selectedRoute || !app.data.moosIvPServer.connected)"
+                    (click)="corridor.armed ? clearCorridor() : sendCorridor()">
+                    <mat-icon>{{ corridor.armed ? 'linear_scale' : 'route' }}</mat-icon>
+                    {{ corridor.armed ? 'Clear Route Corridor' : 'Send Route Corridor' }}
                   </button>
-                  @if(corridor.active || corridor.sent) {
+                  @if(corridor.armed || corridor.active || corridor.sent) {
                   <span class="corridor-status" [attr.data-status]="corridor.status">{{ corridorStatusText() }}</span>
                   }
                 </div>
@@ -917,10 +917,11 @@
               </div>
               }
 
-              @if(corridor.active) {
+              @if(corridor.active || corridor.armed) {
               <div class="autonomous-control-section ac-colav-idle">
                 <mat-icon>linear_scale</mat-icon>
                 Route corridor: <span class="corridor-status" [attr.data-status]="corridor.status">{{ corridorStatusText() }}</span>
+                <button type="button" class="ac-link-btn" (click)="clearCorridor()" aria-label="Clear route corridor">Clear</button>
               </div>
               }
 
