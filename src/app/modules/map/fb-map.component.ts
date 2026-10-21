@@ -88,6 +88,7 @@ import {
   DrawFeatureInfo,
   IOverlay
 } from './fbmap-interact.service';
+import { RegionEditService } from './region-edit.service';
 
 interface IResource {
   id: string;
@@ -326,7 +327,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
     protected anchor: AnchorFacade,
     protected notiMgr: NotificationManager,
     private course: CourseService,
-    protected mapInteract: FBMapInteractService
+    protected mapInteract: FBMapInteractService,
+    protected regionEdit: RegionEditService
   ) { }
 
   ngAfterViewInit() {
@@ -736,6 +738,14 @@ export class FBMapComponent implements OnInit, OnDestroy {
       features: e.features,
       lonlat: e.lonlat
     };
+
+    // Region editor: clicks add corners while drawing; no popups while editing
+    if (this.regionEdit.active()) {
+      if (this.regionEdit.mode() === 'drawing') {
+        this.regionEdit.addPoint([e.lonlat[0], e.lonlat[1]]);
+      }
+      return;
+    }
 
     // Handle pending waypoint placement for route
     if (this.pendingRouteWaypoint) {

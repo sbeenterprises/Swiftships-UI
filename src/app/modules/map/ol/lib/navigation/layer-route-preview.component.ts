@@ -31,6 +31,8 @@ import { MapComponent } from '../map.component';
 export class RoutePreviewComponent implements OnInit, OnDestroy, OnChanges {
   @Input() route: number[][] | null;
   @Input() corridor: { pts: number[][]; width: number } | null;
+  /** active region's working boundary from the boat ([lon,lat] ring) */
+  @Input() regionCore: number[][] | null;
   @Input() zIndex = 330;
 
   private layer: VectorLayer<VectorSource>;
@@ -50,7 +52,7 @@ export class RoutePreviewComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (this.layer && (changes.route || changes.corridor)) this.render();
+    if (this.layer && (changes.route || changes.corridor || changes.regionCore)) this.render();
   }
 
   ngOnDestroy() {
@@ -59,6 +61,15 @@ export class RoutePreviewComponent implements OnInit, OnDestroy, OnChanges {
 
   private render() {
     this.source.clear();
+    if (this.regionCore?.length > 2) {
+      // the boat works inside this; its halt line is the drawn region
+      const ring = this.regionCore.map((p) => fromLonLat(p));
+      const core = new Feature(new LineString([...ring, ring[0]]));
+      core.setStyle(
+        new Style({ stroke: new Stroke({ color: 'rgba(255, 196, 61, 0.95)', width: 2, lineDash: [10, 8] }) })
+      );
+      this.source.addFeature(core);
+    }
     if (this.corridor?.pts?.length > 1 && this.corridor.width > 0) {
       const band = new Feature(
         new MultiPolygon(corridorBand(this.corridor.pts, this.corridor.width / 2))

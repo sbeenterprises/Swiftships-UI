@@ -1,4 +1,5 @@
-import { Component, ViewChild, effect, signal, OnDestroy } from '@angular/core';
+import { Component, ViewChild, effect, inject, signal, OnDestroy } from '@angular/core';
+import { LonLat, RegionEditService, regionAroundRoute } from './modules/map/region-edit.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog } from '@angular/material/dialog';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
@@ -175,7 +176,8 @@ export class AppComponent implements OnDestroy {
     mmsi: '',
     name: '',
     range: 100,   // metres astern
-    angle: 180    // degrees relative to the contact's heading
+    angle: 180,   // degrees relative to the contact's heading
+    speed: 5      // knots: most the follow may use to close up (trail_max_speed)
   };
 
   // Autonomous control data. Mission-derived fields come from
@@ -404,6 +406,10 @@ export class AppComponent implements OnDestroy {
 
   // Available regions for autonomous control
   public availableRegions: [string, any, boolean][] = [];
+  /** operating-region editor (map layer fb-region-editor) */
+  protected regionEdit = inject(RegionEditService);
+  /** full width of a region generated around the selected route, metres */
+  protected regionRouteWidthM = 200;
 
   // MOOS contact cleanup timer
   private moosContactCleanupTimer: any = null;
@@ -610,6 +616,7 @@ export class AppComponent implements OnDestroy {
     this.showAisRing();
     this.aisFollow.range = this.app.config.selections.aisFollowRange ?? 100;
     this.aisFollow.angle = this.app.config.selections.aisFollowAngle ?? 180;
+    this.aisFollow.speed = this.app.config.selections.aisFollowSpeed ?? 5;
 
     // ** Start MOOS contact cleanup timer
     this.startMoosContactCleanup();
@@ -1325,6 +1332,164 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  // ===== Operating region: drawing, editing, activation =====
+  // The region polygon is the boat's HALT line: the boat works inside it
+  // shrunk by its region_margin (iWebSocket) and the helm stops it on or just
+  // inside the line (BHV_OpRegionV26). Any shape whose edges do not cross.
+
+  /** REGION_STATE / REGION_CORE / REGION_MSG from the boat */
+  private updateRegionTelemetry(data: { REGION?: unknown; REGION_STATE?: unknown; REGION_CORE?: unknown; REGION_MSG?: unknown }) {
+    const srv = this.app.data.moosIvPServer;
+    if (data.REGION_STATE !== undefined) srv.regionState = `${data.REGION_STATE}`;
+    if (data.REGION_MSG !== undefined) srv.regionMsg = `${data.REGION_MSG}`;
+    if (data.REGION_CORE !== undefined || data.REGION !== undefined) {
+      const core = srv.regionActive ? `${data.REGION_CORE ?? ''}` : '';
+      const ring = core
+        .split(':')
+        .map((p) => p.split(',').map(Number))
+        .filter((p) => p.length === 2 && p.every(Number.isFinite))
+        .map((p) => [p[1], p[0]]);
+      const prev = this.app.data.map.regionCore;
+      const next = ring.length > 2 ? ring : null;
+      if (JSON.stringify(prev ?? null) !== JSON.stringify(next)) this.app.data.map.regionCore = next;
+    }
+  }
+
+  protected regionStatus(): { text: string; tone: 'off' | 'ok' | 'warn' | 'stop' } {
+    const srv = this.app.data.moosIvPServer;
+    if (!srv?.regionActive) return { text: 'Off', tone: 'off' };
+    switch (srv.regionState) {
+      case 'contained':
+        return { text: 'Active: boat inside the working area', tone: 'ok' };
+      case 'entering':
+        return { text: 'Active: not enforced until the boat has been inside', tone: 'warn' };
+      case 'lapsed':
+        return { text: 'Outside the working area: steering back', tone: 'warn' };
+      case 'breached':
+        return { text: 'STOPPED at the halt line: take manual control', tone: 'stop' };
+      default:
+        return { text: 'Active: enforced while a mission, follow or station-keep runs', tone: 'ok' };
+    }
+  }
+
+  private regionEntry(id: string) {
+    return this.availableRegions.find((r) => r[0] === id);
+  }
+
+  /** outer ring ([lon,lat]) of a Signal K region */
+  private regionRing(entry: [string, any, boolean]): LonLat[] {
+    const g = entry?.[1]?.feature?.geometry;
+    if (!g) return [];
+    const ring = g.type === 'MultiPolygon' ? g.coordinates?.[0]?.[0] : g.coordinates?.[0];
+    return Array.isArray(ring) ? ring.map((p: number[]) => [p[0], p[1]] as LonLat) : [];
+  }
+
+  protected startRegionDrawing() {
+    const d = new Date();
+    const pad = (n: number) => `${n}`.padStart(2, '0');
+    this.regionEdit.startDrawing(`Region ${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  }
+
+  protected editSelectedRegion() {
+    const entry = this.regionEntry(this.autonomousControl.selectedRegion);
+    const ring = this.regionRing(entry);
+    if (ring.length < 3) {
+      this.app.showMessage('Select a region to edit first', true, 3000);
+      return;
+    }
+    this.regionEdit.startAdjusting(ring, entry[0], entry[1].name || 'Region');
+  }
+
+  protected startRegionAroundRoute() {
+    const route = this.selectedRouteCoords() as LonLat[];
+    if (route.length < 2) {
+      this.app.showMessage('Select a route with at least 2 waypoints first', true, 3000);
+      return;
+    }
+    const width = Math.max(40, Math.min(5000, Number(this.regionRouteWidthM) || 0));
+    const ring = regionAroundRoute(route, width / 2);
+    if (!ring) {
+      this.app.showMessage(`The route turns too sharply for a ${width} m region: draw it by hand or use a smaller width`, true, 5000);
+      return;
+    }
+    this.regionEdit.startAdjusting(ring, null, `${this.getSelectedRouteName()} region`);
+  }
+
+  protected cancelRegionEdit() {
+    this.regionEdit.cancel();
+  }
+
+  /** save the drawn / adjusted region to Signal K (new or in place) */
+  protected async saveRegionEdit() {
+    const check = this.regionEdit.check();
+    if (!check.ok) {
+      this.app.showMessage(check.message, true, 3000);
+      return;
+    }
+    const ring = this.regionEdit.closedRing();
+    const name = (this.regionEdit.name() || 'Region').trim();
+    const id = this.regionEdit.editingId();
+    try {
+      let savedId = id;
+      if (id) {
+        const entry = this.regionEntry(id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const region: any = JSON.parse(JSON.stringify(entry?.[1] ?? new SKRegion()));
+        region.name = name;
+        region.feature = region.feature ?? { type: 'Feature', properties: {}, id: '' };
+        region.feature.geometry = { type: 'Polygon', coordinates: [ring] };
+        await this.skres.putToServer('regions', id, region as SKRegion);
+      } else {
+        const region = new SKRegion();
+        region.name = name;
+        region.description = 'Operating region: the boat stops at this line';
+        region.feature.geometry.coordinates = [ring];
+        const res = await this.skres.postToServer('regions', region);
+        savedId = res?.id ?? null;
+      }
+      this.regionEdit.cancel();
+      this.skres.refreshNotes();   // also refreshes regions on the map
+      await this.refreshAvailableRegions();
+      if (savedId) {
+        this.selectRegion(savedId);
+        // an active region that was edited: the boat takes the new shape now
+        if (id && this.app.data.moosIvPServer.regionActive && this.fbMapRef?.activeRegionId === id) {
+          this.activateRegion(savedId);
+        }
+      }
+      this.app.showMessage(`Saved region "${name}"`, false, 3000);
+    } catch (err) {
+      this.app.showMessage(`Could not save the region: ${err?.message || err}`, true, 4000);
+    }
+  }
+
+  private activateRegion(id: string) {
+    const entry = this.regionEntry(id);
+    const ring = this.regionRing(entry);
+    if (ring.length < 3) {
+      this.app.showMessage('That region has no shape', true, 3000);
+      return;
+    }
+    if (this.fbMapRef) {
+      this.fbMapRef.filterRegionId = id;
+      this.fbMapRef.activeRegionId = id;
+    }
+    this.onRegionActivated({ id, coordinates: [ring] });
+  }
+
+  protected toggleRegionActive() {
+    if (this.app.data.moosIvPServer.regionActive) {
+      if (this.fbMapRef) this.fbMapRef.activeRegionId = null;
+      this.onRegionDeactivated();
+      return;
+    }
+    if (!this.autonomousControl.selectedRegion) {
+      this.app.showMessage('Select a region first', true, 3000);
+      return;
+    }
+    this.activateRegion(this.autonomousControl.selectedRegion);
+  }
+
   // Get region name by ID for display
   public getSelectedRegionName(): string {
     if (!this.autonomousControl.selectedRegion) {
@@ -1918,6 +2083,16 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  /** most speed the follow may use; in position it matches the contact, up to this */
+  protected updateFollowSpeed(speed: number) {
+    this.aisFollow.speed = Math.max(1, Math.min(20, Number(speed)));
+    this.app.config.selections.aisFollowSpeed = this.aisFollow.speed;
+    this.app.saveConfig();
+    if (this.aisFollow.mmsi) {
+      this.sendFollowUpdate();
+    }
+  }
+
   /** release the helm */
   protected stopFollowAis() {
     this.sendMoos('TRAIL_FOLLOW=off');
@@ -1930,7 +2105,8 @@ export class AppComponent implements OnDestroy {
     this.sendMoos(
       `TRAIL_FOLLOW=mmsi=${this.aisFollow.mmsi}` +
         `#range=${this.aisFollow.range}` +
-        `#angle=${this.aisFollow.angle}`
+        `#angle=${this.aisFollow.angle}` +
+        `#speed=${this.aisFollow.speed}`
     );
   }
 
@@ -4191,6 +4367,7 @@ export class AppComponent implements OnDestroy {
       const regionEnabled = data.REGION === 'true' || data.REGION === '1' || data.REGION === true;
       this.app.data.moosIvPServer.regionActive = regionEnabled;
     }
+    this.updateRegionTelemetry(data);
     if (data.WAYPOINT !== undefined) {
       const waypointActive = data.WAYPOINT === 'true' || data.WAYPOINT === '1' || data.WAYPOINT === true;
       this.autonomousControl.waypointActive = waypointActive;

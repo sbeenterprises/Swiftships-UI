@@ -843,8 +843,9 @@
               </div>
 
               <div class="autonomous-control-section">
-                <h3>Region Selection</h3>
+                <h3>Operating Region</h3>
                 <div class="control-group">
+                  @if(!regionEdit.active()) {
                   <mat-form-field appearance="outline" class="route-select-field">
                     <mat-label>Select Region</mat-label>
                     <mat-select [value]="autonomousControl.selectedRegion"
@@ -855,10 +856,79 @@
                       </mat-option>
                     </mat-select>
                   </mat-form-field>
-                  <div class="control-display">
-                    <span class="control-label">Selected Region:</span>
-                    <span class="control-value">{{ getSelectedRegionName() }}</span>
+                  <div class="corridor-row ac-region">
+                    <span class="corridor-status" [attr.data-status]="regionStatus().tone === 'stop' ? 'stop' : regionStatus().tone === 'warn' ? 'slow' : 'in'">
+                      {{ regionStatus().text }}
+                    </span>
+                    @if(app.data.moosIvPServer.regionMsg) {
+                    <span class="corridor-status" data-status="slow">{{ app.data.moosIvPServer.regionMsg }}</span>
+                    }
+                    <button mat-stroked-button class="corridor-btn" [class.on]="app.data.moosIvPServer.regionActive"
+                      [disabled]="!app.data.moosIvPServer.connected || (!app.data.moosIvPServer.regionActive && !autonomousControl.selectedRegion)"
+                      (click)="toggleRegionActive()">
+                      <mat-icon>{{ app.data.moosIvPServer.regionActive ? 'block' : 'fence' }}</mat-icon>
+                      {{ app.data.moosIvPServer.regionActive ? 'Deactivate Region' : 'Activate Region' }}
+                    </button>
+                    <div class="ac-region-tools">
+                      <button mat-stroked-button class="corridor-btn" (click)="startRegionDrawing()">
+                        <mat-icon>draw</mat-icon> Draw
+                      </button>
+                      <button mat-stroked-button class="corridor-btn" [disabled]="!autonomousControl.selectedRegion"
+                        (click)="editSelectedRegion()">
+                        <mat-icon>edit</mat-icon> Edit
+                      </button>
+                    </div>
+                    <div class="ac-region-tools">
+                      <button mat-stroked-button class="corridor-btn" [disabled]="!autonomousControl.selectedRoute"
+                        (click)="startRegionAroundRoute()">
+                        <mat-icon>route</mat-icon> Around route
+                      </button>
+                      <label class="ac-region-width">
+                        <input type="number" min="40" max="5000" step="10" [value]="regionRouteWidthM"
+                          (change)="regionRouteWidthM = +$any($event.target).value"> m wide
+                      </label>
+                    </div>
+                    <span class="ac-region-hint">The line you draw is where the boat stops. It works a margin
+                      inside it (dashed line once active).</span>
                   </div>
+                  } @else {
+                  <div class="corridor-row ac-region ac-region-edit">
+                    <span class="ac-region-title">
+                      {{ regionEdit.mode() === 'drawing' ? 'Drawing region' : 'Adjusting region' }}
+                      · {{ regionEdit.coords().length }} corners
+                    </span>
+                    <span class="ac-region-hint">
+                      @if(regionEdit.mode() === 'drawing') {
+                      Click the map to add corners. Double-click or Enter to finish, Backspace to undo, Esc to cancel.
+                      } @else {
+                      Drag the corners to adjust, then name and save it.
+                      }
+                    </span>
+                    @if(!regionEdit.check().ok && regionEdit.coords().length >= 3) {
+                    <span class="corridor-status" data-status="stop">{{ regionEdit.check().message }}</span>
+                    }
+                    <label class="ac-region-name">Name
+                      <input type="text" [value]="regionEdit.name()" (input)="regionEdit.name.set($any($event.target).value)">
+                    </label>
+                    <div class="ac-region-tools">
+                      <button mat-stroked-button class="corridor-btn" [disabled]="regionEdit.coords().length === 0"
+                        (click)="regionEdit.undo()"><mat-icon>undo</mat-icon> Undo</button>
+                      @if(regionEdit.mode() === 'drawing') {
+                      <button mat-stroked-button class="corridor-btn" [disabled]="regionEdit.coords().length < 3"
+                        (click)="regionEdit.finish()"><mat-icon>check</mat-icon> Finish</button>
+                      } @else {
+                      <button mat-stroked-button class="corridor-btn" (click)="regionEdit.continueDrawing()">
+                        <mat-icon>add_location_alt</mat-icon> Add corners</button>
+                      }
+                    </div>
+                    <div class="ac-region-tools">
+                      <button mat-stroked-button class="corridor-btn" (click)="cancelRegionEdit()">
+                        <mat-icon>close</mat-icon> Cancel</button>
+                      <button mat-stroked-button class="corridor-btn on" [disabled]="!regionEdit.check().ok"
+                        (click)="saveRegionEdit()"><mat-icon>save</mat-icon> Save</button>
+                    </div>
+                  </div>
+                  }
                 </div>
               </div>
 
@@ -924,6 +994,12 @@
                 <button type="button" class="ac-link-btn" (click)="clearCorridor()" aria-label="Clear route corridor">Clear</button>
               </div>
               }
+              @if(app.data.moosIvPServer.regionActive) {
+              <div class="autonomous-control-section ac-colav-idle">
+                <mat-icon>fence</mat-icon>
+                Region: <span class="corridor-status" [attr.data-status]="regionStatus().tone === 'stop' ? 'stop' : regionStatus().tone === 'warn' ? 'slow' : 'in'">{{ regionStatus().text }}</span>
+              </div>
+              }
 
               <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
 
@@ -972,6 +1048,15 @@
                       {{ aisFollow.angle }}&deg;
                       {{ aisFollow.angle === 0 ? '(ahead)' : aisFollow.angle === 180 ? '(astern)' : '' }}
                     </span>
+                  </div>
+
+                  <mat-slider min="1" max="20" step="0.5" class="speed-slider">
+                    <input matSliderThumb [value]="aisFollow.speed"
+                      (input)="updateFollowSpeed($any($event.target).value)">
+                  </mat-slider>
+                  <div class="control-display">
+                    <span class="control-label">Max speed:</span>
+                    <span class="control-value">{{ aisFollow.speed }} kn</span>
                   </div>
 
                   <div class="control-buttons">

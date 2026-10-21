@@ -261,9 +261,11 @@ export interface IAppConfig {
       enabled: boolean;
       radius: number;
     };
-    // last "Follow AIS contact" standoff distance (m) and relative angle (deg)
+    // last "Follow AIS contact" standoff distance (m), relative angle (deg)
+    // and most speed the follow may use (kn)
     aisFollowRange?: number;
     aisFollowAngle?: number;
+    aisFollowSpeed?: number;
   };
   resources: {
     // ** resource options
@@ -340,6 +342,8 @@ export interface FBAppData {
     safeRoutePreview?: number[][] | null;
     /** route corridor sent to the boat */
     corridor?: { pts: number[][]; width: number } | null;
+    /** active region's working boundary reported by the boat ([lon,lat] ring) */
+    regionCore?: number[][] | null;
     colavTargetPosition?: Position;
   };
   vessels: {
@@ -414,6 +418,10 @@ export interface FBAppData {
     baseCoords?: string;
     canSend?: boolean;
     regionActive?: boolean;
+    /** BHV_OpRegionV26 state: entering | contained | lapsed | breached | off */
+    regionState?: string;
+    /** last region refusal / note from the boat */
+    regionMsg?: string;
     waypointActive?: boolean;
     waypointRadii?: { captureRadius: number, slipRadius: number } | null;
     serviceMode?: boolean;

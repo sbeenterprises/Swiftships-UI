@@ -2062,3 +2062,13 @@ mat-nav-list {
 .autonomous-control-sidenav .ac-plan-note { color: #9fb7cf; font-size: 11px; }
 .autonomous-control-sidenav .ac-plan-actions { display: flex; gap: 6px; }
 .autonomous-control-sidenav .ac-plan-actions .control-btn { flex: 1; }
+.autonomous-control-sidenav .ac-region { gap: 6px; }
+.autonomous-control-sidenav .ac-region-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
+.autonomous-control-sidenav .ac-region-title { font: 600 13px Roboto, sans-serif; color: #ff8a5c; }
+.autonomous-control-sidenav .ac-region-hint { font-size: 11.5px; line-height: 1.35; color: #8ea6bf; }
+.autonomous-control-sidenav .ac-region-width,
+.autonomous-control-sidenav .ac-region-name { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #c2d2e4; }
+.autonomous-control-sidenav .ac-region-width input { width: 64px; }
+.autonomous-control-sidenav .ac-region-name input { flex: 1; min-width: 0; }
+.autonomous-control-sidenav .ac-region-width input,
+.autonomous-control-sidenav .ac-region-name input { background: rgba(11, 22, 38, 0.6); color: #e6eef7; border: 1px solid rgba(46, 74, 110, 0.7); border-radius: 6px; padding: 5px 6px; }

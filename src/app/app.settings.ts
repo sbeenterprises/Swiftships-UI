@@ -358,6 +358,9 @@ export function cleanConfig(
   if (typeof settings.selections.aisFollowRange === 'undefined') {
     settings.selections.aisFollowRange = 100;
   }
+  if (typeof settings.selections.aisFollowSpeed === 'undefined') {
+    settings.selections.aisFollowSpeed = 5;
+  }
   if (typeof settings.selections.aisFollowAngle === 'undefined') {
     settings.selections.aisFollowAngle = 180;
   }
@@ -556,7 +559,8 @@ export function defaultConfig(): IAppConfig {
         maxCpa: 300
       },
       aisFollowRange: 100,
-      aisFollowAngle: 180
+      aisFollowAngle: 180,
+      aisFollowSpeed: 5
     },
     resources: {
       // ** resource options

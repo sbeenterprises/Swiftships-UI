@@ -36,6 +36,7 @@ import { StationKeepCirclesComponent } from './lib/navigation/layer-station-keep
 import { AISRangeCircleComponent } from './lib/navigation/layer-ais-range-circle.component';
 import { BaseMarkerComponent } from './lib/navigation/layer-base-marker.component';
 import { RoutePreviewComponent } from './lib/navigation/layer-route-preview.component';
+import { RegionEditorComponent } from './lib/navigation/layer-region-editor.component';
 import { VesselComponent } from './lib/vessel/layer-vessel.component';
 import { VesselTrailComponent } from './lib/vessel/layer-vessel-trail.component';
 import { FBFeatureLayerComponent } from './lib/sk-feature.component';
@@ -86,6 +87,7 @@ export { StationKeepCirclesComponent } from './lib/navigation/layer-station-keep
 export { AISRangeCircleComponent } from './lib/navigation/layer-ais-range-circle.component';
 export { BaseMarkerComponent } from './lib/navigation/layer-base-marker.component';
 export { RoutePreviewComponent } from './lib/navigation/layer-route-preview.component';
+export { RegionEditorComponent } from './lib/navigation/layer-region-editor.component';
 export { VesselComponent } from './lib/vessel/layer-vessel.component';
 export { VesselTrailComponent } from './lib/vessel/layer-vessel-trail.component';
 export { FBFeatureLayerComponent } from './lib/sk-feature.component';
@@ -131,6 +133,7 @@ const declarations = [
   AISRangeCircleComponent,
   BaseMarkerComponent,
   RoutePreviewComponent,
+  RegionEditorComponent,
   FBFeatureLayerComponent,
   RacingStartLineLayerComponent,
   AISFlagsLayerComponent,
