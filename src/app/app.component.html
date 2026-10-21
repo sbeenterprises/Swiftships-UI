@@ -283,12 +283,32 @@
           <div class="navLabel">MODE</div>
           <div class="navValue">{{ app.data.moosIvPServer.ivpHelmAllstop || 'UNKNOWN' }}</div>
         </div>
+
+        @if(app.data.moosIvPServer.navStatus) {
+        <div class="navItem" [title]="app.data.moosIvPServer.navStatusMsg || ''">
+          <div class="navLabel">NAV</div>
+          <div class="navValue nav-status" [attr.data-status]="app.data.moosIvPServer.navStatus">
+            {{ (app.data.moosIvPServer.navStatus || '').toUpperCase() }}
+          </div>
+        </div>
+        }
       </div>
     </div>
 
 
     <!-- content -->
     <div class="view" theme-main>
+      <!-- Navigation integrity: shown while pNavGuard warns or faults -->
+      @if(app.data.moosIvPServer.navStatus === 'fault' || app.data.moosIvPServer.navStatus === 'warn' || app.data.moosIvPServer.navStatus === 'unknown') {
+      <div class="nav-guard-banner" [attr.data-status]="app.data.moosIvPServer.navStatus" role="alert">
+        <mat-icon>{{ app.data.moosIvPServer.navStatus === 'warn' ? 'warning' : 'gps_off' }}</mat-icon>
+        <span>
+          <strong>{{ app.data.moosIvPServer.navStatus === 'fault' ? 'NAVIGATION FAULT' : app.data.moosIvPServer.navStatus === 'unknown' ? 'NAVIGATION MONITOR SILENT' : 'Navigation warning' }}</strong>
+          · {{ navCheck().text }}
+          @if(app.data.moosIvPServer.navStatus === 'fault') { · autonomy stopped and blocked; manual control available }
+        </span>
+      </div>
+      }
       <mat-sidenav-container hasBackdrop="false">
         <!--instruments-->
         @if(app.instrumentPanelAvailable()) {
@@ -628,7 +648,7 @@
                     <span class="control-value">{{ formatPosition(stationKeep.position) }}</span>
                   </div>
                   <div class="mission-buttons-row">
-                    <button mat-raised-button (click)="startStationKeep()" [disabled]="stationKeep.status === 'active'"
+                    <button mat-raised-button (click)="startStationKeep()" [disabled]="stationKeep.status === 'active' || navBlocked()"
                       class="mission-btn start-btn">
                       <mat-icon>anchor</mat-icon>
                       Start Station Keep
@@ -698,6 +718,10 @@
                   <div class="ac-check" [class.ok]="!!autonomousControl.selectedRoute">
                     <mat-icon>{{ autonomousControl.selectedRoute ? 'check' : 'close' }}</mat-icon>
                     {{ autonomousControl.selectedRoute ? 'Route selected' : 'Select a route' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="navCheck().tone === 'ok'" [class.warn]="navCheck().tone === 'warn'">
+                    <mat-icon>{{ navCheck().tone === 'ok' ? 'check' : navCheck().tone === 'warn' ? 'priority_high' : 'close' }}</mat-icon>
+                    {{ navCheck().text }}
                   </div>
                   <div class="ac-check" [class.ok]="!!app.data.map.basePosition" [class.warn]="!app.data.map.basePosition">
                     <mat-icon>{{ app.data.map.basePosition ? 'check' : 'priority_high' }}</mat-icon>
@@ -1386,7 +1410,7 @@
             <footer class="ac-footer">
               @if(!autonomousControl.waypointActive) {
               <button mat-raised-button (click)="startMission()"
-                [disabled]="startingMission || !autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected"
+                [disabled]="startingMission || !autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected || navBlocked()"
                 class="mission-btn start-btn ac-btn-lg">
                 <mat-icon>{{ startingMission ? 'hourglass_empty' : 'play_arrow' }}</mat-icon>
                 {{ startingMission ? 'Planning approach…' : 'Start mission' }}
@@ -1404,7 +1428,7 @@
                   <mat-icon>stop</mat-icon>
                   Stop
                 </button>
-                <button mat-raised-button (click)="returnToBase()" [disabled]="!app.data.map.basePosition"
+                <button mat-raised-button (click)="returnToBase()" [disabled]="!app.data.map.basePosition || navBlocked()"
                   class="mission-btn return-btn">
                   <mat-icon>home</mat-icon>
                   {{ autonomousPanelTab === 'mission' ? 'Return to base' : 'To base' }}

@@ -1355,6 +1355,66 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  // ===== Navigation integrity (pNavGuard) =====
+  // The boat compares heading, speed and course with what its GPS positions
+  // show. In a fault it stops autonomy itself; the UI tells the operator
+  // and does not offer a start until the navigation is good again.
+
+  /** NAV_STATUS / NAV_STATUS_MSG / NAV_STOP_MSG / NAV_REFUSED from the boat */
+  private updateNavTelemetry(data: { NAV_STATUS?: unknown; NAV_STATUS_MSG?: unknown; NAV_STOP_MSG?: unknown; NAV_REFUSED?: unknown }) {
+    const srv = this.app.data.moosIvPServer;
+    if (data.NAV_STATUS_MSG !== undefined) srv.navStatusMsg = `${data.NAV_STATUS_MSG}`;
+    if (data.NAV_STATUS !== undefined) {
+      const status = `${data.NAV_STATUS}`;
+      if (status === 'fault' && srv.navStatus !== 'fault') {
+        this.app.showMessage(`Navigation FAULT: ${srv.navStatusMsg || 'navigation data cannot be trusted'}`, true, 15000);
+      }
+      srv.navStatus = status;
+    }
+    if (data.NAV_STOP_MSG !== undefined) {
+      const msg = `${data.NAV_STOP_MSG}`;
+      if (msg && msg !== srv.navStopMsg) this.app.showMessage(msg, true, 20000);
+      srv.navStopMsg = msg;
+    }
+    if (data.NAV_REFUSED !== undefined) {
+      const msg = `${data.NAV_REFUSED}`;
+      if (msg && msg !== srv.navRefused) this.app.showMessage(msg, true, 8000);
+      srv.navRefused = msg;
+    }
+  }
+
+  /** a navigation fault: the boat refuses autonomy, so the UI does not offer it */
+  protected navBlocked(): boolean {
+    return this.app.data.moosIvPServer?.navStatus === 'fault';
+  }
+
+  /** true (and tells the operator) when a start must not be sent */
+  private refuseForNav(what: string): boolean {
+    if (!this.navBlocked()) return false;
+    this.app.showMessage(
+      `${what} unavailable - navigation fault: ${this.app.data.moosIvPServer.navStatusMsg || 'check GPS / heading'}`,
+      true,
+      6000
+    );
+    return true;
+  }
+
+  protected navCheck(): { text: string; tone: 'ok' | 'warn' | 'stop' } {
+    const srv = this.app.data.moosIvPServer;
+    switch (srv?.navStatus) {
+      case 'ok':
+        return { text: 'Navigation data consistent', tone: 'ok' };
+      case 'warn':
+        return { text: `Navigation warning: ${srv.navStatusMsg}`, tone: 'warn' };
+      case 'fault':
+        return { text: `Navigation fault: ${srv.navStatusMsg}`, tone: 'stop' };
+      case 'unknown':
+        return { text: 'Navigation monitor not reporting', tone: 'stop' };
+      default:
+        return { text: 'Navigation monitor not running on the boat', tone: 'warn' };
+    }
+  }
+
   protected regionStatus(): { text: string; tone: 'off' | 'ok' | 'warn' | 'stop' } {
     const srv = this.app.data.moosIvPServer;
     if (!srv?.regionActive) return { text: 'Off', tone: 'off' };
@@ -2057,6 +2117,7 @@ export class AppComponent implements OnDestroy {
       this.app.showMessage('Contact has no MMSI - cannot follow.', false, 4000);
       return;
     }
+    if (this.refuseForNav('Follow')) return;
     this.aisFollow.mmsi = mmsi;
     this.aisFollow.name = vessel.name || mmsi;
     this.sendFollowUpdate();
@@ -2997,6 +3058,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected async startMission() {
+    if (this.refuseForNav('Start mission')) return;
     if (!this.autonomousControl.selectedRoute) {
       this.app.showMessage('Please select a route first', true, 3000);
       return;
@@ -3102,6 +3164,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected async returnToBase() {
+    if (this.refuseForNav('Return to base')) return;
     // Check if base position is defined
     if (!this.app.data.map.basePosition) {
       this.app.showMessage('Please define a base position first by right-clicking on the map', true, 3000);
@@ -3238,6 +3301,7 @@ export class AppComponent implements OnDestroy {
   }
 
   protected startStationKeep() {
+    if (this.refuseForNav('Station keep')) return;
     console.log('Starting Station Keep...');
     console.log('stationKeep.position:', this.stationKeep.position);
 
@@ -4368,6 +4432,7 @@ export class AppComponent implements OnDestroy {
       this.app.data.moosIvPServer.regionActive = regionEnabled;
     }
     this.updateRegionTelemetry(data);
+    this.updateNavTelemetry(data);
     if (data.WAYPOINT !== undefined) {
       const waypointActive = data.WAYPOINT === 'true' || data.WAYPOINT === '1' || data.WAYPOINT === true;
       this.autonomousControl.waypointActive = waypointActive;

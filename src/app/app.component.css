@@ -2072,3 +2072,18 @@ mat-nav-list {
 .autonomous-control-sidenav .ac-region-name input { flex: 1; min-width: 0; }
 .autonomous-control-sidenav .ac-region-width input,
 .autonomous-control-sidenav .ac-region-name input { background: rgba(11, 22, 38, 0.6); color: #e6eef7; border: 1px solid rgba(46, 74, 110, 0.7); border-radius: 6px; padding: 5px 6px; }
+
+/* Navigation integrity (pNavGuard) */
+.navValue.nav-status[data-status='ok'] { color: #4bd694; }
+.navValue.nav-status[data-status='warn'] { color: #f0b45c; }
+.navValue.nav-status[data-status='fault'],
+.navValue.nav-status[data-status='unknown'] { color: #ff6060; }
+.nav-guard-banner {
+  position: fixed; top: 84px; left: 50%; transform: translateX(-50%);  /* below .floatingNavBar */
+  z-index: 4900; max-width: min(900px, calc(100% - 32px));
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 6px; font-size: 13px; line-height: 1.35;
+  color: #fff; background: rgba(176, 40, 40, 0.95); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+.nav-guard-banner[data-status='warn'] { background: rgba(160, 110, 20, 0.95); }
+.nav-guard-banner mat-icon { flex: none; }

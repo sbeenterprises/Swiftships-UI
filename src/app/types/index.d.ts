@@ -422,6 +422,13 @@ export interface FBAppData {
     regionState?: string;
     /** last region refusal / note from the boat */
     regionMsg?: string;
+    /** pNavGuard: ok | warn | fault | unknown (not reporting); '' = not running */
+    navStatus?: string;
+    navStatusMsg?: string;
+    /** why autonomy was last stopped for a navigation fault ('' once restarted) */
+    navStopMsg?: string;
+    /** last start the boat refused for navigation */
+    navRefused?: string;
     waypointActive?: boolean;
     waypointRadii?: { captureRadius: number, slipRadius: number } | null;
     serviceMode?: boolean;
