@@ -19,7 +19,7 @@ import { AppIconDef } from 'src/app/modules/icons';
 /********* SingleSelectListDialog *********
  * data: {
     title: string,
-    items: [{id: string, name: string}],
+    items: [{id: string, name: string, icon?: string}],   // icon: optional trailing mat-icon
     icon: AppIconDef
  * }
  */
@@ -60,7 +60,12 @@ import { AppIconDef } from 'src/app/modules/icons';
         <mat-action-list>
           @for(i of this.data.items; track i.id) {
           <button mat-list-item (click)="handleClose(i)">
-            {{ i.name }}
+            <span class="_ap-item">
+              <span>{{ i.name }}</span>
+              @if(i.icon) {
+              <mat-icon class="_ap-item-icon">{{ i.icon }}</mat-icon>
+              }
+            </span>
           </button>
           }
         </mat-action-list>
@@ -71,6 +76,17 @@ import { AppIconDef } from 'src/app/modules/icons';
     `
       ._ap-singlesellist {
         min-width: 300px;
+      }
+      ._ap-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+      }
+      ._ap-item-icon {
+        color: #1976d2;
+        flex: 0 0 auto;
       }
     `
   ]
@@ -83,7 +99,7 @@ export class SingleSelectListDialog implements OnInit {
     @Inject(MAT_DIALOG_DATA)
     public data: {
       title: string;
-      items: [{ id: string; name: string }];
+      items: [{ id: string; name: string; icon?: string }];
       icon: AppIconDef;
     }
   ) {}

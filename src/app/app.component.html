@@ -674,9 +674,10 @@
             <header class="ac-header">
               <mat-icon class="ac-logo">directions_boat</mat-icon>
               <span class="ac-title">Autonomous control</span>
-              <span class="ac-chip" [class.linked]="autonomousControl.waypointActive">
+              <span class="ac-chip" [class.linked]="app.data.moosIvPServer.connected"
+                [class.offline]="!app.data.moosIvPServer.connected">
                 <span class="chip-dot"></span>
-                {{ autonomousControl.waypointActive ? 'Mission active' : 'Standby' }}
+                {{ missionChipText() }}
               </span>
               <a mat-icon-button (click)="closeAutonomousControl()" class="ac-close">
                 <mat-icon>close</mat-icon>
@@ -700,8 +701,92 @@
 
             <div class="autonomous-control-content ac-panes">
               @if(autonomousPanelTab === 'mission') {
-              @if(!autonomousControl.waypointActive) {
-              <!-- ===== Plan (standby) ===== -->
+              <!-- Phase follows the mission status; either view can be opened by hand
+                   until the status next changes. -->
+              <div class="ac-phasebar">
+                <span class="ac-phase-lbl">Phase follows status</span>
+                <div class="ac-phase-tabs" role="group" aria-label="Mission phase">
+                  <button type="button" class="ac-phase-tab" [class.on]="acPhase() === 'plan'"
+                    (click)="setMissionView('plan')">Standby · Plan</button>
+                  <button type="button" class="ac-phase-tab" [class.on]="acPhase() === 'live'"
+                    (click)="setMissionView('live')">Active · Control</button>
+                </div>
+              </div>
+
+              @if(depthReferencePosture() !== 'ok') {
+              <div class="autonomous-control-section ac-depthref"
+                [class.no-enc]="depthReferencePosture() === 'no-enc'"
+                [class.no-data]="depthReferencePosture() === 'no-data'">
+                <mat-icon class="ac-depthref-ic">{{ depthReferencePosture() === 'no-enc' ? 'explore_off' : 'layers_clear' }}</mat-icon>
+                <span class="ac-depthref-txt">
+                  @if(depthReferencePosture() === 'no-enc') {
+                  <strong>No ENC chart selected</strong> &mdash; running unrestricted. Safe-route planning and route
+                  corridor are disabled, and routes are not checked against land or shallows. Select an ENC chart to
+                  enable safe-water enforcement.
+                  } @else {
+                  <strong>No ENC (S-57) chart selected</strong> &mdash; the selected charts carry no depth data for planning.
+                  }
+                </span>
+              </div>
+              }
+
+              @if(acPhase() === 'live') {
+              @if(app.data.moosIvPServer.colregs; as cr) {
+              <div class="autonomous-control-section ac-colregs" [attr.data-tone]="cr.tone">
+                <div class="ac-colregs-head">
+                  <mat-icon>{{ cr.icon || 'warning' }}</mat-icon>
+                  <span>{{ cr.name }}@if(cr.rule) { · {{ cr.rule }} }</span>
+                </div>
+                <div class="ac-colregs-line">{{ cr.action }}</div>
+                <div class="ac-colregs-line"><strong>{{ cr.target }}</strong> · {{ cr.detail }}
+                  @if(cr.others > 0) { · +{{ cr.others }} more }
+                </div>
+              </div>
+              }
+
+              }
+
+              <!-- Mission status -->
+              <div class="autonomous-control-section ac-status-card">
+                <div class="ac-status-row">
+                  <span class="status-chip" [class.active]="autonomousControl.waypointActive"
+                    [class.holding]="activeWaypointStationKeep.active">
+                    <mat-icon>{{ activeWaypointStationKeep.active ? 'anchor'
+                      : autonomousControl.waypointActive ? 'navigation' : 'radio_button_unchecked' }}</mat-icon>
+                    {{ missionStateText() }}
+                  </span>
+                  <span class="ac-wp">WP {{ autonomousControl.currentWaypoint + 1 }}@if(autonomousControl.waypointActive && selectedRoutePointCount) {/{{ selectedRoutePointCount }}} · {{ autonomousControl.progress | number: '1.0-0' }}%</span>
+                </div>
+                <div class="ac-progress">
+                  <div class="ac-progress-fill" [style.width.%]="autonomousControl.progress"></div>
+                </div>
+                @if(activeWaypointStationKeep.active) {
+                <div class="ac-hold">
+                  <mat-icon>anchor</mat-icon>
+                  <span class="ac-hold-txt">Holding {{ formatClock(activeWaypointStationKeep.elapsed) }}@if(stationKeepOffset() !== null) { · {{ stationKeepOffset() }} m off station}
+                    <small>{{ activeWaypointStationKeep.timeToKeep > 0
+                      ? formatClock(activeWaypointStationKeep.timeRemaining) + ' left'
+                      : 'Until Resume' }} · inner {{ activeWaypointStationKeep.innerRadius }} m · outer {{ activeWaypointStationKeep.outerRadius }} m</small>
+                  </span>
+                </div>
+                }
+                <div class="ac-metrics">
+                  <div class="ac-metric">
+                    <span class="ac-metric-lbl">Remaining</span>
+                    <span class="ac-metric-val">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }}<em>nm</em></span>
+                  </div>
+                  <div class="ac-metric">
+                    <span class="ac-metric-lbl">Total</span>
+                    <span class="ac-metric-val">{{ (autonomousControl.totalDistance / 1852).toFixed(2) }}<em>nm</em></span>
+                  </div>
+                  <div class="ac-metric">
+                    <span class="ac-metric-lbl">Total TOA</span>
+                    <span class="ac-metric-val">{{ formatTime(autonomousControl.totalTimeOfArrival) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              @if(acPhase() === 'plan' && !allReady()) {
               <div class="autonomous-control-section">
                 <h3>Ready to start</h3>
                 <div class="ac-checks">
@@ -729,62 +814,131 @@
                   </div>
                 </div>
               </div>
+              }
 
-              <!-- Route -->
-              <div class="autonomous-control-section">
-                <h3>Route</h3>
-                <div class="control-group">
-                  <mat-form-field appearance="outline" class="route-select-field">
-                    <mat-label>Select Route</mat-label>
+              <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
+
+              <!-- Route, station keeps, region, safe-water planning and corridor -->
+              <div class="autonomous-control-section ac-route-card">
+                <div class="ac-field-row">
+                  <mat-form-field appearance="outline" class="route-select-field ac-field">
+                    <mat-label>Route</mat-label>
+                    <mat-icon matPrefix class="ac-field-ic">alt_route</mat-icon>
                     <mat-select [value]="autonomousControl.selectedRoute" (selectionChange)="selectRoute($event.value)"
-                      class="route-select">
+                      [disabled]="autonomousControl.waypointActive" class="route-select">
                       <mat-option value="">-- No Route Selected --</mat-option>
                       <mat-option *ngFor="let route of availableRoutes" [value]="route[0]">
                         {{ route[1].name || 'Route ' + route[0] }}
                       </mat-option>
                     </mat-select>
                   </mat-form-field>
-                  @if(autonomousControl.selectedRoute) {
-                  <div class="ac-summary">
-                    {{ selectedRoutePointCount }} waypoints · {{ (autonomousControl.totalDistance / 1852).toFixed(1) }} nm
-                    @if(autonomousControl.totalTimeOfArrival > 0) {
-                    · about {{ formatTime(autonomousControl.totalTimeOfArrival) }}
-                    }
-                  </div>
+                  <button type="button" class="ac-icon-toggle" [class.on]="autonomousControl.repeatRoute"
+                    [attr.aria-pressed]="autonomousControl.repeatRoute" (click)="toggleRepeatRoute()"
+                    [matTooltip]="autonomousControl.repeatRoute ? 'Repeat route: on (loops on completion)' : 'Repeat route: off'"
+                    aria-label="Repeat route">
+                    <mat-icon>repeat</mat-icon>
+                  </button>
+                </div>
+                @if(autonomousControl.selectedRoute) {
+                <div class="ac-route-meta">
+                  <span>{{ selectedRoutePointCount }} waypoints · {{ (autonomousControl.totalDistance / 1852).toFixed(1) }} nm
+                    @if(autonomousControl.totalTimeOfArrival > 0) { · about {{ formatTime(autonomousControl.totalTimeOfArrival) }} }
+                    @if(autonomousControl.repeatRoute) { · repeats }</span>
+                  <button type="button" class="ac-sk-link" (click)="editRouteStationKeeps()"
+                    matTooltip="Add, edit or remove station keeps at this route's waypoints">
+                    <mat-icon>anchor</mat-icon>Station keep@if(routeStationKeepCount() > 0) { · {{ routeStationKeepCount() }}}
+                  </button>
+                </div>
+                }
+
+                @if(!regionEdit.active()) {
+                <div class="ac-field-row">
+                  <mat-form-field appearance="outline" class="route-select-field ac-field">
+                    <mat-label>Region</mat-label>
+                    <mat-icon matPrefix class="ac-field-ic">pentagon</mat-icon>
+                    <mat-select [value]="autonomousControl.selectedRegion"
+                      (selectionChange)="selectRegion($event.value)" class="route-select">
+                      <mat-option value="">-- No Region Selected --</mat-option>
+                      <mat-option *ngFor="let region of availableRegions" [value]="region[0]">
+                        {{ region[1].name || 'Region ' + region[0] }}
+                      </mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                  <button type="button" class="ac-active-chip" [class.on]="app.data.moosIvPServer.regionActive"
+                    [disabled]="!app.data.moosIvPServer.connected || (!app.data.moosIvPServer.regionActive && !autonomousControl.selectedRegion)"
+                    (click)="toggleRegionActive()"
+                    [matTooltip]="app.data.moosIvPServer.regionActive ? 'Deactivate the region' : 'Activate the selected region'">
+                    <span class="chip-dot"></span>{{ app.data.moosIvPServer.regionActive ? 'Active' : 'Inactive' }}
+                  </button>
+                </div>
+                <div class="corridor-row ac-region">
+                  @if(app.data.moosIvPServer.regionActive || autonomousControl.selectedRegion) {
+                  <span class="corridor-status" [attr.data-status]="regionStatus().tone === 'stop' ? 'stop' : regionStatus().tone === 'warn' ? 'slow' : 'in'">
+                    {{ regionStatus().text }}
+                  </span>
                   }
-                  <div class="ac-togrow">
-                    <div class="ac-tog-txt">Repeat route
-                      <small>Loop the mission on completion</small>
-                    </div>
-                    <button type="button" class="ac-sw" [class.on]="autonomousControl.repeatRoute"
-                      role="switch" [attr.aria-checked]="autonomousControl.repeatRoute"
-                      (click)="toggleRepeatRoute()" aria-label="Repeat route"></button>
+                  @if(app.data.moosIvPServer.regionMsg) {
+                  <span class="corridor-status" data-status="slow">{{ app.data.moosIvPServer.regionMsg }}</span>
+                  }
+                  <div class="ac-region-tools ac-tools-compact">
+                    <button mat-stroked-button class="corridor-btn" (click)="startRegionDrawing()"
+                      matTooltip="Draw a new region: the line you draw is where the boat stops">
+                      <mat-icon>draw</mat-icon> Draw
+                    </button>
+                    <button mat-stroked-button class="corridor-btn" [disabled]="!autonomousControl.selectedRegion"
+                      (click)="editSelectedRegion()"><mat-icon>edit</mat-icon> Edit</button>
+                    <button mat-stroked-button class="corridor-btn" [disabled]="!autonomousControl.selectedRoute"
+                      (click)="startRegionAroundRoute()" [matTooltip]="'Region ' + regionRouteWidthM + ' m wide around the selected route'">
+                      <mat-icon>route</mat-icon> Around
+                    </button>
+                    <label class="ac-region-width">
+                      <input type="number" min="40" max="5000" step="10" [value]="regionRouteWidthM"
+                        (change)="regionRouteWidthM = +$any($event.target).value"> m
+                    </label>
                   </div>
                 </div>
-              </div>
+                } @else {
+                  <div class="corridor-row ac-region ac-region-edit">
+                    <span class="ac-region-title">
+                      {{ regionEdit.mode() === 'drawing' ? 'Drawing region' : 'Adjusting region' }}
+                      · {{ regionEdit.coords().length }} corners
+                    </span>
+                    <span class="ac-region-hint">
+                      @if(regionEdit.mode() === 'drawing') {
+                      Click the map to add corners. Double-click or Enter to finish, Backspace to undo, Esc to cancel.
+                      } @else {
+                      Drag the corners to adjust, then name and save it.
+                      }
+                    </span>
+                    @if(!regionEdit.check().ok && regionEdit.coords().length >= 3) {
+                    <span class="corridor-status" data-status="stop">{{ regionEdit.check().message }}</span>
+                    }
+                    <label class="ac-region-name">Name
+                      <input type="text" [value]="regionEdit.name()" (input)="regionEdit.name.set($any($event.target).value)">
+                    </label>
+                    <div class="ac-region-tools">
+                      <button mat-stroked-button class="corridor-btn" [disabled]="regionEdit.coords().length === 0"
+                        (click)="regionEdit.undo()"><mat-icon>undo</mat-icon> Undo</button>
+                      @if(regionEdit.mode() === 'drawing') {
+                      <button mat-stroked-button class="corridor-btn" [disabled]="regionEdit.coords().length < 3"
+                        (click)="regionEdit.finish()"><mat-icon>check</mat-icon> Finish</button>
+                      } @else {
+                      <button mat-stroked-button class="corridor-btn" (click)="regionEdit.continueDrawing()">
+                        <mat-icon>add_location_alt</mat-icon> Add corners</button>
+                      }
+                    </div>
+                    <div class="ac-region-tools">
+                      <button mat-stroked-button class="corridor-btn" (click)="cancelRegionEdit()">
+                        <mat-icon>close</mat-icon> Cancel</button>
+                      <button mat-stroked-button class="corridor-btn on" [disabled]="!regionEdit.check().ok"
+                        (click)="saveRegionEdit()"><mat-icon>save</mat-icon> Save</button>
+                    </div>
+                  </div>
+                }
 
-              @if(depthReferencePosture() !== 'ok') {
-              <div class="autonomous-control-section ac-depthref"
-                [class.no-enc]="depthReferencePosture() === 'no-enc'"
-                [class.no-data]="depthReferencePosture() === 'no-data'">
-                <mat-icon class="ac-depthref-ic">{{ depthReferencePosture() === 'no-enc' ? 'explore_off' : 'layers_clear' }}</mat-icon>
-                <span class="ac-depthref-txt">
-                  @if(depthReferencePosture() === 'no-enc') {
-                  <strong>No ENC chart selected</strong> &mdash; running unrestricted. Select an ENC chart to enable safe-water planning.
-                  } @else {
-                  <strong>No ENC (S-57) chart selected</strong> &mdash; the selected charts carry no depth data for planning.
-                  }
-                </span>
-              </div>
-              }
-
-              <!-- ENC safe-water planning: re-plan the selected route through water at
-                   least the safety depth deep, and send a corridor around a route. -->
-              <div class="autonomous-control-section">
-                <h3>ENC safe-water planning</h3>
                 <div class="ac-row corridor-row">
                   <button mat-stroked-button class="corridor-btn"
-                    [disabled]="depthReferencePosture() !== 'ok' || planningRoute || !autonomousControl.selectedRoute"
+                    [disabled]="depthReferencePosture() !== 'ok' || planningRoute || !autonomousControl.selectedRoute || autonomousControl.waypointActive"
                     (click)="planSafeRoute()">
                     <mat-icon>{{ planningRoute ? 'hourglass_empty' : 'alt_route' }}</mat-icon>
                     {{ planningRoute ? 'Planning…' : 'Plan Safe Route' }}
@@ -823,7 +977,7 @@
 
                 <div class="ac-row corridor-row">
                   <button mat-stroked-button class="corridor-btn" [class.on]="corridor.armed"
-                    [disabled]="!corridor.armed && (!autonomousControl.selectedRoute || !app.data.moosIvPServer.connected)"
+                    [disabled]="!corridor.armed && (!autonomousControl.selectedRoute || !app.data.moosIvPServer.connected || autonomousControl.waypointActive)"
                     (click)="corridor.armed ? clearCorridor() : sendCorridor()">
                     <mat-icon>{{ corridor.armed ? 'linear_scale' : 'route' }}</mat-icon>
                     {{ corridor.armed ? 'Clear Route Corridor' : 'Send Route Corridor' }}
@@ -832,6 +986,7 @@
                   <span class="corridor-status" [attr.data-status]="corridor.status">{{ corridorStatusText() }}</span>
                   }
                 </div>
+                @if(acPhase() === 'plan') {
                 @if(depthReferencePosture() !== 'ok') {
                 <div class="service-mode-hint">Safe-route planning needs an ENC (S-57) chart selected in the chart list.</div>
                 } @else if(!autonomousControl.selectedRoute) {
@@ -839,197 +994,70 @@
                 } @else {
                 <div class="service-mode-hint">Corridor: {{ corridorWidthM }} m wide around the selected route. The boat slows near its edge and steers back if it leaves.</div>
                 }
+                }
               </div>
 
-              <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
+              @if(acPhase() === 'plan') {
+              <!-- ENC planner settings (used by Plan Safe Route / route corridor) -->
+              <div class="autonomous-control-section ac-planner">
+                <h3>Planner</h3>
+                <div class="ac-seg" role="group" aria-label="Planner algorithm">
+                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'theta'"
+                    (click)="plannerAlgorithm = 'theta'">Theta*<small>any-angle</small></button>
+                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'astar'"
+                    (click)="plannerAlgorithm = 'astar'">A* grid</button>
+                  <button type="button" class="ac-seg-btn" disabled>Medial<small>soon</small></button>
+                </div>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Safety depth</span>
+                  <span class="ac-slider-val">{{ safetyDepthM }} m</span>
+                </div>
+                <mat-slider min="1" max="15" step="0.5" class="clearance-slider">
+                  <input matSliderThumb [value]="safetyDepthM" (input)="safetyDepthM = +$any($event.target).value">
+                </mat-slider>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Hazard clearance</span>
+                  <span class="ac-slider-val">{{ planClearanceM }} m</span>
+                </div>
+                <mat-slider min="5" max="60" step="1" class="clearance-slider">
+                  <input matSliderThumb [value]="planClearanceM" (input)="planClearanceM = +$any($event.target).value">
+                </mat-slider>
+                <div class="ac-slider-row">
+                  <span class="ac-slider-lbl">Corridor width</span>
+                  <span class="ac-slider-val">{{ corridorWidthM }} m</span>
+                </div>
+                <mat-slider min="20" max="150" step="5" class="clearance-slider">
+                  <input matSliderThumb [value]="corridorWidthM" (input)="corridorWidthM = +$any($event.target).value">
+                </mat-slider>
+              </div>
 
               <!-- Base (return-to-base point). Set from the map: right-click > Define Base -->
-              <div class="autonomous-control-section">
-                <h3>Base</h3>
-                <div class="control-group">
-                  <div class="control-display">
-                    <span class="control-label">Position:</span>
-                    <span class="control-value">
-                      {{ app.data.map.basePosition
-                         ? (app.data.map.basePosition[1] | number: '1.5-5') + ', ' + (app.data.map.basePosition[0] | number: '1.5-5')
-                         : 'Not set' }}
-                    </span>
-                  </div>
-                  @if(!app.data.map.basePosition) {
-                  <div class="service-mode-hint">Right-click the map and choose Define Base.</div>
-                  }
-                  <button mat-raised-button (click)="deleteBase()" [disabled]="!app.data.map.basePosition"
-                    class="control-btn">
-                    <mat-icon>delete</mat-icon>
-                    Delete Base
-                  </button>
-                </div>
-              </div>
-
-              <div class="autonomous-control-section">
-                <h3>Operating Region</h3>
-                <div class="control-group">
-                  @if(!regionEdit.active()) {
-                  <mat-form-field appearance="outline" class="route-select-field">
-                    <mat-label>Select Region</mat-label>
-                    <mat-select [value]="autonomousControl.selectedRegion"
-                      (selectionChange)="selectRegion($event.value)" class="route-select">
-                      <mat-option value="">-- No Region Selected --</mat-option>
-                      <mat-option *ngFor="let region of availableRegions" [value]="region[0]">
-                        {{ region[1].name || 'Region ' + region[0] }}
-                      </mat-option>
-                    </mat-select>
-                  </mat-form-field>
-                  <div class="corridor-row ac-region">
-                    <span class="corridor-status" [attr.data-status]="regionStatus().tone === 'stop' ? 'stop' : regionStatus().tone === 'warn' ? 'slow' : 'in'">
-                      {{ regionStatus().text }}
-                    </span>
-                    @if(app.data.moosIvPServer.regionMsg) {
-                    <span class="corridor-status" data-status="slow">{{ app.data.moosIvPServer.regionMsg }}</span>
-                    }
-                    <button mat-stroked-button class="corridor-btn" [class.on]="app.data.moosIvPServer.regionActive"
-                      [disabled]="!app.data.moosIvPServer.connected || (!app.data.moosIvPServer.regionActive && !autonomousControl.selectedRegion)"
-                      (click)="toggleRegionActive()">
-                      <mat-icon>{{ app.data.moosIvPServer.regionActive ? 'block' : 'fence' }}</mat-icon>
-                      {{ app.data.moosIvPServer.regionActive ? 'Deactivate Region' : 'Activate Region' }}
-                    </button>
-                    <div class="ac-region-tools">
-                      <button mat-stroked-button class="corridor-btn" (click)="startRegionDrawing()">
-                        <mat-icon>draw</mat-icon> Draw
-                      </button>
-                      <button mat-stroked-button class="corridor-btn" [disabled]="!autonomousControl.selectedRegion"
-                        (click)="editSelectedRegion()">
-                        <mat-icon>edit</mat-icon> Edit
-                      </button>
-                    </div>
-                    <div class="ac-region-tools">
-                      <button mat-stroked-button class="corridor-btn" [disabled]="!autonomousControl.selectedRoute"
-                        (click)="startRegionAroundRoute()">
-                        <mat-icon>route</mat-icon> Around route
-                      </button>
-                      <label class="ac-region-width">
-                        <input type="number" min="40" max="5000" step="10" [value]="regionRouteWidthM"
-                          (change)="regionRouteWidthM = +$any($event.target).value"> m wide
-                      </label>
-                    </div>
-                    <span class="ac-region-hint">The line you draw is where the boat stops. It works a margin
-                      inside it (dashed line once active).</span>
-                  </div>
+              <div class="autonomous-control-section ac-base-row">
+                <mat-icon class="ac-field-ic">home</mat-icon>
+                <span class="ac-base-txt">
+                  @if(app.data.map.basePosition) {
+                  Base {{ app.data.map.basePosition[1] | number: '1.5-5' }}, {{ app.data.map.basePosition[0] | number: '1.5-5' }}
                   } @else {
-                  <div class="corridor-row ac-region ac-region-edit">
-                    <span class="ac-region-title">
-                      {{ regionEdit.mode() === 'drawing' ? 'Drawing region' : 'Adjusting region' }}
-                      · {{ regionEdit.coords().length }} corners
-                    </span>
-                    <span class="ac-region-hint">
-                      @if(regionEdit.mode() === 'drawing') {
-                      Click the map to add corners. Double-click or Enter to finish, Backspace to undo, Esc to cancel.
-                      } @else {
-                      Drag the corners to adjust, then name and save it.
-                      }
-                    </span>
-                    @if(!regionEdit.check().ok && regionEdit.coords().length >= 3) {
-                    <span class="corridor-status" data-status="stop">{{ regionEdit.check().message }}</span>
-                    }
-                    <label class="ac-region-name">Name
-                      <input type="text" [value]="regionEdit.name()" (input)="regionEdit.name.set($any($event.target).value)">
-                    </label>
-                    <div class="ac-region-tools">
-                      <button mat-stroked-button class="corridor-btn" [disabled]="regionEdit.coords().length === 0"
-                        (click)="regionEdit.undo()"><mat-icon>undo</mat-icon> Undo</button>
-                      @if(regionEdit.mode() === 'drawing') {
-                      <button mat-stroked-button class="corridor-btn" [disabled]="regionEdit.coords().length < 3"
-                        (click)="regionEdit.finish()"><mat-icon>check</mat-icon> Finish</button>
-                      } @else {
-                      <button mat-stroked-button class="corridor-btn" (click)="regionEdit.continueDrawing()">
-                        <mat-icon>add_location_alt</mat-icon> Add corners</button>
-                      }
-                    </div>
-                    <div class="ac-region-tools">
-                      <button mat-stroked-button class="corridor-btn" (click)="cancelRegionEdit()">
-                        <mat-icon>close</mat-icon> Cancel</button>
-                      <button mat-stroked-button class="corridor-btn on" [disabled]="!regionEdit.check().ok"
-                        (click)="saveRegionEdit()"><mat-icon>save</mat-icon> Save</button>
-                    </div>
-                  </div>
+                  No base set <small>Right-click the map and choose Define Base.</small>
                   }
-                </div>
+                </span>
+                <button type="button" class="ac-icon-toggle" (click)="deleteBase()" [disabled]="!app.data.map.basePosition"
+                  matTooltip="Delete base" aria-label="Delete base">
+                  <mat-icon>delete</mat-icon>
+                </button>
               </div>
-
               } @else {
-              <!-- ===== Live (mission running): critical information only ===== -->
-              @if(app.data.moosIvPServer.colregs; as cr) {
-              <div class="autonomous-control-section ac-colregs" [attr.data-tone]="cr.tone">
-                <div class="ac-colregs-head">
-                  <mat-icon>{{ cr.icon || 'warning' }}</mat-icon>
-                  <span>{{ cr.name }}@if(cr.rule) { · {{ cr.rule }} }</span>
-                </div>
-                <div class="ac-colregs-line">{{ cr.action }}</div>
-                <div class="ac-colregs-line"><strong>{{ cr.target }}</strong> · {{ cr.detail }}
-                  @if(cr.others > 0) { · +{{ cr.others }} more }
-                </div>
-              </div>
-              }
-
-              <div class="autonomous-control-section ac-status-card">
-                <div class="ac-status-row">
-                  <span class="ac-route-name">{{ getSelectedRouteName() }}</span>
-                  <span class="ac-wp">WP {{ autonomousControl.currentWaypoint + 1 }}@if(selectedRoutePointCount) { / {{ selectedRoutePointCount }} }</span>
-                </div>
-                <div class="ac-progress">
-                  <div class="ac-progress-fill" [style.width.%]="autonomousControl.progress"></div>
-                </div>
-                @if(activeWaypointStationKeep.active) {
-                <div class="ac-hold">
-                  <mat-icon>adjust</mat-icon>
-                  <span class="ac-hold-txt">Holding at waypoint
-                    <small>Inner {{ activeWaypointStationKeep.innerRadius }} m · outer {{ activeWaypointStationKeep.outerRadius }} m</small>
-                  </span>
-                  <span class="ac-metric-val">{{ formatTime(activeWaypointStationKeep.timeRemaining) }}</span>
-                </div>
-                }
-                <div class="ac-metrics">
-                  <div class="ac-metric">
-                    <span class="ac-metric-lbl">Remaining</span>
-                    <span class="ac-metric-val">{{ (autonomousControl.remainingDistance / 1852).toFixed(2) }}<em>nm</em></span>
-                  </div>
-                  <div class="ac-metric">
-                    <span class="ac-metric-lbl">TOA</span>
-                    <span class="ac-metric-val">{{ autonomousControl.totalTimeOfArrival > 0 ? formatTime(autonomousControl.totalTimeOfArrival) : 'N/A' }}</span>
-                  </div>
-                  <div class="ac-metric">
-                    <span class="ac-metric-lbl">SOG</span>
-                    <span class="ac-metric-val">{{ app.data.vessels.self.sog ? app.formatSpeed(app.data.vessels.self.sog, true) : '--' }}</span>
-                  </div>
-                </div>
-              </div>
-
+              <!-- Live: monitoring lines -->
               @if(!app.data.moosIvPServer.colregs) {
               <div class="autonomous-control-section ac-colav-idle">
                 <span class="chip-dot"></span>
                 Collision avoidance: monitoring, no active encounter
               </div>
               }
-
-              @if(corridor.active || corridor.armed) {
-              <div class="autonomous-control-section ac-colav-idle">
-                <mat-icon>linear_scale</mat-icon>
-                Route corridor: <span class="corridor-status" [attr.data-status]="corridor.status">{{ corridorStatusText() }}</span>
-                <button type="button" class="ac-link-btn" (click)="clearCorridor()" aria-label="Clear route corridor">Clear</button>
-              </div>
-              }
-              @if(app.data.moosIvPServer.regionActive) {
-              <div class="autonomous-control-section ac-colav-idle">
-                <mat-icon>fence</mat-icon>
-                Region: <span class="corridor-status" [attr.data-status]="regionStatus().tone === 'stop' ? 'stop' : regionStatus().tone === 'warn' ? 'slow' : 'in'">{{ regionStatus().text }}</span>
-              </div>
-              }
-
-              <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
-
               <div class="ac-statusline">
                 <span>Helm {{ app.data.moosIvPServer.ivpHelmState || '--' }}</span>
                 <span>CAN {{ app.data.moosIvPServer.canSend ? 'on' : 'off' }}</span>
+                <span>SOG {{ app.data.vessels.self.sog ? app.formatSpeed(app.data.vessels.self.sog, true) : '--' }}</span>
                 <span>{{ app.data.map.basePosition ? 'Base set' : 'No base' }}</span>
               </div>
               }
@@ -1350,46 +1378,6 @@
                   </div>
               }
 
-              <!-- ENC planner settings (used by Plan Safe Route / route corridor) -->
-              <button type="button" class="ac-acc-head" (click)="toggleTuning('enc')" [attr.aria-expanded]="tuningOpen.enc">
-                <span>ENC planner
-                  <small>depth ≥ {{ safetyDepthM }} m · {{ plannerAlgorithm === 'theta' ? 'Theta*' : 'A* grid' }} · clearance {{ planClearanceM }} m · corridor {{ corridorWidthM }} m</small>
-                </span>
-                <mat-icon>{{ tuningOpen.enc ? 'expand_less' : 'expand_more' }}</mat-icon>
-              </button>
-              @if(tuningOpen.enc) {
-              <div class="autonomous-control-section ac-planner">
-                <div class="ac-seg" role="group" aria-label="Planner algorithm">
-                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'theta'"
-                    (click)="plannerAlgorithm = 'theta'">Theta*<small>any-angle</small></button>
-                  <button type="button" class="ac-seg-btn" [class.on]="plannerAlgorithm === 'astar'"
-                    (click)="plannerAlgorithm = 'astar'">A* grid</button>
-                  <button type="button" class="ac-seg-btn" disabled>Medial<small>soon</small></button>
-                </div>
-                <div class="ac-slider-row">
-                  <span class="ac-slider-lbl">Safety depth</span>
-                  <span class="ac-slider-val">{{ safetyDepthM }} m</span>
-                </div>
-                <mat-slider min="1" max="15" step="0.5" class="clearance-slider">
-                  <input matSliderThumb [value]="safetyDepthM" (input)="safetyDepthM = +$any($event.target).value">
-                </mat-slider>
-                <div class="ac-slider-row">
-                  <span class="ac-slider-lbl">Hazard clearance</span>
-                  <span class="ac-slider-val">{{ planClearanceM }} m</span>
-                </div>
-                <mat-slider min="5" max="60" step="1" class="clearance-slider">
-                  <input matSliderThumb [value]="planClearanceM" (input)="planClearanceM = +$any($event.target).value">
-                </mat-slider>
-                <div class="ac-slider-row">
-                  <span class="ac-slider-lbl">Corridor width</span>
-                  <span class="ac-slider-val">{{ corridorWidthM }} m</span>
-                </div>
-                <mat-slider min="20" max="150" step="5" class="clearance-slider">
-                  <input matSliderThumb [value]="corridorWidthM" (input)="corridorWidthM = +$any($event.target).value">
-                </mat-slider>
-              </div>
-              }
-
               <!-- Waypoint radii on the chart -->
               <div class="autonomous-control-section">
                   <div class="control-display">
@@ -1408,63 +1396,73 @@
             <!-- Fixed footer: the mission's critical actions never scroll away -->
             @if(autonomousPanelTab === 'mission' || autonomousControl.waypointActive) {
             <footer class="ac-footer">
-              @if(!autonomousControl.waypointActive) {
-              <button mat-raised-button (click)="startMission()"
-                [disabled]="startingMission || !autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected || navBlocked()"
-                class="mission-btn start-btn ac-btn-lg">
-                <mat-icon>{{ startingMission ? 'hourglass_empty' : 'play_arrow' }}</mat-icon>
-                {{ startingMission ? 'Planning approach…' : 'Start mission' }}
-              </button>
-              <button type="button" class="ac-link-btn" (click)="clearPath()">Clear path on map</button>
-              } @else {
-              @if(autonomousPanelTab !== 'mission') {
+              @if(autonomousPanelTab !== 'mission' && autonomousControl.waypointActive) {
               <div class="ac-missionbar-info">
-                <span><strong>Mission active</strong> · {{ getSelectedRouteName() }}</span>
+                <span><strong>{{ missionStateText() }}</strong> · {{ getSelectedRouteName() }}</span>
                 <span>WP {{ autonomousControl.currentWaypoint + 1 }} · {{ autonomousControl.speed }} kn</span>
               </div>
               }
-              <div class="mission-buttons-row">
-                <button mat-raised-button (click)="stopMission()" class="mission-btn stop-btn">
-                  <mat-icon>stop</mat-icon>
-                  Stop
+              <div class="ac-foot-row">
+                @if(!autonomousControl.waypointActive) {
+                <button type="button" class="ac-fbtn go" (click)="startMission()"
+                  [disabled]="startingMission || !autonomousControl.selectedRoute || !app.data.moosIvPServer.canSend || !app.data.moosIvPServer.connected || navBlocked()">
+                  <mat-icon>{{ startingMission ? 'hourglass_empty' : 'play_arrow' }}</mat-icon>
+                  {{ startingMission ? 'Planning…' : 'Start' }}
                 </button>
-                <button mat-raised-button (click)="returnToBase()" [disabled]="!app.data.map.basePosition || navBlocked()"
-                  class="mission-btn return-btn">
-                  <mat-icon>home</mat-icon>
-                  {{ autonomousPanelTab === 'mission' ? 'Return to base' : 'To base' }}
+                } @else if(activeWaypointStationKeep.active) {
+                <button type="button" class="ac-fbtn go" (click)="resumeStationKeep()"
+                  matTooltip="End the station keep now and continue the route">
+                  <mat-icon>play_arrow</mat-icon> Resume
+                </button>
+                } @else {
+                <button type="button" class="ac-fbtn stop" (click)="stopMission()">
+                  <mat-icon>stop</mat-icon> Stop
+                </button>
+                }
+                <button type="button" class="ac-fbtn" (click)="returnToBase()" [disabled]="!app.data.map.basePosition || navBlocked()">
+                  <mat-icon>home</mat-icon> Return
                 </button>
               </div>
-              <button mat-raised-button color="warn" (click)="abortMission()" class="mission-btn abort-btn">
-                <mat-icon>warning</mat-icon>
-                Abort mission
+              <div class="ac-foot-row">
+                <button type="button" class="ac-fbtn ghost" (click)="clearPath()" [disabled]="autonomousControl.waypointActive"
+                  [matTooltip]="autonomousControl.waypointActive ? 'Stop the mission first' : 'Clear the selected route from the map'">
+                  <mat-icon>close</mat-icon> Clear path
+                </button>
+              </div>
+              <button type="button" class="ac-fbtn abort" (click)="abortMission()" [disabled]="!autonomousControl.waypointActive">
+                <mat-icon>warning</mat-icon> Abort mission
               </button>
-              }
             </footer>
             }
           </div>
 
           <!-- Target speed: shared by the Plan and Live views -->
           <ng-template #acSpeed>
-            <div class="autonomous-control-section">
-              <h3>Target speed</h3>
-              <div class="control-group">
-                <div class="ac-speed">
-                  <button mat-icon-button (click)="updateSpeed(autonomousControl.speed - 1)"
-                    [disabled]="autonomousControl.speed <= 0" class="slider-btn minus-btn" aria-label="Decrease speed by 1 knot">
-                    <mat-icon>remove</mat-icon>
-                  </button>
-                  <span class="ac-speed-val">{{ autonomousControl.speed }}<em>kn</em></span>
-                  <button mat-icon-button (click)="updateSpeed(autonomousControl.speed + 1)"
-                    [disabled]="autonomousControl.speed >= 50" class="slider-btn plus-btn" aria-label="Increase speed by 1 knot">
-                    <mat-icon>add</mat-icon>
-                  </button>
-                </div>
-                <div class="control-buttons">
-                  @for(p of speedPresets; track p) {
-                  <button mat-raised-button (click)="updateSpeed(p)" class="control-btn"
-                    [class.ac-preset-on]="autonomousControl.speed === p">{{ p }} kn</button>
-                  }
-                </div>
+            <div class="autonomous-control-section ac-speed-card">
+              <div class="ac-speed-head">
+                <span class="ac-speed-big">{{ speedPreview ?? autonomousControl.speed }}<em>kn</em></span>
+                <span class="ac-speed-lbl">Target speed</span>
+              </div>
+              <div class="ac-speed-row">
+                <button mat-icon-button (click)="updateSpeed(autonomousControl.speed - 1)"
+                  [disabled]="autonomousControl.speed <= 0" class="slider-btn minus-btn" aria-label="Decrease speed by 1 knot">
+                  <mat-icon>remove</mat-icon>
+                </button>
+                <mat-slider min="0" max="30" step="0.5" class="speed-slider ac-speed-slider">
+                  <input matSliderThumb [value]="autonomousControl.speed" aria-label="Target speed"
+                    (input)="speedPreview = +$any($event.target).value"
+                    (change)="updateSpeed(+$any($event.target).value); speedPreview = null">
+                </mat-slider>
+                <button mat-icon-button (click)="updateSpeed(autonomousControl.speed + 1)"
+                  [disabled]="autonomousControl.speed >= 50" class="slider-btn plus-btn" aria-label="Increase speed by 1 knot">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+              <div class="ac-presets">
+                @for(p of speedPresets; track p.value) {
+                <button type="button" class="ac-preset" [class.on]="autonomousControl.speed === p.value"
+                  (click)="updateSpeed(p.value)">{{ p.label }} · {{ p.value }}</button>
+                }
               </div>
             </div>
           </ng-template>

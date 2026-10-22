@@ -2087,3 +2087,68 @@ mat-nav-list {
 }
 .nav-guard-banner[data-status='warn'] { background: rgba(160, 110, 20, 0.95); }
 .nav-guard-banner mat-icon { flex: none; }
+
+/* ===== Autonomous panel v2: phase bar, speed card, route card, footer ===== */
+.autonomous-control-sidenav .ac-phase-tab { border: 0; background: transparent; cursor: pointer; font-family: Roboto, 'Segoe UI', sans-serif; color: #8fb2cf !important; }
+.autonomous-control-sidenav .ac-phase-tab.on { color: #12233a !important; }
+.autonomous-control-sidenav .ac-phase-lbl { color: #6f8399 !important; }
+
+.autonomous-control-sidenav .status-chip { color: #8fb2cf !important; }
+.autonomous-control-sidenav .status-chip.active { color: #4bd694 !important; }
+.autonomous-control-sidenav .status-chip.holding { color: #7fe0c8 !important; }
+.autonomous-control-sidenav .ac-status-card { display: flex; flex-direction: column; gap: 8px; }
+.autonomous-control-sidenav .ac-hold { border: 1px solid rgba(64, 196, 170, 0.45); background: rgba(24, 92, 84, 0.35) !important; }
+.autonomous-control-sidenav .ac-hold mat-icon { color: #7fe0c8 !important; }
+.autonomous-control-sidenav .ac-hold-txt small { color: #b5d8d0 !important; }
+.autonomous-control-sidenav .ac-chip.offline { color: #f08080 !important; }
+
+/* Target speed */
+.autonomous-control-sidenav .ac-speed-card { display: flex; flex-direction: column; gap: 6px; }
+.autonomous-control-sidenav .ac-speed-head { display: flex; align-items: baseline; justify-content: space-between; }
+.autonomous-control-sidenav .ac-speed-big { font: 700 30px 'Roboto', sans-serif; color: #fff !important; font-variant-numeric: tabular-nums; }
+.autonomous-control-sidenav .ac-speed-big em { font: 600 13px Roboto, sans-serif; font-style: normal; color: #8296ac !important; margin-left: 4px; }
+.autonomous-control-sidenav .ac-speed-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #6f8399 !important; }
+.autonomous-control-sidenav .ac-speed-row { display: flex; align-items: center; gap: 6px; }
+.autonomous-control-sidenav .ac-speed-slider { flex: 1 1 auto; min-width: 0; margin: 0 4px; }
+.autonomous-control-sidenav .ac-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.autonomous-control-sidenav .ac-preset { min-height: 34px; border-radius: 8px; border: 1px solid rgba(46, 74, 110, 0.6); background: rgba(11, 22, 38, 0.75); color: #c2d2e4 !important; font: 600 12px Roboto, sans-serif; cursor: pointer; }
+.autonomous-control-sidenav .ac-preset:hover { border-color: #4a6b8a; }
+.autonomous-control-sidenav .ac-preset.on { color: #f0a545 !important; background: rgba(232, 145, 45, 0.14); border-color: #e8912d; }
+
+/* Route card */
+.autonomous-control-sidenav .ac-route-card { display: flex; flex-direction: column; gap: 8px; }
+.autonomous-control-sidenav .ac-field-row { display: flex; align-items: center; gap: 8px; }
+.autonomous-control-sidenav .ac-field { flex: 1 1 auto; min-width: 0; margin: 0 !important; }
+.autonomous-control-sidenav .ac-field .mat-mdc-form-field-subscript-wrapper { display: none; }
+.autonomous-control-sidenav .ac-field-ic { color: #8fb2cf !important; font-size: 20px; width: 20px; height: 20px; margin: 0 6px 0 4px; }
+.autonomous-control-sidenav .ac-icon-toggle { flex: 0 0 auto; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: 1px solid rgba(46, 74, 110, 0.7); background: rgba(11, 22, 38, 0.75); cursor: pointer; padding: 0; }
+.autonomous-control-sidenav .ac-icon-toggle mat-icon { color: #c2d2e4 !important; }
+.autonomous-control-sidenav .ac-icon-toggle.on { border-color: #e8912d; background: rgba(232, 145, 45, 0.14); }
+.autonomous-control-sidenav .ac-icon-toggle.on mat-icon { color: #f0a545 !important; }
+.autonomous-control-sidenav .ac-icon-toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+.autonomous-control-sidenav .ac-route-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -2px; font-size: 12px; color: #c0c9d4 !important; }
+.autonomous-control-sidenav .ac-route-meta span { color: #c0c9d4 !important; }
+.autonomous-control-sidenav .ac-sk-link { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(46, 74, 110, 0.6); background: rgba(11, 22, 38, 0.6); color: #8fd3ff !important; font: 600 11.5px Roboto, sans-serif; cursor: pointer; white-space: nowrap; }
+.autonomous-control-sidenav .ac-sk-link mat-icon { font-size: 16px; width: 16px; height: 16px; color: #8fd3ff !important; }
+.autonomous-control-sidenav .ac-active-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 14px; border: 1px solid rgba(46, 74, 110, 0.6); background: rgba(11, 22, 38, 0.75); color: #8fb2cf !important; font: 600 11.5px Roboto, sans-serif; cursor: pointer; }
+.autonomous-control-sidenav .ac-active-chip.on { color: #4bd694 !important; background: rgba(51, 200, 128, 0.1); border-color: rgba(51, 200, 128, 0.45); }
+.autonomous-control-sidenav .ac-active-chip.on .chip-dot { background: #4bd694; }
+.autonomous-control-sidenav .ac-active-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.autonomous-control-sidenav .ac-tools-compact { grid-template-columns: 1fr 1fr 1fr auto; }
+.autonomous-control-sidenav .ac-tools-compact .corridor-btn { min-width: 0; padding: 0 6px !important; font-size: 12px; }
+.autonomous-control-sidenav .ac-tools-compact .corridor-btn mat-icon { margin-right: 2px; }
+
+/* Base row */
+.autonomous-control-sidenav .ac-base-row { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; padding: 8px 10px !important; }
+.autonomous-control-sidenav .ac-base-txt { flex: 1 1 auto; font-size: 12px; color: #d7e1ec !important; }
+.autonomous-control-sidenav .ac-base-txt small { display: block; font-size: 11px; color: #6f8399 !important; }
+
+/* Footer */
+.autonomous-control-sidenav .ac-foot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.autonomous-control-sidenav .ac-fbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; border-radius: 10px; border: 1px solid rgba(46, 74, 110, 0.7); background: rgba(11, 22, 38, 0.75); color: #c2d2e4 !important; font: 700 12.5px Roboto, sans-serif; text-transform: uppercase; letter-spacing: 0.6px; cursor: pointer; }
+.autonomous-control-sidenav .ac-fbtn mat-icon { font-size: 20px; width: 20px; height: 20px; color: inherit !important; }
+.autonomous-control-sidenav .ac-fbtn.go { color: #4bd694 !important; border-color: rgba(51, 200, 128, 0.6); background: rgba(51, 200, 128, 0.1); }
+.autonomous-control-sidenav .ac-fbtn.stop { color: #f0a545 !important; border-color: #e8912d; background: rgba(232, 145, 45, 0.12); }
+.autonomous-control-sidenav .ac-fbtn.abort { width: 100%; color: #fff !important; border-color: #e5484d; background: #c63c40; }
+.autonomous-control-sidenav .ac-fbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.autonomous-control-sidenav .ac-fbtn.abort:disabled { background: rgba(198, 60, 64, 0.45); }

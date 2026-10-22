@@ -383,7 +383,9 @@
       white-space: nowrap;
       box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     ">
-      {{ formatStationKeepTime(waypointStationKeep.timeRemaining) }}
+      {{ waypointStationKeep.timeToKeep > 0
+         ? formatStationKeepTime(waypointStationKeep.timeRemaining)
+         : 'Hold ' + formatStationKeepTime(waypointStationKeep.elapsed || 0) }}
     </div>
   </ol-overlay>
   }

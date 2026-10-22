@@ -148,19 +148,20 @@ export interface StationKeepConfig {
             </div>
           </div>
 
-          <!-- Time to Keep Control -->
+          <!-- Hold time: 0 = until the operator presses Resume -->
           <div style="margin-bottom: 24px;">
-            <div style="font-weight: bold; margin-bottom: 8px;">Time to Keep (seconds)</div>
+            <div style="font-weight: bold; margin-bottom: 4px;">Hold time (seconds)</div>
+            <div style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">0 = hold until the operator resumes manually</div>
             <div style="display: flex; align-items: center; gap: 12px;">
               <button
                 mat-icon-button
                 (click)="updateTimeToKeep(config.timeToKeep - 10)"
-                [disabled]="config.timeToKeep <= 10"
+                [disabled]="config.timeToKeep <= 0"
               >
                 <mat-icon>remove</mat-icon>
               </button>
               <mat-slider
-                [min]="10"
+                [min]="0"
                 [max]="7200"
                 [step]="10"
                 style="flex: 1;"
@@ -178,10 +179,11 @@ export interface StationKeepConfig {
               >
                 <mat-icon>add</mat-icon>
               </button>
-              <span style="min-width: 70px; text-align: right;">{{ config.timeToKeep }} sec</span>
+              <span style="min-width: 70px; text-align: right;">{{ config.timeToKeep > 0 ? config.timeToKeep + ' sec' : 'Until resume' }}</span>
             </div>
             <div style="display: flex; gap: 8px; margin-top: 8px;">
-              <button mat-stroked-button (click)="updateTimeToKeep(30)" style="flex: 1;">30s</button>
+              <button mat-stroked-button (click)="updateTimeToKeep(0)" style="flex: 1;"
+                [class._ap-on]="config.timeToKeep === 0">Until resume</button>
               <button mat-stroked-button (click)="updateTimeToKeep(60)" style="flex: 1;">1min</button>
               <button mat-stroked-button (click)="updateTimeToKeep(300)" style="flex: 1;">5min</button>
               <button mat-stroked-button (click)="updateTimeToKeep(600)" style="flex: 1;">10min</button>
@@ -191,16 +193,16 @@ export interface StationKeepConfig {
       </mat-dialog-content>
       <mat-dialog-actions>
         <div style="display:flex;justify-content:center;align-items:center;width:100%;gap:8px;">
-          <button mat-raised-button color="primary" (click)="handleClose(true)">
+          <button mat-stroked-button color="primary" (click)="handleClose(true)">
             SAVE
           </button>
           @if(hasExisting) {
-          <button mat-raised-button color="warn" (click)="handleDelete()">
+          <button mat-stroked-button color="warn" (click)="handleDelete()">
             <mat-icon>delete</mat-icon>
-            DELETE
+            REMOVE
           </button>
           }
-          <button mat-raised-button (click)="handleClose(false)">CANCEL</button>
+          <button mat-stroked-button (click)="handleClose(false)">CANCEL</button>
         </div>
       </mat-dialog-actions>
     </div>
@@ -209,6 +211,9 @@ export interface StationKeepConfig {
     `
       ._ap-station-keep {
         min-width: 400px;
+      }
+      ._ap-on {
+        background: rgba(25, 118, 210, 0.12);
       }
     `
   ]
@@ -250,7 +255,8 @@ export class StationKeepDialog implements OnInit {
   }
 
   updateTimeToKeep(value: number) {
-    this.config.timeToKeep = Math.max(10, Math.min(7200, Number(value)));
+    // 0 = hold until the operator presses Resume
+    this.config.timeToKeep = Math.max(0, Math.min(7200, Number(value) || 0));
   }
 
   formatPosition(position: [number, number]): string {

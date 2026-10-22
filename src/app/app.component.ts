@@ -215,8 +215,21 @@ export class AppComponent implements OnDestroy {
   /** which groups of the Tuning tab are expanded */
   protected tuningOpen = { pid: false, colav: false, ais: false, enc: false };
 
-  /** target-speed shortcuts (knots); no 0 kn preset, Stop ends a mission */
-  protected readonly speedPresets = [5, 10, 15, 20];
+  /** target-speed shortcuts (knots). Stop · 0 keeps the mission running at
+      zero speed; the footer's Stop / Abort end it. */
+  protected readonly speedPresets = [
+    { label: 'Stop', value: 0 },
+    { label: 'Cruise', value: 10 },
+    { label: 'Fast', value: 20 }
+  ];
+
+  /** speed shown while the slider is being dragged (sent on release) */
+  protected speedPreview: number | null = null;
+
+  /** Mission tab phase: follows the mission status unless the operator picked
+      the other view, which holds until the status next changes. */
+  private missionView: 'auto' | 'plan' | 'live' = 'auto';
+  private missionViewFor = false;
 
   // Service mode: live PID calibration from the UI.
   // Gains are pushed to planchaPID through iWebSocket (HEADING_K* / SPEED_K*)
@@ -392,8 +405,9 @@ export class AppComponent implements OnDestroy {
     active: false,
     innerRadius: 0,
     outerRadius: 0,
-    timeToKeep: 0,
+    timeToKeep: 0,          // seconds; 0 = hold until the operator presses Resume
     timeRemaining: 0,
+    elapsed: 0,             // seconds held so far
     position: null as [number, number] | null,
     timer: null as any
   };
@@ -1413,6 +1427,77 @@ export class AppComponent implements OnDestroy {
       default:
         return { text: 'Navigation monitor not running on the boat', tone: 'warn' };
     }
+  }
+
+  // ===== Autonomous panel: phase, status text, station keep =====
+
+  protected acPhase(): 'plan' | 'live' {
+    const live = !!this.autonomousControl.waypointActive;
+    if (this.missionView !== 'auto' && this.missionViewFor !== live) this.missionView = 'auto';
+    if (this.missionView !== 'auto') return this.missionView;
+    return live ? 'live' : 'plan';
+  }
+
+  protected setMissionView(view: 'plan' | 'live') {
+    const live = !!this.autonomousControl.waypointActive;
+    this.missionView = view === (live ? 'live' : 'plan') ? 'auto' : view;
+    this.missionViewFor = live;
+  }
+
+  protected missionStateText(): string {
+    if (this.activeWaypointStationKeep.active) return 'Station keeping';
+    if (!this.autonomousControl.waypointActive) return 'Mission standby';
+    return this.autonomousControl.status === 'returning' ? 'Returning to base' : 'Mission active';
+  }
+
+  protected missionChipText(): string {
+    const phase = this.activeWaypointStationKeep.active
+      ? 'Station'
+      : this.autonomousControl.waypointActive
+        ? this.autonomousControl.status === 'returning' ? 'Returning' : 'Active'
+        : 'Standby';
+    return `${phase} · ${this.app.data.moosIvPServer?.connected ? 'Linked' : 'Offline'}`;
+  }
+
+  /** every "Ready to start" check passes (the card is hidden then) */
+  protected allReady(): boolean {
+    const srv = this.app.data.moosIvPServer;
+    return !!(srv?.connected && srv.canSend && srv.ivpHelmState !== 'DRIVE' &&
+      this.autonomousControl.selectedRoute && this.navCheck().tone === 'ok' &&
+      this.app.data.map.basePosition);
+  }
+
+  /** m:ss */
+  protected formatClock(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds || 0));
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  }
+
+  /** metres from the station-keep point, or null when unknown */
+  protected stationKeepOffset(): number | null {
+    const sk = this.activeWaypointStationKeep.position;
+    const pos = this.app.data.vessels?.self?.position;
+    if (!sk || !Array.isArray(pos) || !Number.isFinite(pos[0]) || !Number.isFinite(pos[1])) return null;
+    return Math.round(metresBetween([pos[0], pos[1]], sk));
+  }
+
+  /** waypoints of the selected route that carry a station keep */
+  protected routeStationKeepCount(): number {
+    const rte = this.availableRoutes.find((r) => r[0] === this.autonomousControl.selectedRoute);
+    const meta = (rte?.[1] as any)?.feature?.properties?.coordinatesMeta;
+    return Array.isArray(meta) ? meta.filter((m: any) => m?.stationKeep).length : 0;
+  }
+
+  /** add / edit / remove the station keeps of the selected route's waypoints */
+  protected editRouteStationKeeps() {
+    if (!this.autonomousControl.selectedRoute) return;
+    this.featureProperties({ id: this.autonomousControl.selectedRoute, type: 'route-stationkeep' });
+  }
+
+  /** end the current waypoint station keep now and continue the route */
+  protected resumeStationKeep() {
+    if (!this.activeWaypointStationKeep.active) return;
+    this.stopWaypointStationKeep('Station keep ended: continuing the route');
   }
 
   protected regionStatus(): { text: string; tone: 'off' | 'ok' | 'warn' | 'stop' } {
@@ -3574,8 +3659,9 @@ export class AppComponent implements OnDestroy {
     this.activeWaypointStationKeep.active = true;
     this.activeWaypointStationKeep.innerRadius = innerRadius;
     this.activeWaypointStationKeep.outerRadius = outerRadius;
-    this.activeWaypointStationKeep.timeToKeep = timeToKeep;
-    this.activeWaypointStationKeep.timeRemaining = timeToKeep;
+    this.activeWaypointStationKeep.timeToKeep = timeToKeep > 0 ? timeToKeep : 0;
+    this.activeWaypointStationKeep.timeRemaining = this.activeWaypointStationKeep.timeToKeep;
+    this.activeWaypointStationKeep.elapsed = 0;
     this.activeWaypointStationKeep.position = position;
 
     // Send command to MOOS-IvP with coordinates (lat,lon)
@@ -3587,24 +3673,29 @@ export class AppComponent implements OnDestroy {
       console.log(`[STATION KEEP] Sent to MOOS-IvP: ${message}`);
     }
 
-    // Start countdown timer (update every second)
+    // Count the hold every second. A hold time of 0 holds until the operator
+    // presses Resume; otherwise it ends when the time is up.
+    const timed = this.activeWaypointStationKeep.timeToKeep > 0;
     this.activeWaypointStationKeep.timer = setInterval(() => {
+      this.activeWaypointStationKeep.elapsed++;
+      if (!timed) return;
       this.activeWaypointStationKeep.timeRemaining--;
-
       if (this.activeWaypointStationKeep.timeRemaining <= 0) {
         this.stopWaypointStationKeep();
       }
     }, 1000);
 
     this.app.showMessage(
-      `Station Keep started at waypoint for ${timeToKeep} seconds`,
+      timed
+        ? `Station Keep started at waypoint for ${timeToKeep} seconds`
+        : 'Station Keep started at waypoint: holding until Resume',
       false,
       3000
     );
   }
 
   // ** Stop waypoint station keep **
-  private stopWaypointStationKeep() {
+  private stopWaypointStationKeep(message = 'Station Keep completed') {
     // Stop timer
     if (this.activeWaypointStationKeep.timer) {
       clearInterval(this.activeWaypointStationKeep.timer);
@@ -3622,7 +3713,7 @@ export class AppComponent implements OnDestroy {
     this.activeWaypointStationKeep.active = false;
     this.activeWaypointStationKeep.timeRemaining = 0;
 
-    this.app.showMessage('Station Keep completed', false, 3000);
+    this.app.showMessage(message, false, 3000);
   }
 
   // ** Debug: Inspect route station keep configuration **
@@ -4435,6 +4526,8 @@ export class AppComponent implements OnDestroy {
     this.updateNavTelemetry(data);
     if (data.WAYPOINT !== undefined) {
       const waypointActive = data.WAYPOINT === 'true' || data.WAYPOINT === '1' || data.WAYPOINT === true;
+      // a hand-picked Plan / Live view lasts until the mission status changes
+      if (waypointActive !== this.autonomousControl.waypointActive) this.missionView = 'auto';
       this.autonomousControl.waypointActive = waypointActive;
       this.app.data.moosIvPServer.waypointActive = waypointActive;
       // Derive mission status from WAYPOINT: true = behavior running = active, false = standby
@@ -5655,10 +5748,10 @@ export class AppComponent implements OnDestroy {
             const pointList = coordinates.map((coord: number[], index: number) => {
               const meta = coordinatesMeta[index] || {};
               const name = meta.name || `Point ${index + 1}`;
-              const skMarker = meta.stationKeep ? ' [SK]' : '';
               return {
                 id: index.toString(),
-                name: `${name}${skMarker} (${coord[1].toFixed(6)}, ${coord[0].toFixed(6)})`
+                name: `${name} (${coord[1].toFixed(6)}, ${coord[0].toFixed(6)})`,
+                icon: meta.stationKeep ? 'anchor' : undefined
               };
             });
 
@@ -5684,7 +5777,8 @@ export class AppComponent implements OnDestroy {
                   const config: StationKeepConfig = {
                     innerRadius: existingConfig?.innerRadius || 10,
                     outerRadius: existingConfig?.outerRadius || 25,
-                    timeToKeep: existingConfig?.timeToKeep || 300, // Default 5 minutes (300 seconds)
+                    // 0 = until Resume, so only a missing value falls back to 5 minutes
+                    timeToKeep: existingConfig?.timeToKeep ?? 300,
                     position: position,
                     pointIndex: pointIndex
                   };
@@ -6082,6 +6176,7 @@ export class AppComponent implements OnDestroy {
       outerRadius: 0,
       timeToKeep: 0,
       timeRemaining: 0,
+      elapsed: 0,
       position: null,
       timer: null
     };
