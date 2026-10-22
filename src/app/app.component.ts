@@ -1128,6 +1128,12 @@ export class AppComponent implements OnDestroy {
       Mirrors the per-panel toggles but acts on the master CAN_SEND flag so it
       works regardless of which control panel is open. */
   protected toggleCanSend(): void {
+    // Read/write users only: a view-only session must not even show CAN as
+    // switched (the command itself would be stopped and refused by the boat)
+    if (!this.canCommandBoat()) {
+      this.app.showMessage(`View only: ${this.viewOnlyReason()}`, true, 4000);
+      return;
+    }
     const next = !this.app.data.moosIvPServer.canSend;
     const canValue = next ? 'true' : 'false';
     this.autonomousControl.ignoreCanSendUpdates = true;
