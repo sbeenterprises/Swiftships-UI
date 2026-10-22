@@ -380,6 +380,8 @@
             </div>
             }
             <div class="remote-control-content ac-panes">
+              <!-- read-only users: visible and live, but nothing in here can be clicked, focused or typed into -->
+              <div class="view-only-lock" [attr.inert]="canCommandBoat() ? null : ''">
               <!-- Rudder, Thrust and Gear Controls (only shown when CAN sending is on;
                    CAN is switched from the power button in the left toolbar) -->
               @if(app.data.moosIvPServer.canSend) {
@@ -520,6 +522,7 @@
                 </div>
               </div>
 
+              </div>
             </div>
           </div>
         </mat-sidenav>
@@ -546,6 +549,8 @@
             }
 
             <div class="station-keep-content" style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
+              <!-- read-only users: visible and live, but nothing in here can be clicked, focused or typed into -->
+              <div class="view-only-lock" [attr.inert]="canCommandBoat() ? null : ''">
               <!-- Inner Radius Control -->
               <div class="station-keep-section">
                 <h3>Inner Radius</h3>
@@ -673,6 +678,7 @@
                   </div>
                 </div>
               </div>
+              </div>
             </div>
           </div>
         </mat-sidenav>
@@ -718,6 +724,8 @@
             </div>
 
             <div class="autonomous-control-content ac-panes">
+              <!-- read-only users: visible and live, but nothing in here can be clicked, focused or typed into -->
+              <div class="view-only-lock" [attr.inert]="canCommandBoat() ? null : ''">
               @if(autonomousPanelTab === 'mission') {
               <!-- Phase follows the mission status; either view can be opened by hand
                    until the status next changes. -->
@@ -1409,11 +1417,12 @@
                   </div>
               </div>
               }
+              </div>
             </div>
 
             <!-- Fixed footer: the mission's critical actions never scroll away -->
             @if(autonomousPanelTab === 'mission' || autonomousControl.waypointActive) {
-            <footer class="ac-footer">
+            <footer class="ac-footer" [attr.inert]="canCommandBoat() ? null : ''">
               @if(autonomousPanelTab !== 'mission' && autonomousControl.waypointActive) {
               <div class="ac-missionbar-info">
                 <span><strong>{{ missionStateText() }}</strong> · {{ getSelectedRouteName() }}</span>
@@ -1861,7 +1870,7 @@
             <fb-map #fbMapRef [setFocus]="mapSetFocus()" [mapCenter]="display.map.center"
               [mapZoom]="app.config.map.zoomLevel" [northUp]="app.uiConfig().mapNorthUp"
               [movingMap]="app.uiConfig().mapMove" [vesselTrail]="app.data.trail" [activeRoute]="app.data.activeRoute"
-              [dblClickZoom]="app.config.mapDoubleClick" [hideStationKeepCircles]="hideStationKeepCircles"
+              [dblClickZoom]="app.config.mapDoubleClick" [hideStationKeepCircles]="hideStationKeepCircles" [viewOnly]="!canCommandBoat()"
               [stationKeepInnerRadius]="stationKeep.innerRadius" [stationKeepOuterRadius]="stationKeep.outerRadius"
               [waypointStationKeep]="activeWaypointStationKeep" [measureMode]="mapInteract.isMeasuring()"
               [drawMode]="mapInteract.isDrawing()" (drawEnded)="handleDrawEnded($event)"

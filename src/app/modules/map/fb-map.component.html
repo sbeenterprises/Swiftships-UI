@@ -358,7 +358,7 @@
   } }
 
   <!-- Station Keep Circles -->
-  @if(app.data.map.stationKeepPosition && showStationKeepCircles) {
+  @if(app.data.map.stationKeepPosition && (showStationKeepCircles || viewOnly)) {
   <fb-station-keep-circles [position]="app.data.map.stationKeepPosition" [innerRadius]="stationKeepInnerRadius"
     [outerRadius]="stationKeepOuterRadius" [zIndex]="336" [visible]="true">
   </fb-station-keep-circles>

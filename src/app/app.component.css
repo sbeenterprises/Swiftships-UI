@@ -2156,10 +2156,14 @@ mat-nav-list {
 /* View-only users (read-only Signal K account): the command panels stay
    readable but their controls are inert. The boat refuses these users'
    commands anyway (iWebSocket command_auth = signalk); this makes it visible. */
-.view-only :is(.ac-panes, .ac-footer, .station-keep-content)
-  :is(button:not(.ac-phase-tab), input, select, textarea, mat-slide-toggle,
-      mat-slider, mat-select, mat-checkbox, mat-radio-button, mat-button-toggle) {
-  pointer-events: none;
+/* The lock is inert (no clicks, focus or keys) but adds no box, so the
+   panel's flex layout and scrolling are unchanged. */
+.view-only-lock {
+  display: contents;
+}
+.view-only :is(.view-only-lock, .ac-footer)
+  :is(button, input, select, textarea, mat-slide-toggle, mat-slider,
+      mat-select, mat-checkbox, mat-radio-button, mat-button-toggle) {
   opacity: 0.45;
 }
 .view-only-banner {

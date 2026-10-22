@@ -154,6 +154,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Input() vesselTrail: Array<Position> = [];
   @Input() dblClickZoom = false;
   @Input() hideStationKeepCircles = false;
+  /** Read-only user: menu actions that change the mission or the boat are refused */
+  @Input() viewOnly = false;
   @Input() stationKeepInnerRadius = 10;
   @Input() stationKeepOuterRadius = 25;
   @Input() waypointStationKeep: any = null;
@@ -615,6 +617,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ** handle context menu choices **
   protected onContextMenuAction(action: string, pos: Position) {
+    const changesMission = ['add_wpt', 'add_note', 'nav_to', 'put_target',
+      'station_keep', 'define_base', 'follow_ais'];
+    if (this.viewOnly && changesMission.includes(action)) {
+      this.app.showMessage('View only: you cannot change the mission or the boat.', true, 3000);
+      return;
+    }
     switch (action) {
       case 'add_wpt':
         this.skres.newWaypointAt(pos);
@@ -1730,6 +1738,9 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ** activate region
   protected activateRegion() {
+    if (this.viewOnly) {
+      return;
+    }
     if (this.overlay.type === 'region' && this.overlay.id) {
       this.activeRegionId = this.overlay.id;
       const region = this.skres.fromCache('regions', this.overlay.id);
@@ -1744,6 +1755,9 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ** deactivate region
   protected deactivateRegion() {
+    if (this.viewOnly) {
+      return;
+    }
     this.activeRegionId = null;
     this.regionDeactivated.emit();
   }

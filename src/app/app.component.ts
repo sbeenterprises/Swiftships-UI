@@ -608,6 +608,8 @@ export class AppComponent implements OnDestroy {
   }
 
   ngOnInit() {
+    // Operator UI state for view-only sessions (see publishUiState)
+    this.uiStateTimer = setInterval(() => this.publishUiState(), 1000);
     // ** audio context handing **
     this.display.audio.state = this.app.audio.context.state;
     this.app.debug('audio state:', this.display.audio.state);
@@ -751,6 +753,7 @@ export class AppComponent implements OnDestroy {
 
   ngOnDestroy() {
     // ** clean up
+    clearInterval(this.uiStateTimer);
     this.stopTimers();
     this.stopMoosContactCleanup();
     this.clearTrimAckTimer();
@@ -1171,12 +1174,15 @@ export class AppComponent implements OnDestroy {
         // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
         this.loadAvailableRoutes();
         this.loadAvailableRegions();
+        this.alertViewOnlyOnce();
       } else {
         // Closing panel - deactivate autonomous control
         this.app.config.selections.autonomousControl = false;
         this.autonomousControl.status = 'standby';
         this.app.saveConfig();
-        this.app.showMessage('Autonomous Control Deactivated', false, 3000);
+        if (this.canCommandBoat()) {
+          this.app.showMessage('Autonomous Control Deactivated', false, 3000);
+        }
       }
     } else {
       // Activate autonomous control and open panel
@@ -1190,7 +1196,11 @@ export class AppComponent implements OnDestroy {
       // Load routes and regions for the dropdowns (sync will be called after routes are loaded)
       this.loadAvailableRoutes();
       this.loadAvailableRegions();
-      this.app.showMessage('Autonomous Control Activated', false, 3000);
+      if (this.canCommandBoat()) {
+        this.app.showMessage('Autonomous Control Activated', false, 3000);
+      } else {
+        this.alertViewOnlyOnce();
+      }
     }
     this.focusMap();
   }
@@ -1268,6 +1278,8 @@ export class AppComponent implements OnDestroy {
 
       // After routes are loaded, sync status and route selection from MOOS-IvP
       this.syncAutonomousStatusFromMOOS();
+      // A viewer then follows what the operator has selected
+      this.applyOperatorState(this.operatorState);
     } catch (error) {
       console.error('Failed to load routes:', error);
       this.availableRoutes = [];
@@ -1987,6 +1999,11 @@ export class AppComponent implements OnDestroy {
           this.calculateTotalRouteDistance(waypoints);
           this.calculateDynamicTOA(waypoints);
 
+          // A view-only session only shows the route; the operator sends it
+          if (!this.canCommandBoat()) {
+            return;
+          }
+
           // Send waypoints immediately
           this.sendWaypointsToMOOS(waypoints);
 
@@ -2089,7 +2106,8 @@ export class AppComponent implements OnDestroy {
   protected boatAuth = { mode: '', level: '', user: '' };
   /** Token last sent to the boat on this connection ('' = none / cookie only) */
   private boatAuthToken = '';
-  private viewOnlyNoticeAt = 0;
+  /** The view-only alert is shown once per session, on the first panel open */
+  private viewOnlyAlerted = false;
 
   /** May this session command the boat? */
   protected canCommandBoat(): boolean {
@@ -2124,13 +2142,173 @@ export class AppComponent implements OnDestroy {
     if (this.canCommandBoat()) {
       return true;
     }
+    // Quietly: the banner and the one-time alert already say why, and some
+    // sends are automatic (route re-send, region sync), not a user's click
     this.app.debug(`[VIEW ONLY] suppressed outbound MOOS: ${message.split('=')[0]}`);
-    const now = Date.now();
-    if (now - this.viewOnlyNoticeAt > 3000) {
-      this.viewOnlyNoticeAt = now;
-      this.app.showMessage(`View only: ${this.viewOnlyReason()}`, true, 4000);
-    }
     return false;
+  }
+
+  // ************************************************
+  // Live view for read-only users. What the operator selects or draws and the
+  // boat does not hold itself (mission route, routes on the map, speed,
+  // repeat, base, corridor, region, station-keep point, follow settings) is
+  // published as UI_STATE by every session allowed to command, whenever it
+  // changes; iWebSocket relays it to all clients and a view-only session
+  // mirrors it. Mission progress, region boundary, corridor status, gains etc.
+  // already come from the boat's own telemetry.
+
+  /** Last operator state received; a viewer applies it */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private operatorState: any = null;
+  private uiStateSent = '';
+  private uiStateTimer: any = null;
+  private lastBoatBase: string | undefined;
+  private lastTrailing: string | undefined;
+  private lastTrailUpdates: string | undefined;
+
+  private buildUiState() {
+    return {
+      user: this.skUserName ?? '',
+      route: this.autonomousControl.selectedRoute || '',
+      routes: this.app.config.selections.routes ?? null,
+      speed: this.autonomousControl.speed,
+      repeat: this.autonomousControl.repeatRoute,
+      region: this.autonomousControl.selectedRegion || '',
+      activeRegion: this.fbMapRef?.activeRegionId ?? null,
+      base: this.app.data.map.basePosition ?? null,
+      corridor: this.app.data.map.corridor ?? null,
+      corridorArmed: this.corridor.armed,
+      corridorWidth: this.corridorWidthM,
+      safeRoute: this.app.data.map.safeRoutePreview ?? null,
+      station: {
+        pos: this.app.data.map.stationKeepPosition ?? null,
+        inner: this.stationKeep.innerRadius,
+        outer: this.stationKeep.outerRadius,
+        speed: this.stationKeep.speed,
+        status: this.stationKeep.status
+      },
+      follow: {
+        mmsi: this.aisFollow.mmsi,
+        name: this.aisFollow.name,
+        range: this.aisFollow.range,
+        angle: this.aisFollow.angle,
+        speed: this.aisFollow.speed
+      }
+    };
+  }
+
+  /** Every second: send the operator state if it changed. */
+  private publishUiState() {
+    if (
+      !this.app.data.moosIvPServer.connected ||
+      this.replay.isReplaying() ||
+      !this.canCommandBoat()
+    ) {
+      return;
+    }
+    const state = JSON.stringify(this.buildUiState());
+    if (state !== this.uiStateSent) {
+      this.uiStateSent = state;
+      this.moosWsService.send(`UI_STATE=${state}`);
+    }
+  }
+
+  /** View-only session: show what the operator has. Only changed parts are
+   * assigned, so the map does not redraw for nothing. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private applyOperatorState(s: any) {
+    if (!s || this.canCommandBoat()) {
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const same = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+    // Routes on the map (null = all), then the mission route
+    if (!same(s.routes, this.app.config.selections.routes)) {
+      this.skres.routeRemove();
+      if (s.routes === null) {
+        this.skres.routeAddFromServer();
+      } else if (s.routes?.length) {
+        this.skres.routeAddFromServer(s.routes);
+      }
+    }
+    if ((s.route ?? '') !== this.autonomousControl.selectedRoute) {
+      this.autonomousControl.selectedRoute = s.route ?? '';
+      const showRoute = () => {
+        const r = this.availableRoutes.find((x) => x[0] === s.route);
+        const coords = r?.[1]?.feature?.geometry?.coordinates;
+        if (coords) {
+          this.calculateTotalRouteDistance(coords);
+          this.calculateDynamicTOA(coords);
+        }
+      };
+      if (s.route && !this.availableRoutes.some((x) => x[0] === s.route)) {
+        this.refreshAvailableRoutes().then(showRoute);
+      } else {
+        showRoute();
+      }
+    }
+
+    if (typeof s.speed === 'number') this.autonomousControl.speed = s.speed;
+    this.autonomousControl.repeatRoute = !!s.repeat;
+    this.autonomousControl.selectedRegion = s.region ?? '';
+    if (this.fbMapRef && !same(s.activeRegion, this.fbMapRef.activeRegionId)) {
+      this.fbMapRef.activeRegionId = s.activeRegion ?? null;
+    }
+
+    if (!same(s.base, this.app.data.map.basePosition)) {
+      this.app.data.map.basePosition = s.base ?? undefined;
+    }
+    if (!same(s.corridor, this.app.data.map.corridor)) {
+      this.app.data.map.corridor = s.corridor ?? null;
+    }
+    this.corridor.armed = !!s.corridorArmed;
+    if (typeof s.corridorWidth === 'number') this.corridorWidthM = s.corridorWidth;
+    if (!same(s.safeRoute, this.app.data.map.safeRoutePreview)) {
+      this.app.data.map.safeRoutePreview = s.safeRoute ?? null;
+    }
+
+    const st = s.station ?? {};
+    if (!same(st.pos, this.app.data.map.stationKeepPosition)) {
+      this.app.data.map.stationKeepPosition = st.pos ?? undefined;
+    }
+    this.stationKeep.innerRadius = st.inner ?? this.stationKeep.innerRadius;
+    this.stationKeep.outerRadius = st.outer ?? this.stationKeep.outerRadius;
+    this.stationKeep.speed = st.speed ?? this.stationKeep.speed;
+    this.stationKeep.status = st.status ?? this.stationKeep.status;
+    this.stationKeep.position = st.pos ?? null;   // [lon, lat], as the map's
+
+    // whether the boat is following comes from TRAILING, not from here
+    const f = s.follow ?? {};
+    this.aisFollow.mmsi = f.mmsi ?? this.aisFollow.mmsi;
+    this.aisFollow.name = f.name ?? this.aisFollow.name;
+    this.aisFollow.range = f.range ?? this.aisFollow.range;
+    this.aisFollow.angle = f.angle ?? this.aisFollow.angle;
+    this.aisFollow.speed = f.speed ?? this.aisFollow.speed;
+  }
+
+  /** The base marker follows the boat's BASE_COORDS ("lat,lon", '' = none)
+   * for every session, not only when the panel opens. */
+  private followBoatBase(value: string) {
+    if (value === this.lastBoatBase) {
+      return;
+    }
+    this.lastBoatBase = value;
+    const c = String(value ?? '').split(',').map((v) => parseFloat(v));
+    this.app.data.map.basePosition =
+      c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]) ? [c[1], c[0]] : undefined;
+  }
+
+  /** Tell a view-only user, once, what the autonomous panel will do for them. */
+  private alertViewOnlyOnce() {
+    if (this.canCommandBoat() || this.viewOnlyAlerted) {
+      return;
+    }
+    this.viewOnlyAlerted = true;
+    this.app.showAlert(
+      'View only',
+      `${this.viewOnlyReason()} You see the boat and every change the operator makes as it happens, but you cannot change anything.`
+    );
   }
 
   /** Tell the boat who is logged in (iWebSocket AUTH=<token>). On connect the
@@ -4228,6 +4406,7 @@ export class AppComponent implements OnDestroy {
           this.boatAuth = { mode: '', level: '', user: '' };
           this.boatAuthToken = '';
           this.sendAuthToBoat();
+          this.uiStateSent = '';   // publish again on the new connection
           if (this.app.config.selections.remoteControl && this.canCommandBoat()) {
             this.sendMoos('CONTROLE_MANUAL=true');
           }
@@ -4569,6 +4748,16 @@ export class AppComponent implements OnDestroy {
         this.app.data.moosIvPServer.serviceMode = value === 'true' || value === '1';
         break;
       }
+      case 'UI_STATE':
+        if (!this.replay.isReplaying()) {
+          try {
+            this.operatorState = JSON.parse(value);
+            this.applyOperatorState(this.operatorState);
+          } catch {
+            this.app.debug('UI_STATE: not JSON');
+          }
+        }
+        break;
       case 'AUTH_STATUS':
         // Sent to this connection only; never taken from a replay
         if (!this.replay.isReplaying()) {
@@ -4629,6 +4818,7 @@ export class AppComponent implements OnDestroy {
     }
     if (data.BASE_COORDS !== undefined) {
       this.app.data.moosIvPServer.baseCoords = data.BASE_COORDS;
+      this.followBoatBase(data.BASE_COORDS);
       //console.log('[BASE_COORDS] Received from MOOS-IvP (JSON):', data.BASE_COORDS);
     }
     if (data.CAN_SEND !== undefined) {
@@ -4693,6 +4883,15 @@ export class AppComponent implements OnDestroy {
     }
     if (data.AIS_RADIUS !== undefined) {
       this.processAisLimit(data.AIS_RADIUS);
+    }
+    // Follow state as the helm reports it (the text-line handler does the work)
+    if (data.TRAILING !== undefined && String(data.TRAILING) !== this.lastTrailing) {
+      this.lastTrailing = String(data.TRAILING);
+      this.processMoosVariable('TRAILING', this.lastTrailing);
+    }
+    if (data.TRAIL_UPDATES !== undefined && String(data.TRAIL_UPDATES) !== this.lastTrailUpdates) {
+      this.lastTrailUpdates = String(data.TRAIL_UPDATES);
+      this.processMoosVariable('TRAIL_UPDATES', this.lastTrailUpdates);
     }
     if (data.COLAV_DIST !== undefined) {
       this.app.data.moosIvPServer.colavDist = data.COLAV_DIST;
