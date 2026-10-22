@@ -2171,6 +2171,9 @@ export class AppComponent implements OnDestroy {
       user: this.skUserName ?? '',
       route: this.autonomousControl.selectedRoute || '',
       routes: this.app.config.selections.routes ?? null,
+      // charts switched on (null = all) and their layer order, ENC included
+      charts: this.app.config.selections.charts ?? null,
+      chartOrder: this.app.config.selections.chartOrder ?? [],
       speed: this.autonomousControl.speed,
       repeat: this.autonomousControl.repeatRoute,
       region: this.autonomousControl.selectedRegion || '',
@@ -2222,6 +2225,18 @@ export class AppComponent implements OnDestroy {
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const same = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+    // Charts on the map: a chart's on/off is a per-browser setting, so an ENC
+    // the operator switches on would otherwise never load for the viewer
+    if (
+      s.charts !== undefined &&
+      (!same(s.charts, this.app.config.selections.charts) ||
+        !same(s.chartOrder, this.app.config.selections.chartOrder))
+    ) {
+      this.app.config.selections.charts = s.charts === null ? null : [...s.charts];
+      this.app.config.selections.chartOrder = [...(s.chartOrder ?? [])];
+      this.skres.refreshCharts();
+    }
 
     // Routes on the map (null = all), then the mission route
     if (!same(s.routes, this.app.config.selections.routes)) {
