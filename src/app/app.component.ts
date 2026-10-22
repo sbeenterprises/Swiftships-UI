@@ -2062,8 +2062,108 @@ export class AppComponent implements OnDestroy {
     if (!this.app.data.moosIvPServer.connected || !this.app.data.moosIvPServer.socket) {
       return false;
     }
+    if (!this.mayTransmit(message)) {
+      return false;
+    }
     this.app.data.moosIvPServer.socket.send(message);
     return true;
+  }
+
+  // ************************************************
+  // View-only users. A Signal K account with read-only access may watch the
+  // boat but not command it. The boat enforces this itself when iWebSocket
+  // runs with command_auth = signalk (it checks the login with Signal K and
+  // refuses the commands); here the controls are disabled and every outbound
+  // command is stopped, which also covers an iWebSocket without the check.
+
+  /** Signal K permission of the logged-in user: readonly | readwrite | admin */
+  protected skUserLevel: string | undefined;
+  protected skUserName: string | undefined;
+  /** What the boat granted this connection (AUTH_STATUS); mode '' = not reported */
+  protected boatAuth = { mode: '', level: '', user: '' };
+  /** Token last sent to the boat on this connection ('' = none / cookie only) */
+  private boatAuthToken = '';
+  private viewOnlyNoticeAt = 0;
+
+  /** May this session command the boat? */
+  protected canCommandBoat(): boolean {
+    if (this.boatAuth.mode === 'signalk') {
+      return ['readwrite', 'admin', 'open'].includes(this.boatAuth.level);
+    }
+    if (this.app.data.loginRequired) {
+      return ['readwrite', 'admin'].includes(this.skUserLevel ?? '');
+    }
+    return true;
+  }
+
+  /** Why the controls are disabled, for the banner and tooltips. */
+  protected viewOnlyReason(): string {
+    const level = this.boatAuth.mode === 'signalk' ? this.boatAuth.level : this.skUserLevel;
+    const user = this.boatAuth.user || this.skUserName;
+    if (level === 'readonly') {
+      return `${user ?? 'This account'} has read-only access. Log in with a read/write account to command the boat.`;
+    }
+    if (level === 'unavailable') {
+      return 'The boat could not verify your login with the server. Commands are blocked until it can.';
+    }
+    return 'Log in with a read/write account to command the boat.';
+  }
+
+  /** Commands pass only for users allowed to command; the login and the
+   * keep-alive always go through. */
+  private mayTransmit(message: string): boolean {
+    if (message.startsWith('AUTH=') || message.startsWith('HEARTBEAT_PING=')) {
+      return true;
+    }
+    if (this.canCommandBoat()) {
+      return true;
+    }
+    this.app.debug(`[VIEW ONLY] suppressed outbound MOOS: ${message.split('=')[0]}`);
+    const now = Date.now();
+    if (now - this.viewOnlyNoticeAt > 3000) {
+      this.viewOnlyNoticeAt = now;
+      this.app.showMessage(`View only: ${this.viewOnlyReason()}`, true, 4000);
+    }
+    return false;
+  }
+
+  /** Tell the boat who is logged in (iWebSocket AUTH=<token>). On connect the
+   * boat already reads the Signal K login cookie, so this is only needed when
+   * the UI holds a token, or to drop one after a logout. */
+  private sendAuthToBoat() {
+    if (!this.app.data.moosIvPServer.connected || this.replay.isReplaying()) {
+      return;
+    }
+    const token = this.app.skToken ?? '';
+    if (token === this.boatAuthToken) {
+      return;
+    }
+    this.boatAuthToken = token;
+    this.moosWsService.send(`AUTH=${token}`);
+  }
+
+  /** The boat's answer to a login: AUTH_STATUS=level=..#user=..#mode=signalk|off */
+  private processBoatAuthStatus(value: string) {
+    const f = this.parseHashFields(value);
+    this.boatAuth = { mode: f['mode'] ?? '', level: f['level'] ?? '', user: f['user'] ?? '' };
+    if (!this.canCommandBoat() && this.app.config.selections.remoteControl) {
+      // The boat ignores this session's manual commands: show it as off.
+      this.stopManualKeepalive();
+      this.app.config.selections.remoteControl = false;
+      this.display.remoteControlPanelOpen = false;
+    }
+  }
+
+  /** "a=1#b=2" -> {a: '1', b: '2'} */
+  private parseHashFields(value: string): { [key: string]: string } {
+    const out: { [key: string]: string } = {};
+    value.split('#').forEach((kv) => {
+      const eq = kv.indexOf('=');
+      if (eq > 0) {
+        out[kv.substring(0, eq)] = kv.substring(eq + 1);
+      }
+    });
+    return out;
   }
 
   /**
@@ -4024,6 +4124,9 @@ export class AppComponent implements OnDestroy {
   handleSKAuthChange() {
     this.signalk.getLoginStatus().subscribe((r) => {
       this.app.data.loginRequired = r.authenticationRequired ?? false;
+      this.skUserLevel = r.status === 'loggedIn' ? r.userLevel : undefined;
+      this.skUserName = r.status === 'loggedIn' ? r.username : undefined;
+      this.sendAuthToBoat();
       this.app.isLoggedIn.update(() =>
         r.status === 'loggedIn' ? true : false
       );
@@ -4115,7 +4218,11 @@ export class AppComponent implements OnDestroy {
           // A lost link leaves the boat in neutral at 0 thrust: match it,
           // and re-assert manual control if the operator still has it on.
           this.resetManualGearAndThrust();
-          if (this.app.config.selections.remoteControl) {
+          // New connection: the boat answers with AUTH_STATUS again
+          this.boatAuth = { mode: '', level: '', user: '' };
+          this.boatAuthToken = '';
+          this.sendAuthToBoat();
+          if (this.app.config.selections.remoteControl && this.canCommandBoat()) {
             this.sendMoos('CONTROLE_MANUAL=true');
           }
           // Sync region state after a delay to ensure regions are loaded from Signal K
@@ -4164,6 +4271,9 @@ export class AppComponent implements OnDestroy {
       send: (msg: string) => {
         if (this.replay.isReplaying()) {
           this.app.debug(`[REPLAY] suppressed outbound MOOS: ${msg}`);
+          return;
+        }
+        if (!this.mayTransmit(msg)) {
           return;
         }
         this.moosWsService.send(msg);
@@ -4451,6 +4561,20 @@ export class AppComponent implements OnDestroy {
         // iWebSocket's echo of the request. The switch itself follows PID_GAINS,
         // since planchaPID is what actually applies (or ignores) the mode.
         this.app.data.moosIvPServer.serviceMode = value === 'true' || value === '1';
+        break;
+      }
+      case 'AUTH_STATUS':
+        // Sent to this connection only; never taken from a replay
+        if (!this.replay.isReplaying()) {
+          this.processBoatAuthStatus(value);
+        }
+        break;
+      case 'CMD_REJECTED': {
+        if (!this.replay.isReplaying()) {
+          const f = this.parseHashFields(value);
+          this.boatAuth.level = f['level'] ?? this.boatAuth.level;
+          this.app.showMessage(`The boat refused ${f['key'] ?? 'a command'}: ${this.viewOnlyReason()}`, true, 4000);
+        }
         break;
       }
       default:

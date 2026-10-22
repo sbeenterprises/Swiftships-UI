@@ -357,7 +357,7 @@
         <!--remote control-->
         @if(display.remoteControlPanelOpen) {
         <mat-sidenav #sideremotecontrol mode="side" position="end" [opened]="display.remoteControlPanelOpen"
-          class="remote-control-sidenav" style="width: 350px;">
+          class="remote-control-sidenav" [class.view-only]="!canCommandBoat()" style="width: 350px;">
           <div class="ac-root" style="position: relative;">
             <!-- Header: logo + title + live CAN link chip (dev usv01 design) -->
             <header class="ac-header">
@@ -373,6 +373,12 @@
                 <mat-icon>close</mat-icon>
               </a>
             </header>
+            @if(!canCommandBoat()) {
+            <div class="view-only-banner">
+              <mat-icon>visibility</mat-icon>
+              <span><strong>View only.</strong> {{ viewOnlyReason() }}</span>
+            </div>
+            }
             <div class="remote-control-content ac-panes">
               <!-- Rudder, Thrust and Gear Controls (only shown when CAN sending is on;
                    CAN is switched from the power button in the left toolbar) -->
@@ -521,7 +527,7 @@
         <!--station keep control-->
         @if(display.stationKeepPanelOpen) {
         <mat-sidenav #sidestationkeep mode="side" position="end" [opened]="display.stationKeepPanelOpen"
-          class="station-keep-sidenav" style="width: 350px;">
+          class="station-keep-sidenav" [class.view-only]="!canCommandBoat()" style="width: 350px;">
           <div style="display: flex; flex-direction: column; position: relative; height: 100%">
             <mat-nav-list>
               <a mat-list-item>
@@ -532,6 +538,12 @@
               </a>
               <mat-divider></mat-divider>
             </mat-nav-list>
+            @if(!canCommandBoat()) {
+            <div class="view-only-banner">
+              <mat-icon>visibility</mat-icon>
+              <span><strong>View only.</strong> {{ viewOnlyReason() }}</span>
+            </div>
+            }
 
             <div class="station-keep-content" style="padding: 16px 0; flex: 1; overflow-y: auto; overflow-x: hidden;">
               <!-- Inner Radius Control -->
@@ -668,7 +680,7 @@
         <!--autonomous control-->
         @if(display.autonomousControlPanelOpen) {
         <mat-sidenav #sideautonomouscontrol mode="side" position="end" [opened]="display.autonomousControlPanelOpen"
-          class="autonomous-control-sidenav" style="width: 350px;">
+          class="autonomous-control-sidenav" [class.view-only]="!canCommandBoat()" style="width: 350px;">
           <div class="ac-root" style="position: relative;">
             <!-- Header: mission state. CAN is switched from the left toolbar only. -->
             <header class="ac-header">
@@ -683,6 +695,12 @@
                 <mat-icon>close</mat-icon>
               </a>
             </header>
+            @if(!canCommandBoat()) {
+            <div class="view-only-banner">
+              <mat-icon>visibility</mat-icon>
+              <span><strong>View only.</strong> {{ viewOnlyReason() }}</span>
+            </div>
+            }
             <!-- tab switch: Mission / Follow / Tuning -->
             <div class="ac-tabs">
               <button type="button" class="ac-tab" [class.active]="autonomousPanelTab === 'mission'"
@@ -1557,8 +1575,10 @@
               <button mat-mini-fab [ngClass]="{
                   'button-warn': app.data.moosIvPServer.canSend,
                   'button-toolbar': !app.data.moosIvPServer.canSend
-                }" (click)="toggleCanSend()" [matTooltip]="
-                  app.data.moosIvPServer.canSend
+                }" (click)="toggleCanSend()" [disabled]="!canCommandBoat()" [matTooltip]="
+                  !canCommandBoat()
+                    ? 'View only: ' + viewOnlyReason()
+                    : app.data.moosIvPServer.canSend
                     ? 'Disable CAN (emergency)'
                     : 'Enable CAN'
                 " matTooltipPosition="right">
@@ -1569,8 +1589,10 @@
               <button mat-mini-fab [ngClass]="{
                   'button-primary': app.config.selections.remoteControl,
                   'button-toolbar': !app.config.selections.remoteControl
-                }" (click)="toggleRemoteControl()" [matTooltip]="
-                  app.config.selections.remoteControl
+                }" (click)="toggleRemoteControl()" [disabled]="!canCommandBoat()" [matTooltip]="
+                  !canCommandBoat()
+                    ? 'View only: ' + viewOnlyReason()
+                    : app.config.selections.remoteControl
                     ? 'Deactivate Remote Control'
                     : 'Activate Remote Control'
                 " matTooltipPosition="right">

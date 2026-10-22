@@ -426,7 +426,12 @@ export class AppFacade extends InfoService {
   }
 
   /** persist auth token for session */
+  /** Signal K login token in use ('' when none). The client only sets it,
+   * so a copy is kept here for the boat link (iWebSocket AUTH=). */
+  skToken = '';
+
   persistToken(value: string) {
+    this.skToken = value || '';
     if (value) {
       this.signalk.authToken = value;
       this.worker.postMessage({

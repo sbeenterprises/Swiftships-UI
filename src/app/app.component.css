@@ -2152,3 +2152,31 @@ mat-nav-list {
 .autonomous-control-sidenav .ac-fbtn.abort { width: 100%; color: #fff !important; border-color: #e5484d; background: #c63c40; }
 .autonomous-control-sidenav .ac-fbtn:disabled { opacity: 0.4; cursor: not-allowed; }
 .autonomous-control-sidenav .ac-fbtn.abort:disabled { background: rgba(198, 60, 64, 0.45); }
+
+/* View-only users (read-only Signal K account): the command panels stay
+   readable but their controls are inert. The boat refuses these users'
+   commands anyway (iWebSocket command_auth = signalk); this makes it visible. */
+.view-only :is(.ac-panes, .ac-footer, .station-keep-content)
+  :is(button:not(.ac-phase-tab), input, select, textarea, mat-slide-toggle,
+      mat-slider, mat-select, mat-checkbox, mat-radio-button, mat-button-toggle) {
+  pointer-events: none;
+  opacity: 0.45;
+}
+.view-only-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #3a2f0b;
+  color: #ffd76a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.view-only-banner mat-icon {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
