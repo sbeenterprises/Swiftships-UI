@@ -9,6 +9,7 @@ import { IRouter, Application, Request, Response } from 'express';
 import { initAlarms } from './alarms/alarms';
 import { initRecordings } from './replay/recordings';
 import * as path from 'path';
+import * as fs from 'fs';
 import {
   ENC_CONFIG,
   initEnc,
@@ -65,6 +66,14 @@ const CONFIG_SCHEMA = {
             'Select the interval at which the weather service is polled.'
         }
       }
+    },
+    rolesFile: {
+      type: 'string',
+      title: 'Roles file for iWebSocket',
+      description:
+        'The roles below are also written here, readable by every user, for iWebSocket ' +
+        '(its roles_file). Signal K may run as root, whose own folder the MOOS user cannot read.',
+      default: '/var/lib/swiftships-c2/roles.json'
     },
     roles: {
       type: 'array',
@@ -161,6 +170,7 @@ interface SETTINGS {
   weather: WEATHER_CONFIG;
   enc: ENC_CONFIG;
   roles: Array<{ user: string; role: string }>;
+  rolesFile: string;
 }
 
 export interface FreeboardHelperApp extends Application, ServerAPI {
@@ -191,7 +201,28 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
       stagingPath: '',
       maxZoom: 16
     },
-    roles: []
+    roles: [],
+    rolesFile: '/var/lib/swiftships-c2/roles.json'
+  };
+
+  /** Copy of the roles for iWebSocket, in the same shape as the plugin
+   * config file ({configuration: {roles}}), readable by everyone. */
+  const writeRolesFile = () => {
+    const file = settings.rolesFile || '/var/lib/swiftships-c2/roles.json';
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o755 });
+      const tmp = `${file}.tmp`;
+      fs.writeFileSync(
+        tmp,
+        JSON.stringify({ configuration: { roles: settings.roles ?? [] } }, null, 2),
+        { mode: 0o644 }
+      );
+      fs.renameSync(tmp, file);
+      fs.chmodSync(file, 0o644);
+      server.debug(`roles written to ${file}`);
+    } catch (err) {
+      server.error(`Cannot write the roles file ${file}: ${(err as Error).message}`);
+    }
   };
 
   const recordings = initRecordings(server);
@@ -230,6 +261,9 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
       if (typeof options !== 'undefined') {
         settings = options;
       }
+      settings.roles = options?.roles ?? [];
+      settings.rolesFile = options?.rolesFile || '/var/lib/swiftships-c2/roles.json';
+      writeRolesFile();
 
       /**
        * emit metas for environment paths
