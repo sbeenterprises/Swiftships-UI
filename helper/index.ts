@@ -66,6 +66,30 @@ const CONFIG_SCHEMA = {
         }
       }
     },
+    roles: {
+      type: 'array',
+      title: 'Boat control roles',
+      description:
+        'Role of each Signal K user on the boat (read by iWebSocket, roles_file). ' +
+        'Viewer: watch only. Planner: also draw and save draft routes. ' +
+        'Operator: may take control of the boat (one at a time) and press ALL STOP. ' +
+        'Supervisor: operator who may also force a takeover. ' +
+        'Users not listed: read-only -> Viewer, read/write -> Operator, admin -> Supervisor. ' +
+        'A read-only Signal K account is always a Viewer. Admin rights alone do not give boat control.',
+      items: {
+        type: 'object',
+        required: ['user', 'role'],
+        properties: {
+          user: { type: 'string', title: 'Signal K user name' },
+          role: {
+            type: 'string',
+            title: 'Role',
+            enum: ['viewer', 'planner', 'operator', 'supervisor'],
+            default: 'viewer'
+          }
+        }
+      }
+    },
     enc: {
       type: 'object',
       title: 'ENC Chart Upload',
@@ -136,6 +160,7 @@ interface SETTINGS {
   alarms: { [key: string]: any };
   weather: WEATHER_CONFIG;
   enc: ENC_CONFIG;
+  roles: Array<{ user: string; role: string }>;
 }
 
 export interface FreeboardHelperApp extends Application, ServerAPI {
@@ -165,7 +190,8 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
       chartOutputPath: '/home/douglas/enc/output',
       stagingPath: '',
       maxZoom: 16
-    }
+    },
+    roles: []
   };
 
   const recordings = initRecordings(server);

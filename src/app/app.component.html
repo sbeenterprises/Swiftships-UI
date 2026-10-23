@@ -296,6 +296,56 @@
     </div>
 
 
+
+    <!-- Boat control: role, who has control, take / release / request /
+         force, ALL STOP. Shown while the boat checks logins (command_auth). -->
+    @if(app.data.moosIvPServer.connected && boatAuth.mode === 'signalk') {
+    <div class="c2-control-bar" [attr.data-tone]="controlTone()" [class.nav-shift]="rightPanelOpen">
+      <span class="c2-role" [matTooltip]="(boatAuth.user || 'Not logged in') + ' · ' + roleLabel()">
+        <mat-icon>badge</mat-icon>{{ roleLabel() }}
+      </span>
+      @if(controlStatusText()) {
+      <span class="c2-status">{{ controlStatusText() }}</span>
+      }
+      @if(exclusiveControl() && moosUp()) {
+        @if(haveControl()) {
+          @if(control?.request) {
+          <span class="c2-req">{{ control.request.user }} asks for control ({{ requestSecsLeft() }} s)</span>
+          <button type="button" class="c2-btn" (click)="answerControlRequest(true)">Hand over</button>
+          <button type="button" class="c2-btn" (click)="answerControlRequest(false)">Keep</button>
+          }
+          <button type="button" class="c2-btn" (click)="releaseControl()" [disabled]="!control?.idle"
+            [matTooltip]="control?.idle ? 'Give up control of the boat' : 'The boat is busy (mission, manual, station keep or follow): stop it, or let another operator request control'">
+            Release Control
+          </button>
+        } @else if(isOperatorRole()) {
+          @if(control?.state !== 'held') {
+          <button type="button" class="c2-btn primary" (click)="takeControl()">Take Control</button>
+          } @else if(control?.you?.requesting) {
+          <span class="c2-req">Waiting for {{ control.holder }} ({{ requestSecsLeft() }} s)</span>
+          <button type="button" class="c2-btn" (click)="cancelControlRequest()">Cancel</button>
+          } @else {
+          <button type="button" class="c2-btn" (click)="requestControl()">Request Control</button>
+          }
+          @if(myRole() === 'supervisor' && control?.state === 'held') {
+          <button type="button" class="c2-btn warn" (click)="forceControl()"
+            matTooltip="Take control without the operator's answer (logged with your reason)">Force Takeover</button>
+          }
+        }
+      }
+      @if(control?.all_stop) {
+      <span class="c2-latched">ALL STOP by {{ control.all_stop_by }}</span>
+        @if(haveControl()) {
+        <button type="button" class="c2-btn" (click)="resetAllStop()">Reset</button>
+        }
+      }
+      @if(canAllStop()) {
+      <button type="button" class="c2-btn allstop" (click)="allStop()"
+        matTooltip="Stop now: ends the mission, zero rudder and throttle. Any operator may press it.">ALL STOP</button>
+      }
+    </div>
+    }
+
     <!-- content -->
     <div class="view" theme-main>
       <!-- Navigation integrity: shown while pNavGuard warns or faults -->
@@ -1870,7 +1920,7 @@
             <fb-map #fbMapRef [setFocus]="mapSetFocus()" [mapCenter]="display.map.center"
               [mapZoom]="app.config.map.zoomLevel" [northUp]="app.uiConfig().mapNorthUp"
               [movingMap]="app.uiConfig().mapMove" [vesselTrail]="app.data.trail" [activeRoute]="app.data.activeRoute"
-              [dblClickZoom]="app.config.mapDoubleClick" [hideStationKeepCircles]="hideStationKeepCircles" [viewOnly]="!canCommandBoat()"
+              [dblClickZoom]="app.config.mapDoubleClick" [hideStationKeepCircles]="hideStationKeepCircles" [viewOnly]="!canCommandBoat()" [canPlan]="canPlan()"
               [stationKeepInnerRadius]="stationKeep.innerRadius" [stationKeepOuterRadius]="stationKeep.outerRadius"
               [waypointStationKeep]="activeWaypointStationKeep" [measureMode]="mapInteract.isMeasuring()"
               [drawMode]="mapInteract.isDrawing()" (drawEnded)="handleDrawEnded($event)"

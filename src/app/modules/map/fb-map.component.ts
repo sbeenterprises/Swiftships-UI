@@ -156,6 +156,8 @@ export class FBMapComponent implements OnInit, OnDestroy {
   @Input() hideStationKeepCircles = false;
   /** Read-only user: menu actions that change the mission or the boat are refused */
   @Input() viewOnly = false;
+  /** Planner and up: may add waypoints and notes (Signal K resources) */
+  @Input() canPlan = true;
   @Input() stationKeepInnerRadius = 10;
   @Input() stationKeepOuterRadius = 25;
   @Input() waypointStationKeep: any = null;
@@ -617,10 +619,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   // ** handle context menu choices **
   protected onContextMenuAction(action: string, pos: Position) {
-    const changesMission = ['add_wpt', 'add_note', 'nav_to', 'put_target',
-      'station_keep', 'define_base', 'follow_ais'];
+    const changesMission = ['nav_to', 'put_target', 'station_keep', 'define_base', 'follow_ais'];
     if (this.viewOnly && changesMission.includes(action)) {
-      this.app.showMessage('View only: you cannot change the mission or the boat.', true, 3000);
+      this.app.showMessage('You do not have control of the boat: you cannot change the mission.', true, 3000);
+      return;
+    }
+    if (!this.canPlan && ['add_wpt', 'add_note'].includes(action)) {
+      this.app.showMessage('Your role cannot add waypoints or notes.', true, 3000);
       return;
     }
     switch (action) {

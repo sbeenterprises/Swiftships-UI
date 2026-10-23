@@ -2184,3 +2184,63 @@ mat-nav-list {
   width: 18px;
   height: 18px;
 }
+
+/* Boat control bar (roles / exclusive control), under the floating nav bar */
+.c2-control-bar {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4900;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  background: rgba(0, 0, 0, 0.82);
+  color: #e6edf5;
+  font: 500 12px 'Roboto', sans-serif;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+.c2-control-bar[data-tone='mine']  { border-color: #2e9d57; }
+.c2-control-bar[data-tone='other'] { border-color: #c9a227; }
+.c2-control-bar[data-tone='down']  { border-color: #d64545; }
+.c2-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #9fb3c8;
+}
+.c2-role mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.c2-status { font-weight: 700; }
+.c2-control-bar[data-tone='mine'] .c2-status  { color: #5fd38a; }
+.c2-control-bar[data-tone='other'] .c2-status { color: #ffd76a; }
+.c2-control-bar[data-tone='free'] .c2-status  { color: #8ecbff; }
+.c2-control-bar[data-tone='down'] .c2-status  { color: #ff7b7b; }
+.c2-req { color: #ffd76a; }
+.c2-latched { color: #ff7b7b; font-weight: 700; }
+.c2-btn {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.c2-btn:disabled { opacity: 0.45; cursor: default; }
+.c2-btn.primary { background: #1f6fd1; border-color: #1f6fd1; }
+.c2-btn.warn { border-color: #c9a227; color: #ffd76a; }
+.c2-btn.allstop {
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 768px) {
+  .c2-control-bar { top: 58px; left: 10px; right: 10px; transform: none; }
+}

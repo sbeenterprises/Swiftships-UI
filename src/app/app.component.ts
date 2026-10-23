@@ -1,7 +1,8 @@
 import { Component, ViewChild, effect, inject, signal, OnDestroy } from '@angular/core';
 import { LonLat, RegionEditService, regionAroundRoute } from './modules/map/region-edit.service';
 import { HttpErrorResponse } from '@angular/common/http';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { ConfirmDialog } from './lib/components/dialogs';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
@@ -2103,16 +2104,61 @@ export class AppComponent implements OnDestroy {
   protected skUserLevel: string | undefined;
   protected skUserName: string | undefined;
   /** What the boat granted this connection (AUTH_STATUS); mode '' = not reported */
-  protected boatAuth = { mode: '', level: '', user: '' };
-  /** Token last sent to the boat on this connection ('' = none / cookie only) */
-  private boatAuthToken = '';
+  protected boatAuth = { mode: '', level: '', user: '', role: '', control: '' };
+  /** Token last sent to the boat on this connection (null = nothing sent yet) */
+  private boatAuthToken: string | null = null;
   /** The view-only alert is shown once per session, on the first panel open */
   private viewOnlyAlerted = false;
 
+  // ************************************************
+  // Roles and exclusive control. The boat (iWebSocket) decides: it holds the
+  // control lease and sends CONTROL_STATUS (who has control, and this
+  // session's role and whether it holds it). Control belongs to this tab:
+  // the session id lives only as long as the page, so another tab, device or
+  // a reload of the same account does not inherit it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected control: any = null;
+  private controlAt = 0;
+  private readonly c2Session =
+    Math.random().toString(36).slice(2) + Date.now().toString(36);
+  private takeoverDialog: MatDialogRef<ConfirmDialog> | null = null;
+
+  protected exclusiveControl(): boolean {
+    return this.boatAuth.mode === 'signalk' && this.control?.mode === 'exclusive';
+  }
+
+  protected myRole(): string {
+    return this.control?.you?.role || this.boatAuth.role || '';
+  }
+
+  protected roleLabel(): string {
+    const r = this.myRole();
+    return r ? r.charAt(0).toUpperCase() + r.slice(1) : 'Viewer';
+  }
+
+  protected isOperatorRole(): boolean {
+    return ['operator', 'supervisor'].includes(this.myRole());
+  }
+
+  protected haveControl(): boolean {
+    return this.exclusiveControl() && !!this.control?.you?.holder;
+  }
+
+  /** the boat link and the boat's own MOOS link are both up */
+  protected moosUp(): boolean {
+    return this.app.data.moosIvPServer.connected && this.control?.moos !== false;
+  }
+
   /** May this session command the boat? */
   protected canCommandBoat(): boolean {
+    if (this.exclusiveControl()) {
+      return this.haveControl() && this.moosUp();
+    }
     if (this.boatAuth.mode === 'signalk') {
-      return ['readwrite', 'admin', 'open'].includes(this.boatAuth.level);
+      return (
+        ['readwrite', 'admin', 'open'].includes(this.boatAuth.level) &&
+        (!this.boatAuth.role || this.isOperatorRole())
+      );
     }
     if (this.app.data.loginRequired) {
       return ['readwrite', 'admin'].includes(this.skUserLevel ?? '');
@@ -2120,21 +2166,190 @@ export class AppComponent implements OnDestroy {
     return true;
   }
 
+  /** May this session draw and save draft routes, waypoints and notes? */
+  protected canPlan(): boolean {
+    if (this.boatAuth.mode === 'signalk' && this.myRole()) {
+      return ['planner', 'operator', 'supervisor'].includes(this.myRole());
+    }
+    return this.canCommandBoat();
+  }
+
+  /** ALL STOP: any operator, holding control or not */
+  protected canAllStop(): boolean {
+    if (this.boatAuth.mode === 'signalk') {
+      return this.moosUp() && this.isOperatorRole() &&
+        ['readwrite', 'admin', 'open'].includes(this.boatAuth.level);
+    }
+    return this.canCommandBoat();
+  }
+
+  protected controlStatusText(): string {
+    if (!this.moosUp()) return 'MOOS Disconnected';
+    if (!this.exclusiveControl()) return '';
+    if (this.haveControl()) return 'You Have Control';
+    if (this.control?.state === 'held') return `Read Only — Controlled by ${this.control.holder}`;
+    return 'Control Available';
+  }
+
+  /** mine | other | free | down, for the bar's colour */
+  protected controlTone(): string {
+    if (!this.moosUp()) return 'down';
+    if (this.haveControl()) return 'mine';
+    return this.control?.state === 'held' ? 'other' : 'free';
+  }
+
+  protected requestSecsLeft(): number {
+    const left = this.control?.request?.secs_left ?? 0;
+    return Math.max(0, Math.ceil(left - (Date.now() - this.controlAt) / 1000));
+  }
+
   /** Why the controls are disabled, for the banner and tooltips. */
   protected viewOnlyReason(): string {
     const level = this.boatAuth.mode === 'signalk' ? this.boatAuth.level : this.skUserLevel;
     const user = this.boatAuth.user || this.skUserName;
+    if (!this.moosUp()) {
+      return 'MOOS is disconnected: boat control is unavailable.';
+    }
     if (level === 'readonly') {
       return `${user ?? 'This account'} has read-only access. Log in with a read/write account to command the boat.`;
     }
     if (level === 'unavailable') {
       return 'The boat could not verify your login with the server. Commands are blocked until it can.';
     }
+    if (this.myRole() === 'viewer' && level !== 'none') {
+      return 'Your role is Viewer: you can watch the boat but not command it.';
+    }
+    if (this.myRole() === 'planner') {
+      return 'Your role is Planner: you can draw and save draft routes, but not command the boat.';
+    }
+    if (this.exclusiveControl() && this.isOperatorRole()) {
+      return this.control?.state === 'held'
+        ? `${this.control.holder} has control of the boat. Request control to take over.`
+        : 'Nobody has control of the boat. Take control to command it.';
+    }
     return 'Log in with a read/write account to command the boat.';
+  }
+
+  /** CTRL=<action>[#reason=..] to the boat; answered by CTRL_RESULT */
+  private sendControl(action: string, reason?: string) {
+    if (!this.app.data.moosIvPServer.connected || this.replay.isReplaying()) {
+      return;
+    }
+    const r = reason ? `#reason=${reason.replace(/[#\n]/g, ' ')}` : '';
+    this.moosWsService.send(`CTRL=${action}${r}`);
+  }
+
+  protected takeControl() {
+    this.sendControl('take');
+  }
+
+  protected releaseControl() {
+    this.sendControl('release');
+  }
+
+  protected requestControl() {
+    this.sendControl('request');
+  }
+
+  protected cancelControlRequest() {
+    this.sendControl('cancel');
+  }
+
+  protected answerControlRequest(accept: boolean) {
+    this.sendControl(accept ? 'accept' : 'deny');
+  }
+
+  protected forceControl() {
+    const reason = window.prompt(
+      `Take control from ${this.control?.holder ?? 'the operator'} without asking?\nReason (logged):`
+    );
+    if (reason && reason.trim()) {
+      this.sendControl('force', reason.trim());
+    }
+  }
+
+  /** ALL STOP: ends autonomy, zero rudder and thrust, latched on the boat */
+  protected allStop() {
+    if (!this.app.data.moosIvPServer.connected || this.replay.isReplaying()) {
+      return;
+    }
+    this.moosWsService.send('ALL_STOP=true');
+  }
+
+  protected resetAllStop() {
+    this.sendMoos('ALL_STOP_RESET=true');
+  }
+
+  /** The boat stopped taking this session's manual commands: show it as off */
+  private dropLocalManual() {
+    if (this.app.config.selections.remoteControl) {
+      this.stopManualKeepalive();
+      this.app.config.selections.remoteControl = false;
+      this.display.remoteControlPanelOpen = false;
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private processControlStatus(s: any) {
+    const prev = this.control;
+    this.control = s;
+    this.controlAt = Date.now();
+    const had = !!prev?.you?.holder;
+    const has = !!s?.you?.holder;
+    if (!had && has) {
+      this.app.showMessage('You have control of the boat', false, 3000);
+    }
+    if (had && !has) {
+      this.dropLocalManual();
+      const why =
+        s.reason === 'force' ? `${s.holder} took control (supervisor)` :
+        s.reason === 'moos-reconnect' ? 'the boat\'s MOOS link was restarted' :
+        s.holder ? `${s.holder} has control now` : 'control released';
+      this.app.showMessage(`You no longer have control: ${why}`, true, 5000);
+    }
+    if (has && s.request && !prev?.request) {
+      this.app.showMessage(
+        `${s.request.user} asks for control: hand over or keep it (control passes in ${Math.ceil(s.request.secs_left)} s if you do not answer)`,
+        true, 6000
+      );
+    }
+    if (prev?.state === 'held' && s.state === 'lost' && s.last_user) {
+      this.promptTakeover(s.last_user);
+    }
+    if (s.state !== 'lost' && this.takeoverDialog) {
+      this.takeoverDialog.close();
+      this.takeoverDialog = null;
+      if (s.state === 'held' && !has) {
+        this.app.showMessage(`${s.holder} took control first`, false, 4000);
+      }
+    }
+  }
+
+  /** The operator's link was lost: ask the other operators, once. */
+  private promptTakeover(user: string) {
+    if (!this.isOperatorRole() || !this.moosUp() || this.takeoverDialog) {
+      return;
+    }
+    this.takeoverDialog = this.dialog.open(ConfirmDialog, {
+      disableClose: true,
+      data: {
+        title: 'Operator connection lost',
+        message: `${user} has lost connection. Do you want to take control of the boat?`,
+        button1Text: 'Yes, Take Control',
+        button2Text: 'Cancel'
+      }
+    });
+    this.takeoverDialog.afterClosed().subscribe((r) => {
+      this.takeoverDialog = null;
+      if (r?.ok && this.control?.state !== 'held') {
+        this.takeControl();
+      }
+    });
   }
 
   /** Commands pass only for users allowed to command; the login and the
    * keep-alive always go through. */
+
   private mayTransmit(message: string): boolean {
     if (message.startsWith('AUTH=') || message.startsWith('HEARTBEAT_PING=')) {
       return true;
@@ -2326,30 +2541,35 @@ export class AppComponent implements OnDestroy {
     );
   }
 
-  /** Tell the boat who is logged in (iWebSocket AUTH=<token>). On connect the
-   * boat already reads the Signal K login cookie, so this is only needed when
-   * the UI holds a token, or to drop one after a logout. */
+  /** Tell the boat who is logged in and which tab this is
+   * (AUTH=<token>#session=<id>). With no token the boat uses the login
+   * cookie the connection came with; #logout drops the login. */
   private sendAuthToBoat() {
     if (!this.app.data.moosIvPServer.connected || this.replay.isReplaying()) {
       return;
     }
-    const token = this.app.skToken ?? '';
+    const cookie = this.app.getFBToken();
+    const token = this.app.skToken || (cookie && cookie !== 'null' ? cookie : '');
     if (token === this.boatAuthToken) {
       return;
     }
+    const logout = !token && !!this.boatAuthToken;
     this.boatAuthToken = token;
-    this.moosWsService.send(`AUTH=${token}`);
+    this.moosWsService.send(`AUTH=${token}#session=${this.c2Session}${logout ? '#logout' : ''}`);
   }
 
   /** The boat's answer to a login: AUTH_STATUS=level=..#user=..#mode=signalk|off */
   private processBoatAuthStatus(value: string) {
     const f = this.parseHashFields(value);
-    this.boatAuth = { mode: f['mode'] ?? '', level: f['level'] ?? '', user: f['user'] ?? '' };
-    if (!this.canCommandBoat() && this.app.config.selections.remoteControl) {
-      // The boat ignores this session's manual commands: show it as off.
-      this.stopManualKeepalive();
-      this.app.config.selections.remoteControl = false;
-      this.display.remoteControlPanelOpen = false;
+    this.boatAuth = {
+      mode: f['mode'] ?? '', level: f['level'] ?? '', user: f['user'] ?? '',
+      role: f['role'] ?? '', control: f['control'] ?? ''
+    };
+    if (f['control'] !== 'exclusive') {
+      this.control = null;
+    }
+    if (!this.canCommandBoat()) {
+      this.dropLocalManual();
     }
   }
 
@@ -4418,8 +4638,9 @@ export class AppComponent implements OnDestroy {
           // and re-assert manual control if the operator still has it on.
           this.resetManualGearAndThrust();
           // New connection: the boat answers with AUTH_STATUS again
-          this.boatAuth = { mode: '', level: '', user: '' };
-          this.boatAuthToken = '';
+          this.boatAuth = { mode: '', level: '', user: '', role: '', control: '' };
+          this.control = null;
+          this.boatAuthToken = null;
           this.sendAuthToBoat();
           this.uiStateSent = '';   // publish again on the new connection
           if (this.app.config.selections.remoteControl && this.canCommandBoat()) {
@@ -4773,6 +4994,22 @@ export class AppComponent implements OnDestroy {
           }
         }
         break;
+      case 'CONTROL_STATUS':
+        if (!this.replay.isReplaying()) {
+          try {
+            this.processControlStatus(JSON.parse(value));
+          } catch {
+            this.app.debug('CONTROL_STATUS: not JSON');
+          }
+        }
+        break;
+      case 'CTRL_RESULT': {
+        const f = this.parseHashFields(value);
+        if (f['ok'] !== 'true' && f['reason']) {
+          this.app.showMessage(`Control: ${f['reason']}`, true, 5000);
+        }
+        break;
+      }
       case 'AUTH_STATUS':
         // Sent to this connection only; never taken from a replay
         if (!this.replay.isReplaying()) {
@@ -4783,7 +5020,10 @@ export class AppComponent implements OnDestroy {
         if (!this.replay.isReplaying()) {
           const f = this.parseHashFields(value);
           this.boatAuth.level = f['level'] ?? this.boatAuth.level;
-          this.app.showMessage(`The boat refused ${f['key'] ?? 'a command'}: ${this.viewOnlyReason()}`, true, 4000);
+          const why =
+            f['why'] === 'stale' ? 'control changed hands before it arrived' :
+            f['why'] === 'all_stop' ? 'ALL STOP is latched' : this.viewOnlyReason();
+          this.app.showMessage(`The boat refused ${f['key'] ?? 'a command'}: ${why}`, true, 4000);
         }
         break;
       }
