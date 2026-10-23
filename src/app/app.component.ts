@@ -2108,6 +2108,9 @@ export class AppComponent implements OnDestroy {
   protected boatAuth = { mode: '', level: '', user: '', role: '', control: '' };
   /** Token last sent to the boat on this connection (null = nothing sent yet) */
   private boatAuthToken: string | null = null;
+  /** Set by Log out until the next login in this page: a Signal K token stays
+   * valid after a logout, so no stored copy (cookie) may be sent again. */
+  private loggedOut = false;
   /** Log out of Signal K and tell the boat (AUTH=#logout): a session that
    * holds control gives it up, which the boat logs. Logging out while the
    * boat is busy lets the lost-link failsafe act, so that is confirmed first. */
@@ -2119,6 +2122,7 @@ export class AppComponent implements OnDestroy {
       this.skUserLevel = undefined;
       this.skUserName = undefined;
       this.dropLocalManual();
+      this.loggedOut = true;
       // explicit: the boat must not fall back on the login cookie this
       // connection arrived with
       if (this.app.data.moosIvPServer.connected && !this.replay.isReplaying()) {
@@ -2597,11 +2601,15 @@ export class AppComponent implements OnDestroy {
       return;
     }
     const cookie = this.app.getFBToken();
-    const token = this.app.skToken || (cookie && cookie !== 'null' ? cookie : '');
+    const token = this.loggedOut
+      ? ''
+      : this.app.skToken || (cookie && cookie !== 'null' ? cookie : '');
     if (token === this.boatAuthToken) {
       return;
     }
-    const logout = !token && !!this.boatAuthToken;
+    // after a logout every AUTH says so, so the boat does not fall back on
+    // the login cookie its connection arrived with
+    const logout = this.loggedOut || (!token && !!this.boatAuthToken);
     this.boatAuthToken = token;
     this.moosWsService.send(`AUTH=${token}#session=${this.c2Session}${logout ? '#logout' : ''}`);
   }
@@ -6016,6 +6024,7 @@ export class AppComponent implements OnDestroy {
           this.signalk.login(res.user, res.pwd).subscribe(
             (r) => {
               // ** authenticated
+              this.loggedOut = false;
               this.app.persistToken(r['token']);
               this.sendAuthToBoat();
               this.handleSKAuthChange();

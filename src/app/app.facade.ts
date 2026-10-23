@@ -446,7 +446,13 @@ export class AppFacade extends InfoService {
       this.hasAuthToken.set(false); // show login menu item
       this.signalk.authToken = null;
       this.isLoggedIn.set(false);
-      document.cookie = `sktoken=${null}; SameSite=Strict; max-age=0;`;
+      // expire every copy: a cookie is only removed for the path it was set
+      // with, and the UI has been served from several (/, /c2/, the old
+      // /@signalk/... path)
+      const here = window.location.pathname.replace(/[^/]*$/, '');
+      ['', '; path=/', `; path=${here}`, `; path=${here.replace(/\/$/, '')}`].forEach((p) => {
+        document.cookie = `sktoken=; SameSite=Strict; max-age=0${p}`;
+      });
       this.worker.postMessage({
         cmd: 'auth',
         options: {
