@@ -45,6 +45,7 @@ import {
   WeatherForecastModal,
   CourseSettingsModal,
   NotificationManager,
+  EngineMonitor,
   GPXImportDialog,
   GPXExportDialog,
   CourseService,
@@ -520,6 +521,7 @@ export class AppComponent implements OnDestroy {
     protected mapInteract: FBMapInteractService,
     protected anchor: AnchorFacade,
     protected notiMgr: NotificationManager,
+    private engineMonitor: EngineMonitor,
     protected course: CourseService,
     protected stream: SKStreamFacade,
     protected skres: SKResourceService,
@@ -4874,6 +4876,7 @@ export class AppComponent implements OnDestroy {
         break;
       case 'ENGINE_SPEED':
         this.engineStatus.speed = parseFloat(value) || 0;
+        this.engineStatus.lastUpdate = Date.now();
         // console.log('[ENGINE DEBUG] Engine Speed updated:', this.engineStatus.speed);
         break;
       case 'ENGINE_PERCENT_TORQUE':
@@ -5274,6 +5277,7 @@ export class AppComponent implements OnDestroy {
     }
     if (data.ENGINE_SPEED !== undefined) {
       this.engineStatus.speed = data.ENGINE_SPEED;
+      this.engineStatus.lastUpdate = Date.now();
     }
     if (data.ENGINE_PERCENT_TORQUE !== undefined) {
       this.engineStatus.percentTorque = data.ENGINE_PERCENT_TORQUE;
@@ -7217,9 +7221,58 @@ export class AppComponent implements OnDestroy {
       // Sync battery voltage from Signal K to engine status
       const voltage = this.app?.data?.vessels?.self?.electrical?.batteries?.House?.voltage;
       this.engineStatus.batteryVoltage = typeof voltage === 'number' ? voltage : 0;
+      this.syncEngineFromSignalK();
+      if (this.mode !== SKSTREAM_MODE.PLAYBACK) {
+        this.engineMonitor.update(
+          this.engineStatus,
+          this.app.data.moosIvPServer?.ivpHelmState === 'DRIVE'
+        );
+      }
 
       this.updateNavPanel();
     }
+  }
+
+  /** Copy Signal K propulsion.<id>.* (SI units) into the engine panel. Only
+   * fields the server publishes are set, so MOOS ENGINE_* still fills the rest. */
+  private syncEngineFromSignalK() {
+    const self = this.app?.data?.vessels?.self;
+    const ids = Object.keys(self?.propulsion ?? {});
+    if (!ids.length) {
+      return;
+    }
+    const id = ids[0];
+    const { values, alarms, updated } = self.propulsion[id];
+    const e = this.engineStatus;
+    if (updated && updated > (e.lastUpdate ?? 0)) {
+      e.lastUpdate = updated;
+    }
+    const set = (path: string, apply: (v: number) => void) => {
+      if (typeof values[path] === 'number') {
+        apply(values[path]);
+      }
+    };
+    e.engineId = id;
+    set('revolutions', (v) => (e.speed = v * 60)); // Hz -> RPM
+    set('engineLoad', (v) => (e.percentLoad = Math.max(0, v * 100)));
+    set('engineTorque', (v) => (e.percentTorque = Math.max(0, v * 100)));
+    set('temperature', (v) => (e.coolantTemp = v - 273.15)); // K -> °C
+    set('coolantTemperature', (v) => (e.coolantTemp = v - 273.15));
+    set('oilTemperature', (v) => (e.oilTemp = v - 273.15));
+    set('oilPressure', (v) => (e.oilPressure = v / 6894.757)); // Pa -> PSI
+    set('boostPressure', (v) => (e.intakeManifoldPressure = v / 1000)); // Pa -> kPa
+    set('fuel.rate', (v) => (e.fuelRate = v * 3.6e6)); // m3/s -> L/h
+    set('drive.trimState', (v) => (e.trim = v * 100));
+    set('alternatorVoltage', (v) => (e.alternatorVoltage = v));
+    set('runTime', (v) => (e.engineHours = v / 3600));
+    const level = self.tanks?.fuel?.[0]?.currentLevel;
+    if (typeof level === 'number') {
+      e.fuelLevel = level * 100;
+    }
+    e.alarms = Object.entries(alarms)
+      .filter(([, a]) => a.state && a.state !== 'normal')
+      .map(([name, a]) => ({ name, state: a.state, message: a.message }));
+    e.activeDtcs = e.alarms.length;
   }
 
   // ** Update NavData Panel display **

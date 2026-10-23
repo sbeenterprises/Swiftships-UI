@@ -187,6 +187,18 @@ export class SKStreamFacade {
         path: [{ path: 'notifications.*', period: 1000 }]
       }
     });
+    // engine panel: propulsion, battery and fuel tank (vessels.* above omits them)
+    this.worker.postMessage({
+      cmd: 'subscribe',
+      options: {
+        context: 'vessels.self',
+        path: [
+          { path: 'propulsion.*', period: 1000, policy: 'fixed' },
+          { path: 'electrical.batteries.*', period: 1000, policy: 'fixed' },
+          { path: 'tanks.fuel.*', period: 1000, policy: 'fixed' }
+        ]
+      }
+    });
     this.worker.postMessage({
       cmd: 'subscribe',
       options: {

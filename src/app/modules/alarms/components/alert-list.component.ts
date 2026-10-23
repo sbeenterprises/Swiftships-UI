@@ -111,6 +111,16 @@ import { NotificationManager } from '../notification-manager';
         <div class="content">
           <div class="alert-list-container">
             <div class="alert-list">
+              @if(!alerts().length) {
+              <div class="alert-empty">
+                <mat-icon>check_circle</mat-icon>
+                <div>No active alerts</div>
+                <div class="alert-empty-sub">
+                  Engine alarms, engine shut-off during a mission and other
+                  alerts appear here.
+                </div>
+              </div>
+              }
               @for(item of alerts(); track item[0]) {
               <div class="alert-box">
                 <div

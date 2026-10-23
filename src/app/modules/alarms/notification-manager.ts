@@ -145,6 +145,11 @@ export class NotificationManager {
       alert.priority
     );
     alert.type = alertType;
+    if (alertType === 'engine') {
+      // engine flags arrive with no method; they must always show, critical ones sound
+      alert.visual = true;
+      alert.sound ||= ['emergency', 'alarm'].includes(alert.priority);
+    }
     alert.icon = getAlertIcon(alert);
     alert.canCancel = this.isStandardAlarm(alert.type);
 
@@ -183,6 +188,8 @@ export class NotificationManager {
       return seg[1];
     } else if (path.includes('notifications.navigation.closestApproach')) {
       return 'cpa';
+    } else if (path.startsWith('notifications.propulsion.')) {
+      return 'engine';
     } else if (
       path.includes('notifications.environment.depth.') ||
       path.includes('notifications.navigation.anchor')
@@ -320,6 +327,28 @@ export class NotificationManager {
         }
       }
     }
+  }
+
+  /**
+   * @description Raise / update an alert generated in this UI (not on the server).
+   * A change of priority re-arms acknowledge and silence.
+   * @param path notifications.* path identifying the alert
+   */
+  public raiseLocal(path: string, state: ALARM_STATE, message: string) {
+    const prev = this.alertMap.get(path);
+    if (prev && prev.priority !== state) {
+      prev.acknowledged = false;
+      prev.silenced = false;
+    }
+    const method = ['emergency', 'alarm'].includes(state)
+      ? [ALARM_METHOD.visual, ALARM_METHOD.sound]
+      : [ALARM_METHOD.visual];
+    this.parse({ path, value: { state, method, message } } as PathValue);
+  }
+
+  /** @description Remove an alert raised with raiseLocal */
+  public clearLocal(path: string) {
+    this.parse({ path, value: null } as PathValue);
   }
 
   /**

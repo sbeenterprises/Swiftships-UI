@@ -1,6 +1,7 @@
 import { FBAppData, IAppConfig, Position } from './types';
 import { Convert } from './lib/convert';
 import { SKVessel } from './modules';
+import type { EngineData } from './modules/alarms/components/engine-status.component';
 
 // validate supplied settings against base config
 export function validateConfig(settings: IAppConfig): boolean {
@@ -669,8 +670,8 @@ export function initAutonomousControlData(): { [key: string]: any } {
   };
 }
 
-/** Engine telemetry reported over MOOS (ENGINE_*). */
-export function initEngineStatus() {
+/** Engine telemetry: MOOS (ENGINE_*) and Signal K propulsion.* where published. */
+export function initEngineStatus(): EngineData {
   return {
     acceleratorPedalPosition: 0,
     percentLoad: 0,
@@ -682,7 +683,8 @@ export function initEngineStatus() {
     oilPressure: 0,
     fuelRate: 0,
     intakeManifoldPressure: 0,
-    batteryVoltage: 0
+    batteryVoltage: 0,
+    alarms: []
   };
 }
 

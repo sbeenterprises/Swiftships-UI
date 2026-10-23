@@ -1,4 +1,5 @@
 export * from './notification-manager';
+export * from './engine-monitor';
 export * from './components/alert-list.component';
 export * from './components/alert.component';
 export * from './components/system-checklist.component';

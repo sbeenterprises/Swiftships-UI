@@ -251,6 +251,8 @@ export class SKVessel extends SKTargetBase {
       }
     ]
   };
+  // engines keyed by Signal K propulsion id (port, starboard, main ...)
+  propulsion: { [id: string]: SKEngine } = {};
 
   // http api sourced attributes
   design = {
@@ -268,6 +270,13 @@ export class SKVessel extends SKTargetBase {
   };
   flag: string;
   port: string;
+}
+
+// ** Signal K propulsion.<id> values (SI units) and engine alarm states **
+export interface SKEngine {
+  values: { [path: string]: number }; // relative path e.g. 'revolutions', 'fuel.rate'
+  alarms: { [name: string]: { state: string; message: string } };
+  updated?: number; // ms epoch of the last propulsion value received
 }
 
 // ** SaR class **

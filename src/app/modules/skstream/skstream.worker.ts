@@ -1061,6 +1061,24 @@ function processVessel(d: SKVessel, v: any, isSelf = false) {
     d.tanks.fuel[0].currentLevel = v.value;
   }
 
+  // ** propulsion (engine telemetry) **
+  else if (v.path.startsWith('propulsion.')) {
+    const [, id, ...rest] = v.path.split('.');
+    if (id && rest.length && typeof v.value === 'number') {
+      const engine = engineOf(d, id);
+      engine.values[rest.join('.')] = v.value;
+      engine.updated = Date.now();
+    }
+  } else if (v.path.startsWith('notifications.propulsion.')) {
+    const [, , id, name] = v.path.split('.');
+    if (id && name) {
+      engineOf(d, id).alarms[name] = {
+        state: v.value?.state ?? 'normal',
+        message: v.value?.message ?? ''
+      };
+    }
+  }
+
   // ** cog **
   else if (v.path === 'navigation.courseOverGroundTrue') {
     d.cogTrue = v.value;
@@ -1115,6 +1133,10 @@ function processVessel(d: SKVessel, v: any, isSelf = false) {
 }
 
 // process resources messages **
+function engineOf(d: SKVessel, id: string) {
+  return (d.propulsion[id] ??= { values: {}, alarms: {} });
+}
+
 function processResourceUpdate(v: PathValue) {
   if (silent) {
     return;
