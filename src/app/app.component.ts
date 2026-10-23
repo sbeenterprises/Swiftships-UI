@@ -4615,11 +4615,30 @@ export class AppComponent implements OnDestroy {
       );
   }
 
+  /**
+   * The boat's iWebSocket. Left at its default (blank, 127.0.0.1 or
+   * localhost), it is the boat C2 was opened from: a browser on another
+   * computer would otherwise look for MOOS on itself. An explicit address in
+   * Settings is used as it is.
+   */
+  private moosIvPEndpoint(): string {
+    const cfg = this.app.config.moosIvP;
+    let url = String(cfg.url ?? '').trim().replace(/\/+$/, '');
+    const page = window.location.hostname;
+    const isDefault = !url || /^wss?:\/\/(localhost|127\.0\.0\.1)$/i.test(url);
+    if (isDefault && page && !['localhost', '127.0.0.1'].includes(page)) {
+      url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${page}`;
+    } else if (!url) {
+      url = 'ws://127.0.0.1';
+    }
+    return `${url}:${cfg.port || 8000}`;
+  }
+
   /** establish connection to MOOS-IvP server */
   private connectMoosIvPServer() {
     console.log('[MOOS-IvP CONNECTION] Starting connection via WebSocket service...');
 
-    const wsUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
+    const wsUrl = this.moosIvPEndpoint();
     console.log('[MOOS-IvP CONNECTION] Connecting to WebSocket URL:', wsUrl);
     this.app.data.moosIvPServer.url = wsUrl;
 
@@ -5669,7 +5688,7 @@ export class AppComponent implements OnDestroy {
       }
 
       // ** MOOS-IvP connection settings changed
-      const currentUrl = `${this.app.config.moosIvP.url}:${this.app.config.moosIvP.port}`;
+      const currentUrl = this.moosIvPEndpoint();
       const connectedUrl = this.app.data.moosIvPServer.url;
 
       if (this.app.config.moosIvP.enabled && this.app.config.moosIvP.autoConnect) {
