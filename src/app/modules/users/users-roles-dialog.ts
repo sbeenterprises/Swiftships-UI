@@ -256,6 +256,20 @@ export class UsersRolesDialog implements OnInit {
       : { withCredentials: true };
   }
 
+  /** Changes: Signal K answers these with plain text ("User added"), not
+   * JSON, so the reply is read as text */
+  private change(method: 'post' | 'put' | 'delete', path: string, body?: unknown) {
+    const o = { ...this.opts(), responseType: 'text' as const };
+    const url = this.url(path);
+    return firstValueFrom(
+      method === 'delete'
+        ? this.http.delete(url, o)
+        : method === 'put'
+        ? this.http.put(url, body, o)
+        : this.http.post(url, body, o)
+    );
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private explain(err: any): string {
     if (err?.status === 401 || err?.status === 403) {
@@ -315,9 +329,7 @@ export class UsersRolesDialog implements OnInit {
       enabled: opts.enabled ?? true,
       configuration: { ...(opts.configuration ?? {}), roles }
     };
-    await firstValueFrom(
-      this.http.post(this.url(`/plugins/${PLUGIN_ID}/config`), body, this.opts())
-    );
+    await this.change('post', `/plugins/${PLUGIN_ID}/config`, body);
     this.pluginOptions = body;
   }
 
@@ -326,10 +338,8 @@ export class UsersRolesDialog implements OnInit {
     this.error = '';
     try {
       for (const u of this.users.filter((x) => x.type !== x.origType)) {
-        await firstValueFrom(
-          this.http.put(this.url(`/skServer/security/users/${encodeURIComponent(u.userId)}`),
-            { type: u.type }, this.opts())
-        );
+        await this.change('put', `/skServer/security/users/${encodeURIComponent(u.userId)}`,
+          { type: u.type });
       }
       if (this.users.some((u) => u.role !== u.origRole || u.type !== u.origType)) {
         await this.saveRoles();
@@ -363,10 +373,21 @@ export class UsersRolesDialog implements OnInit {
     }
     this.busy = true;
     try {
-      await firstValueFrom(
-        this.http.post(this.url(`/skServer/security/users/${encodeURIComponent(id)}`),
-          { type: this.newType, password: this.newPass }, this.opts())
+      // Signal K adds a user even if the name exists (a duplicate): check
+      // against its current list, not just the one shown
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const now: any = await firstValueFrom(
+        this.http.get(this.url('/skServer/security/users'), this.opts())
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (Array.isArray(now) && now.some((u: any) => u.userId === id)) {
+        this.error = `${id} already exists.`;
+        this.busy = false;
+        await this.load();
+        return;
+      }
+      await this.change('post', `/skServer/security/users/${encodeURIComponent(id)}`,
+        { type: this.newType, password: this.newPass });
       const role = this.newType === 'readonly' ? '' : this.newRole;
       this.users.push({ userId: id, type: this.newType, role, origType: this.newType, origRole: '' });
       if (role) {
@@ -399,10 +420,8 @@ export class UsersRolesDialog implements OnInit {
     try {
       // Signal K 2.13's own password route looks the user up wrongly; the
       // update route sets the password the same way and works
-      await firstValueFrom(
-        this.http.put(this.url(`/skServer/security/users/${encodeURIComponent(u.userId)}`),
-          { password: p1 }, this.opts())
-      );
+      await this.change('put', `/skServer/security/users/${encodeURIComponent(u.userId)}`,
+        { password: p1 });
       this.app.showMessage(`Password changed for ${u.userId}`, false, 3000);
     } catch (err) {
       this.error = this.explain(err);
@@ -416,10 +435,7 @@ export class UsersRolesDialog implements OnInit {
     this.busy = true;
     this.error = '';
     try {
-      await firstValueFrom(
-        this.http.delete(this.url(`/skServer/security/users/${encodeURIComponent(u.userId)}`),
-          this.opts())
-      );
+      await this.change('delete', `/skServer/security/users/${encodeURIComponent(u.userId)}`);
       this.users = this.users.filter((x) => x.userId !== u.userId);
       await this.saveRoles(u.userId);   // drop any role kept for them
       this.app.showMessage(`User ${u.userId} removed`, false, 3000);
