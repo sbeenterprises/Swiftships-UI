@@ -4602,23 +4602,34 @@ export class AppComponent implements OnDestroy {
       this.skUserLevel = r.status === 'loggedIn' ? r.userLevel : undefined;
       this.skUserName = r.status === 'loggedIn' ? r.username : undefined;
       this.sendAuthToBoat();
-      this.app.isLoggedIn.update(() =>
-        r.status === 'loggedIn' ? true : false
-      );
-      // ** Request using cached auth token and display badge
-      this.signalk.get('/plugins/swiftships-ui').subscribe(
-        () => {
-          this.app.debug('User Authenticated');
-          this.app.isLoggedIn.set(true);
-        },
-        (err: HttpErrorResponse) => {
-          if (err.status === 401) {
-            this.app.debug('User NOT Authenticated');
-            this.app.isLoggedIn.set(false);
-          }
-        }
-      );
+      // Signal K's own answer, for every user. (It used to be confirmed by a
+      // request to /plugins/..., which Signal K allows to admins only, so any
+      // other user was shown as logged out.)
+      this.app.isLoggedIn.set(r.status === 'loggedIn');
+      this.boatFollowCookieLogin(r);
     });
+  }
+
+  /** Logged in with only Signal K's login cookie (e.g. in the Signal K admin
+   * page or another tab): the page has no token to tell the boat, so
+   * reconnect once and the boat reads the cookie when the link opens. */
+  private cookieLoginSynced = '';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private boatFollowCookieLogin(r: any) {
+    const cookie = this.app.getFBToken();
+    const pageToken = this.app.skToken || (cookie && cookie !== 'null' ? cookie : '');
+    if (
+      r.status !== 'loggedIn' || pageToken || this.loggedOut ||
+      this.boatAuth.mode !== 'signalk' || !this.app.data.moosIvPServer.connected ||
+      this.boatAuth.user === r.username || this.cookieLoginSynced === r.username
+    ) {
+      return;
+    }
+    this.cookieLoginSynced = r.username;
+    this.app.debug(`[C2] ${r.username} logged in by cookie: reconnecting the boat link`);
+    // the service's own connect: the handlers subscribed once stay as they are
+    this.moosWsService.disconnect();
+    setTimeout(() => this.moosWsService.connect(this.moosIvPEndpoint()), 500);
   }
 
   /** establish connection to server */

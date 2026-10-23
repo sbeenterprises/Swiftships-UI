@@ -313,8 +313,8 @@
          force, ALL STOP. Shown while the boat checks logins (command_auth). -->
     @if(app.data.moosIvPServer.connected && boatAuth.mode === 'signalk') {
     <div class="c2-control-bar" [attr.data-tone]="controlTone()" [class.nav-shift]="rightPanelOpen">
-      <span class="c2-role" [matTooltip]="(boatAuth.user || 'Not logged in') + ' · ' + roleLabel()">
-        <mat-icon>badge</mat-icon>{{ roleLabel() }}
+      <span class="c2-role" [matTooltip]="boatAuth.user ? 'Logged in as ' + boatAuth.user : 'Not logged in'">
+        <mat-icon>badge</mat-icon>{{ boatAuth.user ? boatAuth.user + ' · ' : '' }}{{ roleLabel() }}
       </span>
       @if(controlStatusText()) {
       <span class="c2-status">{{ controlStatusText() }}</span>
