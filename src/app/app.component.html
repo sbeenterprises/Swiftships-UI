@@ -166,6 +166,12 @@
         </mat-icon>
         <span>{{ app.isLoggedIn() ? 'Change User' : 'Login' }}</span>
       </a>
+      @if(app.isLoggedIn()) {
+      <a mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Log out{{ skUserName ? ' (' + skUserName + ')' : '' }}</span>
+      </a>
+      }
       }
       <mat-divider></mat-divider>
       @if(!isInteracting && app.featureFlags().anchorApi) {

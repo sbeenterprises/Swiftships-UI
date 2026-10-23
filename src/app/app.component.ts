@@ -2108,6 +2108,48 @@ export class AppComponent implements OnDestroy {
   protected boatAuth = { mode: '', level: '', user: '', role: '', control: '' };
   /** Token last sent to the boat on this connection (null = nothing sent yet) */
   private boatAuthToken: string | null = null;
+  /** Log out of Signal K and tell the boat (AUTH=#logout): a session that
+   * holds control gives it up, which the boat logs. Logging out while the
+   * boat is busy lets the lost-link failsafe act, so that is confirmed first. */
+  protected logout() {
+    const doLogout = () => {
+      this.signalk.logout().subscribe({ next: () => undefined, error: () => undefined });
+      this.app.persistToken(null);
+      this.app.isLoggedIn.set(false);
+      this.skUserLevel = undefined;
+      this.skUserName = undefined;
+      this.dropLocalManual();
+      // explicit: the boat must not fall back on the login cookie this
+      // connection arrived with
+      if (this.app.data.moosIvPServer.connected && !this.replay.isReplaying()) {
+        this.boatAuthToken = '';
+        this.moosWsService.send(`AUTH=#session=${this.c2Session}#logout`);
+      }
+      this.app.showMessage('Logged out', false, 3000);
+    };
+    if (!this.haveControl()) {
+      doLogout();
+      return;
+    }
+    const busy = !this.control?.idle;
+    this.app
+      .showConfirm(
+        busy
+          ? 'You have control and the boat is busy (mission, manual control, station keep or follow). ' +
+            'Logging out gives up control and the boat\'s lost-link failsafe will stop it. ' +
+            'Hand control to another operator first if it should carry on.'
+          : 'You have control of the boat. Logging out gives it up.',
+        'Log out',
+        'Log out',
+        'Cancel'
+      )
+      .subscribe((r) => {
+        if (r?.ok) {
+          doLogout();
+        }
+      });
+  }
+
   /** Users & Roles (Signal K admins): Signal K users and their boat role */
   protected openUsersRoles() {
     this.dialog.open(UsersRolesDialog, { disableClose: false, maxWidth: '96vw' });
@@ -5975,6 +6017,8 @@ export class AppComponent implements OnDestroy {
             (r) => {
               // ** authenticated
               this.app.persistToken(r['token']);
+              this.sendAuthToBoat();
+              this.handleSKAuthChange();
               this.app.loadSettingsfromServer();
               if (onConnect) {
                 this.queryAfterConnect();
