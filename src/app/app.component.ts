@@ -4577,9 +4577,16 @@ export class AppComponent implements OnDestroy {
     let ssl = this.app.hostDef.ssl;
 
     if (this.app.config.signalk?.enabled) {
-      // Parse URL to extract host
-      const signalkUrl = this.app.config.signalk.url;
-      if (signalkUrl) {
+      // Parse URL to extract host. Left at its default (blank, 127.0.0.1 or
+      // localhost) it is the boat this page came from, as for MOOS-IvP: from
+      // an operator's PC 127.0.0.1 is the PC itself.
+      const signalkUrl = String(this.app.config.signalk.url ?? '').trim().replace(/\/+$/, '');
+      const page = window.location.hostname;
+      const isDefault = !signalkUrl || /^(https?:\/\/)?(localhost|127\.0\.0\.1)$/i.test(signalkUrl);
+      if (isDefault && page && !['localhost', '127.0.0.1'].includes(page)) {
+        host = page;
+        ssl = window.location.protocol === 'https:';
+      } else if (signalkUrl) {
         try {
           const url = new URL(signalkUrl);
           host = url.hostname;
