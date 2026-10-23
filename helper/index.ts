@@ -199,7 +199,7 @@ module.exports = (server: FreeboardHelperApp): Plugin => {
   // ******** REQUIRED PLUGIN DEFINITION *******
   const plugin: Plugin = {
     id: 'swiftships-ui',
-    name: 'SwiftShips UI',
+    name: 'SwiftShips C2',
     schema: () => CONFIG_SCHEMA,
     uiSchema: () => CONFIG_UISCHEMA,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

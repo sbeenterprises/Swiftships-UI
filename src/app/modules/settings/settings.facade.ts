@@ -255,7 +255,7 @@ export class SettingsFacade {
       (a: Array<SKAppsList>) => {
         this.applicationList = a
           .map((i) => {
-            if (i.name === '@signalk/swiftships-ui') {
+            if (i.name === 'c2') {
               return null;
             }
             if (!i._location && !i.location) {

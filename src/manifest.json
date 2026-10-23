@@ -1,11 +1,11 @@
 {
-  "name": "SwiftShips UI",
-  "short_name": "SwiftShips",
+  "name": "SwiftShips C2",
+  "short_name": "C2",
   "theme_color": "#1976d2",
   "background_color": "#fafafa",
   "display": "fullscreen",
   "orientation": "portrait",
-  "scope": "/@signalk/swiftships-ui/",
+  "scope": "/c2/",
   "start_url": "index.html",
   "icons": [
     {

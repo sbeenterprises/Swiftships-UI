@@ -1,5 +1,5 @@
 {
-  "name": "@signalk/swiftships-ui",
+  "name": "c2",
   "version": "2.16.2",
   "description": "SwiftShips UI - Openlayers chart plotter implementation for Signal K and MOOS-IvP",
   "keywords": [
@@ -9,7 +9,7 @@
   ],
   "signalk": {
     "appIcon": "./assets/icons/icon-72x72.png",
-    "displayName": "SwiftShips UI"
+    "displayName": "SwiftShips C2"
   },
   "repository": "https://github.com/SignalK/freeboard-sk",
   "main": "plugin/index.js",

@@ -27,14 +27,14 @@ const WHATS_NEW = [
 
 export const WELCOME_MESSAGES = {
   welcome: {
-    title: 'Welcome to SwiftShips UI',
-    message: `SwiftShips UI is your Signal K and MOOS-IvP chartplotter WebApp from which
+    title: 'Welcome to SwiftShips C2',
+    message: `SwiftShips C2 is your command and control app for SwiftShips USVs from which
                   you can manage routes, waypoints, notes, alarms, 
                   notifications and more.`
   },
   'signalk-server-node': {
     title: 'Server Plugins',
-    message: `Some SwiftShips UI features require that certain plugins are installed to service the 
+    message: `Some SwiftShips C2 features require that certain plugins are installed to service the 
                   required Signal K API paths.
                   <br>&nbsp;<br>
                   See <a href="assets/help/index.html" target="help">HELP</a> 
@@ -44,7 +44,7 @@ export const WELCOME_MESSAGES = {
     title: 'Experiments',
     message: `
                   Experiments are a means for testing out potential new features
-                  in SwiftShips UI.
+                  in SwiftShips C2.
                   <br>&nbsp;<br>
                   You can enable Experiments in <b><i>Settings</i></b>.
                   <br>&nbsp;<br>
