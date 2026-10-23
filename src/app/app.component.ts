@@ -3,6 +3,7 @@ import { LonLat, RegionEditService, regionAroundRoute } from './modules/map/regi
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { ConfirmDialog } from './lib/components/dialogs';
+import { UsersRolesDialog } from './modules/users/users-roles-dialog';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
@@ -2107,6 +2108,11 @@ export class AppComponent implements OnDestroy {
   protected boatAuth = { mode: '', level: '', user: '', role: '', control: '' };
   /** Token last sent to the boat on this connection (null = nothing sent yet) */
   private boatAuthToken: string | null = null;
+  /** Users & Roles (Signal K admins): Signal K users and their boat role */
+  protected openUsersRoles() {
+    this.dialog.open(UsersRolesDialog, { disableClose: false, maxWidth: '96vw' });
+  }
+
   /** The view-only alert is shown once per session, on the first panel open */
   private viewOnlyAlerted = false;
 

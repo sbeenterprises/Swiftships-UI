@@ -201,6 +201,12 @@
         <mat-icon>settings</mat-icon>
         <span>Settings</span>
       </a>
+      @if(skUserLevel === 'admin') {
+      <a mat-menu-item (click)="openUsersRoles()">
+        <mat-icon>manage_accounts</mat-icon>
+        <span>Users &amp; Roles</span>
+      </a>
+      }
       <mat-divider></mat-divider>
       <a mat-menu-item (click)="openAbout()">
         <mat-icon class="icon-accent">info_outline</mat-icon>
