@@ -874,36 +874,6 @@
                 </div>
               </div>
 
-              @if(acPhase() === 'plan' && !allReady()) {
-              <div class="autonomous-control-section">
-                <h3>Ready to start</h3>
-                <div class="ac-checks">
-                  <div class="ac-check" [class.ok]="app.data.moosIvPServer.connected && app.data.moosIvPServer.canSend">
-                    <mat-icon>{{ app.data.moosIvPServer.connected && app.data.moosIvPServer.canSend ? 'check' : 'close' }}</mat-icon>
-                    {{ !app.data.moosIvPServer.connected ? 'No boat link'
-                       : app.data.moosIvPServer.canSend ? 'Boat link and CAN sending on'
-                       : 'CAN sending is off (left toolbar power button)' }}
-                  </div>
-                  <div class="ac-check" [class.ok]="app.data.moosIvPServer.ivpHelmState !== 'DRIVE'">
-                    <mat-icon>{{ app.data.moosIvPServer.ivpHelmState !== 'DRIVE' ? 'check' : 'close' }}</mat-icon>
-                    {{ app.data.moosIvPServer.ivpHelmState !== 'DRIVE' ? 'Helm parked' : 'Helm is driving' }}
-                  </div>
-                  <div class="ac-check" [class.ok]="!!autonomousControl.selectedRoute">
-                    <mat-icon>{{ autonomousControl.selectedRoute ? 'check' : 'close' }}</mat-icon>
-                    {{ autonomousControl.selectedRoute ? 'Route selected' : 'Select a route' }}
-                  </div>
-                  <div class="ac-check" [class.ok]="navCheck().tone === 'ok'" [class.warn]="navCheck().tone === 'warn'">
-                    <mat-icon>{{ navCheck().tone === 'ok' ? 'check' : navCheck().tone === 'warn' ? 'priority_high' : 'close' }}</mat-icon>
-                    {{ navCheck().text }}
-                  </div>
-                  <div class="ac-check" [class.ok]="!!app.data.map.basePosition" [class.warn]="!app.data.map.basePosition">
-                    <mat-icon>{{ app.data.map.basePosition ? 'check' : 'priority_high' }}</mat-icon>
-                    {{ app.data.map.basePosition ? 'Base set' : 'No base set: Return to base unavailable' }}
-                  </div>
-                </div>
-              </div>
-              }
-
               <ng-container *ngTemplateOutlet="acSpeed"></ng-container>
 
               <!-- Route, station keeps, region, safe-water planning and corridor -->
@@ -955,8 +925,10 @@
                   <button type="button" class="ac-active-chip" [class.on]="app.data.moosIvPServer.regionActive"
                     [disabled]="!app.data.moosIvPServer.connected || (!app.data.moosIvPServer.regionActive && !autonomousControl.selectedRegion)"
                     (click)="toggleRegionActive()"
-                    [matTooltip]="app.data.moosIvPServer.regionActive ? 'Deactivate the region' : 'Activate the selected region'">
-                    <span class="chip-dot"></span>{{ app.data.moosIvPServer.regionActive ? 'Active' : 'Inactive' }}
+                    [matTooltip]="app.data.moosIvPServer.regionActive ? 'Region active: click to deactivate' : 'Region inactive: click to activate the selected region'"
+                    [attr.aria-label]="app.data.moosIvPServer.regionActive ? 'Region active' : 'Region inactive'"
+                    [attr.aria-pressed]="app.data.moosIvPServer.regionActive">
+                    <mat-icon>{{ app.data.moosIvPServer.regionActive ? 'toggle_on' : 'toggle_off' }}</mat-icon>
                   </button>
                 </div>
                 <div class="corridor-row ac-region">
@@ -1134,6 +1106,37 @@
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
+
+              <!-- Ready to start: bottom of the plan view -->
+              @if(!allReady()) {
+              <div class="autonomous-control-section">
+                <h3>Ready to start</h3>
+                <div class="ac-checks">
+                  <div class="ac-check" [class.ok]="app.data.moosIvPServer.connected && app.data.moosIvPServer.canSend">
+                    <mat-icon>{{ app.data.moosIvPServer.connected && app.data.moosIvPServer.canSend ? 'check' : 'close' }}</mat-icon>
+                    {{ !app.data.moosIvPServer.connected ? 'No boat link'
+                       : app.data.moosIvPServer.canSend ? 'Boat link and CAN sending on'
+                       : 'CAN sending is off (left toolbar power button)' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="app.data.moosIvPServer.ivpHelmState !== 'DRIVE'">
+                    <mat-icon>{{ app.data.moosIvPServer.ivpHelmState !== 'DRIVE' ? 'check' : 'close' }}</mat-icon>
+                    {{ app.data.moosIvPServer.ivpHelmState !== 'DRIVE' ? 'Helm parked' : 'Helm is driving' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="!!autonomousControl.selectedRoute">
+                    <mat-icon>{{ autonomousControl.selectedRoute ? 'check' : 'close' }}</mat-icon>
+                    {{ autonomousControl.selectedRoute ? 'Route selected' : 'Select a route' }}
+                  </div>
+                  <div class="ac-check" [class.ok]="navCheck().tone === 'ok'" [class.warn]="navCheck().tone === 'warn'">
+                    <mat-icon>{{ navCheck().tone === 'ok' ? 'check' : navCheck().tone === 'warn' ? 'priority_high' : 'close' }}</mat-icon>
+                    {{ navCheck().text }}
+                  </div>
+                  <div class="ac-check" [class.ok]="!!app.data.map.basePosition" [class.warn]="!app.data.map.basePosition">
+                    <mat-icon>{{ app.data.map.basePosition ? 'check' : 'priority_high' }}</mat-icon>
+                    {{ app.data.map.basePosition ? 'Base set' : 'No base set: Return to base unavailable' }}
+                  </div>
+                </div>
+              </div>
+              }
               } @else {
               <!-- Live: monitoring lines -->
               @if(!app.data.moosIvPServer.colregs) {

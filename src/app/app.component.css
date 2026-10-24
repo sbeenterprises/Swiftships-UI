@@ -2134,6 +2134,8 @@ mat-nav-list {
 .autonomous-control-sidenav .ac-active-chip.on { color: #4bd694 !important; background: rgba(51, 200, 128, 0.1); border-color: rgba(51, 200, 128, 0.45); }
 .autonomous-control-sidenav .ac-active-chip.on .chip-dot { background: #4bd694; }
 .autonomous-control-sidenav .ac-active-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.autonomous-control-sidenav .ac-active-chip mat-icon { font-size: 30px; width: 30px; height: 30px; line-height: 30px; color: inherit !important; }
+.autonomous-control-sidenav .ac-active-chip:has(mat-icon) { padding: 2px 8px; }
 .autonomous-control-sidenav .ac-tools-compact { grid-template-columns: 1fr 1fr 1fr auto; }
 .autonomous-control-sidenav .ac-tools-compact .corridor-btn { min-width: 0; padding: 0 6px !important; font-size: 12px; }
 .autonomous-control-sidenav .ac-tools-compact .corridor-btn mat-icon { margin-right: 2px; }
